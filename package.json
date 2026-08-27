@@ -5,5 +5,5 @@
   "type": "module",
   "main": "src/utils/route-colors.ts",
   "types": "src/utils/route-colors.ts",
-  "license": "MIT"
+  "license": "AGPL-3.0"
 }
