@@ -1,6 +1,6 @@
 {
   "name": "interlocking",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Shared browser-side GTFS/map utilities for gtfs.zone apps, consumed as a git dependency shipping raw TypeScript",
   "type": "module",
   "main": "src/utils/route-colors.ts",
