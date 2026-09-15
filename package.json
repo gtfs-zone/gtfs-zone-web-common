@@ -1,9 +1,14 @@
 {
   "name": "interlocking",
-  "version": "0.1.0",
-  "description": "Shared browser-side GTFS/map utilities for gtfs.zone apps, consumed as a git dependency shipping raw TypeScript",
+  "version": "0.0.0",
+  "description": "Shared browser-side GTFS/map modules for the gtfs.zone apps, consumed as a git dependency shipping raw TypeScript",
   "type": "module",
-  "main": "src/utils/route-colors.ts",
-  "types": "src/utils/route-colors.ts",
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "@leeoniya/ufuzzy": "*",
+    "maplibre-gl": "*"
+  }
 }
