@@ -17,16 +17,17 @@ a duplicate.
 
 ## Status
 
-**Empty, and being refilled.** An earlier attempt copied 18 modules here and
-went stale; it was deleted in full on 2026-09-15 rather than repaired, because
-every banner pinned a pre-rebase SHA that is no longer an ancestor of any
-consumer's `main`.
+Holds the **first cut**: the 35 files that were byte-identical across all three
+apps. `route-colors.ts` came first as a pilot, the rest followed.
 
 The migration plan is `../coloring-book/CURRENT_PLAN.md`. Modules arrive by
 moving out of coloring-book, not by being copied from it: once a module lives
 here it is edited here, and the old one-way
 coloring-book -> test-track -> yard-master vendoring flow no longer applies to
 it.
+
+There is no lint or typecheck gate here yet, so a dead export goes unnoticed
+until a consumer's build trips on it.
 
 ## Layout
 
