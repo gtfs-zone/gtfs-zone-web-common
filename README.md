@@ -20,9 +20,8 @@ a duplicate.
 Holds the **first cut**: the 35 files that were byte-identical across all three
 apps. `route-colors.ts` came first as a pilot, the rest followed.
 
-The migration plan is `../coloring-book/CURRENT_PLAN.md`. Modules arrive by
-moving out of coloring-book, not by being copied from it: once a module lives
-here it is edited here, and the old one-way
+Modules arrive by moving out of coloring-book, not by being copied from it:
+once a module lives here it is edited here, and the old one-way
 coloring-book -> test-track -> yard-master vendoring flow no longer applies to
 it.
 
@@ -39,5 +38,7 @@ src/modules/   src/utils/   src/types/
 
 ## Releasing
 
-Tag `vX.Y.Z`, then repin each consumer. A shared change is one commit here, one
-tag, and three consumer bumps.
+`cz bump` on `main`, which writes the version into `package.json`, updates
+`CHANGELOG.md` and cuts the annotated `vX.Y.Z` tag. Push the commit and the tag,
+then repin each consumer. A shared change is one commit here, one tag, and three
+consumer bumps.
