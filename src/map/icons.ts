@@ -189,7 +189,7 @@ export function ensureMapIcons(map: MapLibreMap): void {
     }
     const image = render(glyph.draw, glyph.chip);
     if (!image) {
-      console.warn(`[map-icons] Could not render ${name}`);
+      console.warn(`[map/icons] Could not render ${name}`);
       continue;
     }
     map.addImage(

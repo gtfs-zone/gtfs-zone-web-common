@@ -1,4 +1,4 @@
-import { escapeHtml } from '../utils/escape-html';
+import { escapeHtml } from '../util/escape-html';
 import { renderNavIcon, type NavIconName } from './nav-icons';
 
 /**

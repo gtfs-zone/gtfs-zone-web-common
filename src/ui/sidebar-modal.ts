@@ -10,7 +10,7 @@
 
 import { showModal, renderHelpIcon } from './modal-utils';
 import { installGuideButtons } from './help-modal';
-import { escapeHtml } from '../utils/escape-html';
+import { escapeHtml } from '../util/escape-html';
 
 export interface SidebarModalEntry {
   /** Table name, help page id, or anything else unique within the modal. */

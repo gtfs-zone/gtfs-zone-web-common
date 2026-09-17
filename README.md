@@ -51,11 +51,19 @@ are absent. Unused exports warn; `--strict` makes them fatal.
 
 ## Layout
 
-Mirrors the apps, so a moved file keeps its relative imports:
+Four peers, organised by domain rather than by the `modules/utils/types` split
+the apps use:
 
 ```
-src/modules/   src/utils/   src/types/
+src/ui/     chrome that knows nothing about GTFS
+src/gtfs/   the transit domain, including its own rendering
+src/map/    everything that imports maplibre-gl
+src/util/   pure, domain-free
 ```
+
+No barrel `index.ts` files: every module is its own entry point, imported as
+`interlocking/ui/navbar-actions` and resolved through each consumer's tsconfig
+path and vite alias.
 
 ## Node tooling for consumers
 

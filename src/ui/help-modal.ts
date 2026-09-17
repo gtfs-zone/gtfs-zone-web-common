@@ -11,7 +11,7 @@
  */
 
 import { showSidebarModal } from './sidebar-modal';
-import { escapeHtml } from '../utils/escape-html';
+import { escapeHtml } from '../util/escape-html';
 
 /** One help page, as the viewer needs to see it. */
 export interface HelpPageEntry {

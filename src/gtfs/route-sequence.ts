@@ -32,8 +32,8 @@
  */
 
 import type { RouteSource, RouteSourceTrip } from './route-source';
-import type { StopTimeRef } from '../types/gtfs-flex';
-import { shortestCommonSupersequence } from './scs';
+import type { StopTimeRef } from './types';
+import { shortestCommonSupersequence } from '../util/scs';
 
 /**
  * One stop_time reference together with which visit it is, within a single
