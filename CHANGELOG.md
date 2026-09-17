@@ -1,3 +1,9 @@
+## v1.0.1 (2026-09-17)
+
+### Fix
+
+- redraw the guide '?' nav icon at proper proportions
+
 ## v1.0.0 (2026-09-16)
 
 ## v0.2.0 (2026-09-16)
