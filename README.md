@@ -57,6 +57,20 @@ Mirrors the apps, so a moved file keeps its relative imports:
 src/modules/   src/utils/   src/types/
 ```
 
+## Node tooling for consumers
+
+`scripts/` ships alongside `src/`: zero-dependency Node scripts an app runs
+straight out of `node_modules`. Paths in them resolve from `process.cwd()`, so
+they run from the app root.
+
+| script | what it does |
+| --- | --- |
+| `generate-atlas-data.ts` | writes `public/atlas-feeds.json` from the transitland-atlas DMFR corpus, reading a sibling `../transitland-atlas` checkout when there is one and the GitHub API otherwise. `--schedule-only` drops the realtime rows |
+
+```
+"atlas": "tsx node_modules/interlocking/scripts/generate-atlas-data.ts"
+```
+
 ## Releasing
 
 `cz bump` on `main`, which writes the version into `package.json`, updates
