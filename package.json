@@ -1,6 +1,6 @@
 {
   "name": "interlocking",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Shared browser-side GTFS/map modules for the gtfs.zone apps, consumed as a git dependency shipping raw TypeScript",
   "type": "module",
   "license": "AGPL-3.0",

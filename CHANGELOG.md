@@ -1,3 +1,9 @@
+## v1.1.0 (2026-09-17)
+
+### Feat
+
+- **scripts**: ship generate-atlas-data
+
 ## v1.0.1 (2026-09-17)
 
 ### Fix
