@@ -46,15 +46,16 @@ consumer. Two things that are easy to get wrong:
 
 Both halves of this land before wave A.
 
-### 0a. Tooling
+### 0a. Tooling - done
 
-This repo has no tooling at all: no `tsconfig.json`, no eslint, no prettier, no
-devDependencies, no hooks, no CI. That is worse than "no gate". Most of this
-code came from coloring-book, which runs typecheck, eslint, knip and prettier on
-every commit, so **every file that moves here silently loses all four**. Wave A
-roughly doubles the file count, so the cost compounds with each migration.
+Landed: `tsconfig.json` + `typecheck`, eslint and prettier lifted from
+coloring-book, `scripts/check-exports.ts` wired as `check:exports`, and a
+`.githooks/pre-commit` running all three. `pnpm run check` runs them together.
+The formatting fix-up was three files. The first `check:exports` run reports 52
+exports no app imports and 7 imported only from inside this package; those are
+a cleanup backlog, not a blocker, and the check warns rather than fails.
 
-What to add:
+What that replaced, kept for the reasoning:
 
 - **`tsconfig.json` and a `typecheck` script** (`tsc --noEmit`), with
   `typescript`, `maplibre-gl` and `@leeoniya/ufuzzy` as devDependencies. The
@@ -236,7 +237,13 @@ In both test-track and yard-master, delete `VENDORED.md`,
 
 ## Order of work
 
-1. Phase 0a, the tooling gate.
+Commit after each numbered step, before starting the next one. Each step is one
+commit on `main` (or a few, if the step splits cleanly), so a step that goes
+wrong is one revert and the consumer-facing diff of a release stays readable.
+Releasing is separate: `cz bump` when the work is ready to repin, not once per
+commit.
+
+1. ~~Phase 0a, the tooling gate.~~ Done.
 2. Phase 0b, the atlas script.
 3. The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.
 4. Wave A, the near-identical files.

@@ -28,8 +28,26 @@ module lives here it is edited here.
 `CURRENT_PLAN.md` holds the roadmap, including what is still hand-copied
 between the apps and the layout this package is moving to.
 
-There is no lint or typecheck gate here yet, so a dead export goes unnoticed
-until a consumer's build trips on it.
+## Checks
+
+`pnpm run check` runs all three, and a pre-commit hook runs them on every
+commit (enable it with `git config core.hooksPath .githooks`).
+
+| script | what it does |
+| --- | --- |
+| `typecheck` | `tsc --noEmit` over `src/` and `scripts/` |
+| `lint` | `eslint src/ scripts/ --max-warnings 0` |
+| `check:exports` | reports exports no consumer imports |
+
+`format` runs prettier over the same directories.
+
+`check:exports` replaces knip, which is vacuous for a library with no barrel
+files: every module is its own entry point, so nothing ever looks unused.
+Instead it resolves the sibling checkouts, collects every `interlocking/...`
+import across them and diffs that against what `src/` exports. An export only
+another module here imports is reported as `internal` rather than unused. A
+sibling that is not checked out is skipped, and the run exits 0 when all three
+are absent. Unused exports warn; `--strict` makes them fatal.
 
 ## Layout
 
