@@ -6,7 +6,7 @@
  * two things: the route's mode, which always wins, and its trip count, which
  * breaks ties within a mode so a trunk service sits above an hourly one.
  *
- * Pure and dependency-free so it can be vendored as-is.
+ * Pure and dependency-free.
  */
 
 /** Rank for an unknown or unparseable route_type, below every real mode. */

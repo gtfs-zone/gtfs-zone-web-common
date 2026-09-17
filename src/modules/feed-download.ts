@@ -13,16 +13,14 @@
  * callback turns a large feed into thousands of main-thread DOM writes that
  * compete with draining the body.
  *
- * Deliberately DOM-free: it is vendored into test-track and has to stay
- * testable outside a browser document.
+ * Deliberately DOM-free, so it stays testable outside a browser document.
  */
 
 import { describeHttpError, describeNetworkError } from './feed-selection';
 
 /**
- * Shortest gap between two `onProgress` calls. Kept local rather than in the
- * app's CONFIG because this file is vendored into test-track and stays
- * dependency-free.
+ * Shortest gap between two `onProgress` calls. Kept local rather than read
+ * from a consumer's CONFIG, so this module stays dependency-free.
  */
 const PROGRESS_INTERVAL_MS = 100;
 

@@ -1,11 +1,10 @@
 /**
  * Breadcrumb trail markup, page titles, and the crumb type vocabulary.
  *
- * The canonical copy lives here and is vendored into test-track and
- * yard-master. What is shared is the item shape, the two-line crumb render,
- * the header eyebrow and the title format. What each app keeps for itself is
- * the build: which crumbs a page state has, and how their labels are looked
- * up, since the variant sets and the data sources genuinely differ.
+ * Shared here: the item shape, the two-line crumb render, the header eyebrow
+ * and the title format. What each app keeps for itself is the build: which
+ * crumbs a page state has, and how their labels are looked up, since the
+ * variant sets and the data sources genuinely differ.
  */
 
 /**
@@ -36,7 +35,7 @@ export function stopTypeLabel(locationType: number | undefined): string {
   return STOP_TYPE_LABELS[locationType ?? 0] ?? 'Stop';
 }
 
-/** Local escaping, so the vendored file pulls in nothing from its app. */
+/** Local escaping, so this module pulls in no dependency of its own. */
 function escHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

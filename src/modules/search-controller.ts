@@ -3,8 +3,8 @@
  *
  * Deliberately knows nothing about GTFS, the database, or page state: the app
  * supplies entries through `getEntries()` and receives an opaque payload back
- * through `onSelect()`. That is what lets the same file be vendored verbatim
- * into sibling apps whose data layer and `PageState` union differ.
+ * through `onSelect()`. That is what lets one implementation serve apps whose
+ * data layer and `PageState` union differ.
  *
  * Entries are rebuilt on every (debounced) query, always fresh, no cache to
  * invalidate against the patch system. If typing ever feels laggy on a large

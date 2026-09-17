@@ -9,8 +9,8 @@
  * The order comes from a topological sort of the stop precedence graph: every
  * pattern asserts "A before B" for each consecutive pair, and any topological
  * order of those assertions contains every pattern as a subsequence, with each
- * stop appearing exactly once. The obvious alternative — folding the vendored
- * pairwise shortest-common-supersequence DP over the patterns — cannot promise
+ * stop appearing exactly once. The obvious alternative — folding the pairwise
+ * shortest-common-supersequence DP in `scs.ts` over the patterns — cannot promise
  * that, and on a real feed it does not deliver it: across the MBTA's 730
  * route/directions the fold emits duplicate stops on 14 of them, worst on the
  * Framingham/Worcester line, where six stations appear twice with the entire

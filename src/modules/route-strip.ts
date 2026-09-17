@@ -248,8 +248,7 @@ export function isEndpoint(stats: StopStats, threshold: number): boolean {
  *
  * Unused in coloring-book's timetable stop column, which has no room for the
  * note; test-track's route page renders it, and Phase 10's route-page diagram
- * will too. It lives here because this module is the canonical source both
- * repos vendor from.
+ * will too.
  */
 export function endpointNote(stats: StopStats, threshold: number): string {
   const parts: string[] = [];
