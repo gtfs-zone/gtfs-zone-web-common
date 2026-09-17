@@ -1,3 +1,14 @@
+## v2.0.0 (2026-09-17)
+
+### BREAKING CHANGE
+
+- every import path changes. `interlocking/modules/*`,
+`interlocking/utils/*` and `interlocking/types/*` are gone.
+
+### Refactor
+
+- reorganise src into ui/ gtfs/ map/ util/
+
 ## v1.1.0 (2026-09-17)
 
 ### Feat
