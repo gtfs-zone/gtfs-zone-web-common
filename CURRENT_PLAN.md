@@ -1,6 +1,6 @@
 # Current plan
 
-Banners left to remove: **34** (test-track 11, yard-master 23).
+Banners left to remove: **33** (test-track 10, yard-master 23).
 Vendoring is gone when that number is zero. Decrement this as work lands.
 
 Read `## Order of work` at the bottom first. Phase 0 comes before everything.
@@ -19,9 +19,9 @@ The first cut is done and clean. All 35 files moved out of the apps rather than
 being copied: no app holds a duplicate of anything here, by path, by basename or
 by content hash. All three consumers pin the same tag with no drift.
 
-What is left is the second tier: 34 files still hand-copied between the apps,
+What is left is the second tier: 33 files still hand-copied between the apps,
 each carrying an `@vendored-from` banner and a row in test-track's or
-yard-master's `VENDORED.md`. 12 are `verbatim`, 19 `modified`, 3 `adopted`.
+yard-master's `VENDORED.md`. 11 are `verbatim`, 19 `modified`, 3 `adopted`.
 There is no copy script and never was; `scripts/vendor-check.ts` only verifies,
 from a pre-commit hook, and it stays until the count reaches zero.
 
@@ -78,7 +78,17 @@ What that replaced, kept for the reasoning:
 - **A pre-commit hook** wiring the above, following the `.githooks/pre-commit`
   plus `git config core.hooksPath .githooks` pattern the two realtime apps use.
 
-### 0b. Move `scripts/generate-atlas-data.ts`
+### 0b. Move `scripts/generate-atlas-data.ts` - done
+
+Landed in v1.1.0. The script lives at `interlocking/scripts/generate-atlas-data.ts`,
+both path constants are `process.cwd()`-relative, `scripts` is in `package.json`
+`files`, and both apps run
+`tsx node_modules/interlocking/scripts/generate-atlas-data.ts`. Output verified
+byte-identical to the old copies in both apps. The gate earned its keep on the
+first try: the file arrived with nine `curly` errors and a `fetch` no-undef,
+because coloring-book's eslint config is not the one lifted here.
+
+What that replaced, kept for the reasoning:
 
 This is the easiest migration in the whole set, easier than anything in wave A,
 and it doubles as the first real exercise of the phase 0 tooling.
@@ -110,9 +120,8 @@ Moving it drops the banner count to 33 (test-track 10, yard-master 23).
 
 This also settles, by demonstration rather than debate, the open question of
 whether this package ships anything outside `src/`. It does: a `scripts/`
-directory for zero-dependency Node tooling. Note `package.json` has
-`files: ["src"]`, which would need `scripts` added — though as a git dependency
-the whole repo is present regardless, so that is tidiness, not a blocker.
+directory for zero-dependency Node tooling, now listed in `package.json`
+`files` alongside `src`.
 
 ## Target layout (v2.0.0)
 
@@ -244,7 +253,7 @@ Releasing is separate: `cz bump` when the work is ready to repin, not once per
 commit.
 
 1. ~~Phase 0a, the tooling gate.~~ Done.
-2. Phase 0b, the atlas script.
+2. ~~Phase 0b, the atlas script.~~ Done.
 3. The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.
 4. Wave A, the near-identical files.
 5. Wave B, the extractions.
