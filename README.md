@@ -15,15 +15,18 @@ pnpm add "interlocking@git+https://git.kcfam.us/gtfs.zone/interlocking.git#vX.Y.
 already carries both, and a second copy of maplibre is a broken map rather than
 a duplicate.
 
-## Status
+## What it is
 
-Holds the **first cut**: the 35 files that were byte-identical across all three
-apps. `route-colors.ts` came first as a pilot, the rest followed.
+A browser-side library for GTFS and GTFS-RT frontends: the UI chrome (navbar,
+modals, notifications, theme, search), the GTFS domain modules (route ordering,
+route diagrams, colors, feed loading) and the MapLibre layer specs. Nothing in
+here is specific to one of the three apps; anything that is belongs in the app.
 
-Modules arrive by moving out of coloring-book, not by being copied from it:
-once a module lives here it is edited here, and the old one-way
-coloring-book -> test-track -> yard-master vendoring flow no longer applies to
-it.
+Modules arrive by moving out of an app, not by being copied from it: once a
+module lives here it is edited here.
+
+`CURRENT_PLAN.md` holds the roadmap, including what is still hand-copied
+between the apps and the layout this package is moving to.
 
 There is no lint or typecheck gate here yet, so a dead export goes unnoticed
 until a consumer's build trips on it.
