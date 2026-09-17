@@ -17,7 +17,8 @@ does not exist yet.
 
 The first cut is done and clean. All 35 files moved out of the apps rather than
 being copied: no app holds a duplicate of anything here, by path, by basename or
-by content hash. All three consumers pin the same tag with no drift.
+by content hash. All three consumers pin the same tag with no drift, and the
+layout is the v2.0.0 one: `ui/ gtfs/ map/ util/`.
 
 What is left is the second tier: 33 files still hand-copied between the apps,
 each carrying an `@vendored-from` banner and a row in test-track's or
@@ -123,10 +124,9 @@ whether this package ships anything outside `src/`. It does: a `scripts/`
 directory for zero-dependency Node tooling, now listed in `package.json`
 `files` alongside `src`.
 
-## Target layout (v2.0.0)
+## The layout (v2.0.0) - done
 
-Lands after phase 0 and before wave A. Four peers replace
-`modules/ utils/ types/`:
+Landed in v2.0.0. Four peers replaced `modules/ utils/ types/`:
 
 ```
 src/
@@ -170,11 +170,26 @@ No barrel `index.ts` files. Consumers resolve `interlocking/*` to
 `interlocking/ui/navbar-actions` works with no config change on their side. The
 reorg is a breaking change for import paths only, which is what makes it v2.0.0.
 
+All three consumers repinned from v1.0.1 straight to v2.0.0, skipping v1.1.0:
+the atlas-script half of phase 0b had landed here but was never committed on
+their side, so each consumer's bump carries both changes. `check:exports` is the
+proof the rewrite was complete: 52 unused and 7 internal before the reorg, the
+same 52 and 7 after, which only holds if every one of the 158 app-side imports
+found its new path.
+
+Two things the rewrite turned up, worth expecting again in wave A:
+
+- coloring-book's pre-commit prettier reflowed one import that the shorter path
+  now let fit on one line, which read as vendoring DRIFT in test-track's copy
+  until the same collapse was applied there.
+- Every vendored file that imports from this package went stale at once. Six
+  coloring-book shas in test-track, and two coloring-book plus thirteen
+  test-track shas in yard-master, all one commit behind and all bumped in the
+  same commit as the repoint.
+
 ## Wave A: move what is already near-identical
 
-Do phase 0 and the v2.0.0 reorg first. The gate has to exist or every file
-landing here loses the eslint/knip/prettier coverage it had in its home repo,
-and the reorg has to be done or these files move twice.
+Phase 0 and the reorg are done, so this is the next step.
 
 About 13 files, duplicated across two apps at under 5% drift. Two are
 byte-identical once the banner is stripped: `modules/examples.ts`
@@ -254,7 +269,7 @@ commit.
 
 1. ~~Phase 0a, the tooling gate.~~ Done.
 2. ~~Phase 0b, the atlas script.~~ Done.
-3. The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.
+3. ~~The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.~~ Done.
 4. Wave A, the near-identical files.
 5. Wave B, the extractions.
 
