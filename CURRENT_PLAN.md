@@ -115,7 +115,8 @@ the whole repo is present regardless, so that is tidiness, not a blocker.
 
 ## Target layout (v2.0.0)
 
-Four peers replace `modules/ utils/ types/`:
+Lands after phase 0 and before wave A. Four peers replace
+`modules/ utils/ types/`:
 
 ```
 src/
@@ -161,8 +162,9 @@ reorg is a breaking change for import paths only, which is what makes it v2.0.0.
 
 ## Wave A: move what is already near-identical
 
-Do phase 0 first. Every file that lands here before the gate exists loses the
-eslint/knip/prettier coverage it had in its home repo.
+Do phase 0 and the v2.0.0 reorg first. The gate has to exist or every file
+landing here loses the eslint/knip/prettier coverage it had in its home repo,
+and the reorg has to be done or these files move twice.
 
 About 13 files, duplicated across two apps at under 5% drift. Two are
 byte-identical once the banner is stripped: `modules/examples.ts`
@@ -236,11 +238,12 @@ In both test-track and yard-master, delete `VENDORED.md`,
 
 1. Phase 0a, the tooling gate.
 2. Phase 0b, the atlas script.
-3. Wave A, the near-identical files.
-4. The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.
+3. The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.
+4. Wave A, the near-identical files.
 5. Wave B, the extractions.
 
-The reorg could equally come before wave A; doing it first means wave A files
-land in their final home, doing it after means one import-path break instead of
-renaming files twice. Either is defensible, but do not interleave them: a move
-plus a reorg in one release makes the consumer diff unreadable.
+The reorg goes before wave A, not after. Wave A files then land in their final
+directory instead of being moved twice, and the consumers absorb one
+import-path break across the imports of 35 files rather than 48. Do not
+interleave the two: a reorg and a migration in one release makes the consumer
+diff unreadable.
