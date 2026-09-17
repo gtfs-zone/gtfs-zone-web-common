@@ -38,8 +38,7 @@ export const LANE_WIDTH = 14;
 
 /** Where a row's dot goes, if it has one. */
 export type RowDot =
-  | { kind: 'none' }
-  | { kind: 'open' | 'solid'; lane: number };
+  { kind: 'none' } | { kind: 'open' | 'solid'; lane: number };
 
 /** Centre of lane `l`, in px from the left of the gutter. */
 export function laneX(lane: number): number {

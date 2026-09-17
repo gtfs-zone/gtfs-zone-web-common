@@ -81,8 +81,7 @@ export class BasemapControl {
   private applyGlobeProjection(): void {
     const apply = () => {
       const current = this.map.getStyle() as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (!current) {
         return;
       }

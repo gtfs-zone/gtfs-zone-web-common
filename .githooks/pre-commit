@@ -1,0 +1,13 @@
+#!/bin/sh
+# typecheck and lint are the gate this repo lacked: code that moves here from
+# an app would otherwise lose the checks it had at home.
+#
+# check:exports warns about exports no app imports. Not --strict: a new export
+# lands before its caller does, and the run exits 0 when no sibling checkout is
+# present.
+#
+# Enable with: git config core.hooksPath .githooks
+set -e
+pnpm run typecheck
+pnpm run lint
+pnpm run check:exports

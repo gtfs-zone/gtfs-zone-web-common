@@ -71,10 +71,7 @@ export interface LabeledAction extends CommonAction {
 }
 
 export type NavbarAction =
-  | IconAction
-  | LinkAction
-  | ToggleAction
-  | LabeledAction;
+  IconAction | LinkAction | ToggleAction | LabeledAction;
 
 const ICON_BTN_CLASS = 'btn btn-ghost btn-sm btn-square';
 
