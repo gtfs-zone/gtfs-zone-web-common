@@ -1,3 +1,10 @@
+## v2.1.0 (2026-09-19)
+
+### Feat
+
+- add ui/load-modal and gtfs/spec-markup
+- add the near-identical wave A modules
+
 ## v2.0.0 (2026-09-17)
 
 ### BREAKING CHANGE
