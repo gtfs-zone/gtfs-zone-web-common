@@ -1,3 +1,10 @@
+## v2.2.0 (2026-09-19)
+
+### Feat
+
+- add gtfs/rt-index, gtfs/alerts and gtfs/entity-render
+- add gtfs/rt-types and the gtfs/feed-session interface
+
 ## v2.1.0 (2026-09-19)
 
 ### Feat
