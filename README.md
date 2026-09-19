@@ -13,7 +13,10 @@ pnpm add "interlocking@git+https://git.kcfam.us/gtfs.zone/interlocking.git#vX.Y.
 
 `maplibre-gl`, `@leeoniya/ufuzzy`, `jszip` and `papaparse` are peer
 dependencies. Every consumer already carries all four, and a second copy of
-maplibre is a broken map rather than a duplicate.
+maplibre is a broken map rather than a duplicate. `gtfs-realtime-bindings` is
+an optional peer: `gtfs/rt-types.ts` imports its namespace as a type and
+nothing here pulls protobufjs into a bundle, so only the apps that read GTFS-RT
+need it installed.
 
 ## What it is
 

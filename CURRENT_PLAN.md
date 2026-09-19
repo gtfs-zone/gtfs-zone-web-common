@@ -1,10 +1,11 @@
 # Current plan
 
-Banners left to remove: **25** (test-track 6, yard-master 19).
+Banners left to remove: **21** (test-track 6, yard-master 15).
 Vendoring is gone when that number is zero. Decrement this as work lands.
 
-Read `## Order of work` at the bottom first. Wave B is next, and it starts with
-the two extractions that unblock the rest of wave A.
+Read `## Order of work` at the bottom first. Wave B is under way: the two
+extractions have landed with the three files they unblocked, and what is left
+is the three-way divergence at the bottom of that section.
 
 ## The goal
 
@@ -21,9 +22,10 @@ being copied: no app holds a duplicate of anything here, by path, by basename or
 by content hash. All three consumers pin the same tag with no drift, and the
 layout is the v2.0.0 one: `ui/ gtfs/ map/ util/`.
 
-Wave A has landed too, bar three files. 44 modules live here now.
+Wave A has landed too, and so has the first half of wave B: 49 modules live
+here now.
 
-What is left is 25 files still hand-copied between the apps, each carrying an
+What is left is 21 files still hand-copied between the apps, each carrying an
 `@vendored-from` banner and a row in test-track's or yard-master's
 `VENDORED.md`. There is no copy script and never was; `scripts/vendor-check.ts`
 only verifies, from a pre-commit hook, and it stays until the count reaches
@@ -140,10 +142,10 @@ src/
     notification-system, panel-resizer, progress-indicator,
     search-controller, sidebar-modal, theme-controller
   gtfs/      the transit domain, including its own rendering
-    examples, feed-download, feed-selection, feed-time,
-    feed-url-resolve, route-colors, route-graph, route-sequence,
-    route-sort, route-source, route-strip, scheduled,
-    scheduled-route-source, spec-markup, types
+    alerts, entity-render, examples, feed-download, feed-selection,
+    feed-session, feed-time, feed-url-resolve, route-colors, route-graph,
+    route-sequence, route-sort, route-source, route-strip, rt-index,
+    rt-types, scheduled, scheduled-route-source, spec-markup, types
   map/       everything that imports maplibre-gl
     auto-zoom, basemap-control, basemap-styles, icons,
     layer-specs, stop-layer-style
@@ -233,19 +235,20 @@ Two things worth recording:
   yard-master's banners went one commit behind test-track at once, and were
   bumped in the same commit as the repoint.
 
-### The three that did not move
+### The three that did not move - done in wave B
 
-`render-utils.ts`, `rt-index.ts` and `alerts.ts` are blocked, not deferred. All
-three are byte-identical between test-track and yard-master, but all three
-import things this package does not have:
+`render-utils.ts`, `rt-index.ts` and `alerts.ts` were blocked, not deferred. All
+three were byte-identical between test-track and yard-master, but all three
+imported things this package did not have:
 
 - `presentNumber` and the `TripUpdate` / `ServiceAlert` / `AlertRecord` types
   from `gtfs-rt.ts`
 - `FeedSession`, as a type
 - `VehiclePosition` from `map-controller.ts`, and `PageState`
 
-Every one of those is a wave B file. Moving the three means extracting first,
-so they belong at the front of wave B rather than at the back of wave A.
+Every one of those is a wave B file. Moving the three meant extracting first,
+so they went at the front of wave B rather than at the back of wave A. See
+`## Wave B` for what landed.
 
 The `gtfs-rt.ts` half is the smaller of the two and is nearly free: yard-master's
 copy is already the type-only half, four exports over about eighty lines, having
@@ -278,9 +281,51 @@ enough to outweigh the above.
 
 ## Wave B: extract, do not move
 
-Start with `gtfs-rt.ts`'s type half and the `FeedSession` interface: they are
-the smallest two and they unblock `render-utils.ts`, `rt-index.ts` and
-`alerts.ts`, which are otherwise ready to move.
+### The two extractions and the three files they unblocked - done
+
+Landed in v2.2.0. Five new modules:
+
+| to | from |
+| --- | --- |
+| `gtfs/rt-types.ts` | `yard-master:src/gtfs-rt.ts`, the type half |
+| `gtfs/feed-session.ts` | new: the interface the three files read |
+| `gtfs/rt-index.ts` | `test-track:src/modules/rt-index.ts` |
+| `gtfs/alerts.ts` | `test-track:src/modules/alerts.ts` |
+| `gtfs/entity-render.ts` | `test-track:src/modules/render-utils.ts` |
+
+`render-utils` was renamed in the move, the same de-stuttering the reorg did: a
+package with a `util/` peer has no business shipping a second `utils`, and what
+the file actually renders is entity links, badges, headers and raw dumps.
+
+`VehiclePosition` came along with the types, out of each app's
+`map-controller.ts`. The two copies differed by one field, so the package holds
+the common shape: test-track imports it unchanged, yard-master's map-controller
+declares `interface VehiclePosition extends RtVehiclePosition { trackerId }`.
+
+Three seams worth recording, because the rest of wave B will need the same
+moves:
+
+- **`FeedSession` is a read-only four-member view**, exactly the
+  `route-source.ts` pattern: `scheduledFeed`, `vehicles`, `alerts`,
+  `tripUpdates`. `ReadonlyMap` rather than `Map` is what lets an app hand over
+  a map of its own wider vehicle.
+- **The app's own types come back through generics.** `RenderContext<S, F>` is
+  parameterized over the app's page-state union and its own session class, and
+  `RtIndex<V>` over its vehicle, because yard-master's pages read
+  `ctx.session.trackers` and `v.trackerId` and neither is anything this package
+  knows about. `PageState` itself did not have to move: the renderers treat a
+  state as opaque apart from `type`, so a `PageRef` constraint plus the one
+  `RoutePageRef` the route badge builds is the whole contract. Each app binds
+  the pair once in `modules/render-context.ts` and every page keeps writing
+  `RenderContext` and `RtIndex` unparameterized.
+- **`escHtml` is gone**, aliased to `util/escape-html`'s `escapeHtml`. The
+  apps' copy escaped four characters where this one escapes five; the extra is
+  `'`, and the rendered output is identical either way.
+
+`gtfs-realtime-bindings` is an optional peer dependency now. coloring-book does
+not carry it and has no reason to: nothing it imports reaches `rt-types.ts`.
+
+### What is left
 
 Three-way divergence in the hundreds of lines: `page-state-manager.ts`,
 `app-state.ts`, `feed-session.ts`, `map-controller.ts`, `gtfs-rt.ts`,
@@ -319,8 +364,10 @@ commit.
 3. ~~The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.~~ Done.
 4. ~~Wave A, the near-identical files.~~ Done, bar `render-utils.ts`,
    `rt-index.ts` and `alerts.ts`, which are blocked on wave B.
-5. Wave B, the extractions. Start with `gtfs-rt.ts`'s type half and the
-   `FeedSession` interface, which unblock the three wave A leftovers.
+5. ~~Wave B's first half: `gtfs-rt.ts`'s type half, the `FeedSession`
+   interface, and the three wave A leftovers they unblocked.~~ Done.
+6. Wave B's second half, the three-way divergence. Expect an engine plus an
+   interface out of each, not a file move.
 
 The reorg goes before wave A, not after. Wave A files then land in their final
 directory instead of being moved twice, and the consumers absorb one

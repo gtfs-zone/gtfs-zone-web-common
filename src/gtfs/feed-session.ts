@@ -15,11 +15,17 @@
 import type { GTFSScheduled } from './scheduled';
 import type { AlertRecord, TripUpdate, VehiclePosition } from './rt-types';
 
-export interface FeedSession {
+/**
+ * `V` is the app's own vehicle shape, which may carry more than this package
+ * reads — yard-master's names the tracker a vehicle reports under. It is a
+ * parameter rather than a widening so `rt-index.ts` can hand the app's own
+ * vehicles back out of its indexes.
+ */
+export interface FeedSession<V extends VehiclePosition = VehiclePosition> {
   /** The parsed schedule, or null before one has loaded. */
   scheduledFeed: GTFSScheduled | null;
   /** Live vehicles by `VehiclePosition.key`. */
-  vehicles: ReadonlyMap<string, VehiclePosition>;
+  vehicles: ReadonlyMap<string, V>;
   /** Live alerts by `AlertRecord.id`. */
   alerts: ReadonlyMap<string, AlertRecord>;
   /** The latest trip updates, as the producer sent them. */

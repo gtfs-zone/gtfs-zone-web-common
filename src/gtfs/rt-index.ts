@@ -87,14 +87,14 @@ export interface ScheduleRelationshipCounts {
  */
 const PAST_PREDICTION_GRACE = 60;
 
-export class RtIndex {
+export class RtIndex<V extends VehiclePosition = VehiclePosition> {
   readonly predictionsByTrip = new Map<string, Prediction[]>();
   readonly predictionsByStop = new Map<string, Prediction[]>();
   readonly updateByTrip = new Map<string, TripUpdate>();
-  readonly vehiclesByTrip = new Map<string, VehiclePosition[]>();
-  readonly vehiclesByRoute = new Map<string, VehiclePosition[]>();
+  readonly vehiclesByTrip = new Map<string, V[]>();
+  readonly vehiclesByRoute = new Map<string, V[]>();
   /** Only vehicles reporting `STOPPED_AT` with a resolvable stop. */
-  readonly vehiclesAtStop = new Map<string, VehiclePosition[]>();
+  readonly vehiclesAtStop = new Map<string, V[]>();
   readonly gaps: FeedGaps = {
     vehicles: 0,
     missingStopSequence: 0,
@@ -113,7 +113,7 @@ export class RtIndex {
   private readonly feed: GTFSScheduled | null;
   private readonly nowSeconds: number;
 
-  constructor(session: FeedSession, nowSeconds = Date.now() / 1000) {
+  constructor(session: FeedSession<V>, nowSeconds = Date.now() / 1000) {
     const feed = session.scheduledFeed;
     this.feed = feed;
     this.nowSeconds = nowSeconds;
@@ -194,7 +194,7 @@ export class RtIndex {
   }
 
   private ingestVehicle(
-    vehicle: VehiclePosition,
+    vehicle: V,
     feed: GTFSScheduled | null
   ): void {
     if (vehicle.tripId) {
