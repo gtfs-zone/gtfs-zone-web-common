@@ -11,9 +11,9 @@ compiles it as source. Consumed as a pinned git dependency:
 pnpm add "interlocking@git+https://git.kcfam.us/gtfs.zone/interlocking.git#vX.Y.Z"
 ```
 
-`maplibre-gl` and `@leeoniya/ufuzzy` are peer dependencies. Every consumer
-already carries both, and a second copy of maplibre is a broken map rather than
-a duplicate.
+`maplibre-gl`, `@leeoniya/ufuzzy`, `jszip` and `papaparse` are peer
+dependencies. Every consumer already carries all four, and a second copy of
+maplibre is a broken map rather than a duplicate.
 
 ## What it is
 
