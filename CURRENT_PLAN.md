@@ -1,9 +1,10 @@
 # Current plan
 
-Banners left to remove: **33** (test-track 10, yard-master 23).
+Banners left to remove: **25** (test-track 6, yard-master 19).
 Vendoring is gone when that number is zero. Decrement this as work lands.
 
-Read `## Order of work` at the bottom first. Phase 0 comes before everything.
+Read `## Order of work` at the bottom first. Wave B is next, and it starts with
+the two extractions that unblock the rest of wave A.
 
 ## The goal
 
@@ -20,11 +21,13 @@ being copied: no app holds a duplicate of anything here, by path, by basename or
 by content hash. All three consumers pin the same tag with no drift, and the
 layout is the v2.0.0 one: `ui/ gtfs/ map/ util/`.
 
-What is left is the second tier: 33 files still hand-copied between the apps,
-each carrying an `@vendored-from` banner and a row in test-track's or
-yard-master's `VENDORED.md`. 11 are `verbatim`, 19 `modified`, 3 `adopted`.
-There is no copy script and never was; `scripts/vendor-check.ts` only verifies,
-from a pre-commit hook, and it stays until the count reaches zero.
+Wave A has landed too, bar three files. 44 modules live here now.
+
+What is left is 25 files still hand-copied between the apps, each carrying an
+`@vendored-from` banner and a row in test-track's or yard-master's
+`VENDORED.md`. There is no copy script and never was; `scripts/vendor-check.ts`
+only verifies, from a pre-commit hook, and it stays until the count reaches
+zero.
 
 ## Working here
 
@@ -131,15 +134,16 @@ Landed in v2.0.0. Four peers replaced `modules/ utils/ types/`:
 ```
 src/
   ui/        chrome that knows nothing about GTFS
-    about-links, bottom-sheet, breadcrumb-trail, help-modal,
-    keyboard-shortcuts, modal-router, modal-utils, nav-icons,
-    navbar-actions, notification-system, panel-resizer,
-    progress-indicator, search-controller, sidebar-modal,
-    theme-controller
+    about-links, bottom-sheet, breadcrumb-trail, calendar-input,
+    field-label, help-modal, issue-card, keyboard-shortcuts,
+    load-modal, modal-router, modal-utils, nav-icons, navbar-actions,
+    notification-system, panel-resizer, progress-indicator,
+    search-controller, sidebar-modal, theme-controller
   gtfs/      the transit domain, including its own rendering
-    feed-download, feed-selection, feed-url-resolve, route-colors,
-    route-graph, route-sequence, route-sort, route-source,
-    route-strip, types
+    examples, feed-download, feed-selection, feed-time,
+    feed-url-resolve, route-colors, route-graph, route-sequence,
+    route-sort, route-source, route-strip, scheduled,
+    scheduled-route-source, spec-markup, types
   map/       everything that imports maplibre-gl
     auto-zoom, basemap-control, basemap-styles, icons,
     layer-specs, stop-layer-style
@@ -187,30 +191,69 @@ Two things the rewrite turned up, worth expecting again in wave A:
   test-track shas in yard-master, all one commit behind and all bumped in the
   same commit as the repoint.
 
-## Wave A: move what is already near-identical
+## Wave A: move what is already near-identical - done, bar three files
 
-Phase 0 and the reorg are done, so this is the next step.
+Landed in v2.1.0. Nine of the twelve moved:
 
-About 13 files, duplicated across two apps at under 5% drift. Two are
-byte-identical once the banner is stripped: `modules/examples.ts`
-(coloring-book / test-track) and `src/gtfs-scheduled.ts` (test-track /
-yard-master).
+| to | from |
+| --- | --- |
+| `gtfs/examples.ts` | `coloring-book:src/modules/examples.ts` |
+| `gtfs/scheduled.ts` | `test-track:src/gtfs-scheduled.ts` |
+| `gtfs/scheduled-route-source.ts` | `test-track:src/modules/gtfs-scheduled-route-source.ts` |
+| `gtfs/feed-time.ts` | `test-track:src/modules/feed-time.ts` |
+| `gtfs/spec-markup.ts` | `coloring-book:src/utils/spec-markup.ts` |
+| `ui/field-label.ts` | `coloring-book:src/utils/field-label.ts` |
+| `ui/issue-card.ts` | `coloring-book:src/utils/issue-card.ts` |
+| `ui/calendar-input.ts` | `coloring-book:src/utils/calendar-input.ts` |
+| `ui/load-modal.ts` | `coloring-book:src/modules/load-modal.ts` |
 
-The rest, by drift:
+The `gtfs-` prefixes went in the move, the same de-stuttering the reorg did:
+`gtfs/gtfs-scheduled.ts` says it twice.
 
-- test-track / yard-master, headed for `gtfs/`:
-  `gtfs-scheduled-route-source.ts` (4 diff lines), `render-utils.ts` (10),
-  `rt-index.ts` (10), `alerts.ts` (12), `feed-time.ts` (20)
-- coloring-book / test-track: `utils/field-label.ts` (17),
-  `utils/issue-card.ts` (18)
-- coloring-book / yard-master: `utils/calendar-input.ts` (29),
-  `utils/spec-markup.ts` (42)
-- coloring-book / test-track: `modules/load-modal.ts` (31 lines over 960), the
-  biggest low-drift file in the set, headed for `ui/`
+Eight of the nine arrived with no drift at all. The recorded drift numbers were
+stale: every pair but `spec-markup` had been re-synced since, so the only real
+reconciliation was that one.
 
-Each file moves the way the first cut did: reconcile the drift in the upstream
-copy, move it into the right directory here, delete the downstream copies and
-their `VENDORED.md` rows, repoint imports, bump, repin.
+`spec-markup` had two genuine parameters and now takes both through a
+`configureSpecMarkup({ referenceUrl, images })` boot hook: the base URL a
+`#anchor` resolves against, which is the schedule reference in coloring-book and
+the realtime one in yard-master, and the three diagrams coloring-book bundles
+that yard-master has no counterpart for. Every call site is unchanged. Each
+app's `index.ts` calls it once, at module scope.
+
+`gtfs/scheduled.ts` adds `jszip` and `papaparse` as peer dependencies. All three
+consumers already carried both.
+
+Two things worth recording:
+
+- The eslint gate earned its keep again. `gtfs/scheduled.ts`, `gtfs/feed-time.ts`
+  and `gtfs/scheduled-route-source.ts` arrived with eighteen `curly` errors
+  between them, because test-track's config is not the one lifted here.
+- The staleness cascade the reorg warned about repeated exactly: six of
+  yard-master's banners went one commit behind test-track at once, and were
+  bumped in the same commit as the repoint.
+
+### The three that did not move
+
+`render-utils.ts`, `rt-index.ts` and `alerts.ts` are blocked, not deferred. All
+three are byte-identical between test-track and yard-master, but all three
+import things this package does not have:
+
+- `presentNumber` and the `TripUpdate` / `ServiceAlert` / `AlertRecord` types
+  from `gtfs-rt.ts`
+- `FeedSession`, as a type
+- `VehiclePosition` from `map-controller.ts`, and `PageState`
+
+Every one of those is a wave B file. Moving the three means extracting first,
+so they belong at the front of wave B rather than at the back of wave A.
+
+The `gtfs-rt.ts` half is the smaller of the two and is nearly free: yard-master's
+copy is already the type-only half, four exports over about eighty lines, having
+dropped test-track's decoder and poller so protobufjs tree-shakes out. That is
+`gtfs/rt-types.ts` almost as it stands. `FeedSession` is the `route-source.ts`
+pattern again: the narrow read-only interface those three want is
+`scheduledFeed` / `vehicles` / `alerts` / `tripUpdates`, which is exactly the
+surface yard-master already shapes its own session to satisfy.
 
 ### Not in wave A: styles/main.css
 
@@ -234,6 +277,10 @@ Leave the CSS duplicated. Revisit only if a shared components layer grows large
 enough to outweigh the above.
 
 ## Wave B: extract, do not move
+
+Start with `gtfs-rt.ts`'s type half and the `FeedSession` interface: they are
+the smallest two and they unblock `render-utils.ts`, `rt-index.ts` and
+`alerts.ts`, which are otherwise ready to move.
 
 Three-way divergence in the hundreds of lines: `page-state-manager.ts`,
 `app-state.ts`, `feed-session.ts`, `map-controller.ts`, `gtfs-rt.ts`,
@@ -270,8 +317,10 @@ commit.
 1. ~~Phase 0a, the tooling gate.~~ Done.
 2. ~~Phase 0b, the atlas script.~~ Done.
 3. ~~The v2.0.0 reorg into `ui/ gtfs/ map/ util/`.~~ Done.
-4. Wave A, the near-identical files.
-5. Wave B, the extractions.
+4. ~~Wave A, the near-identical files.~~ Done, bar `render-utils.ts`,
+   `rt-index.ts` and `alerts.ts`, which are blocked on wave B.
+5. Wave B, the extractions. Start with `gtfs-rt.ts`'s type half and the
+   `FeedSession` interface, which unblock the three wave A leftovers.
 
 The reorg goes before wave A, not after. Wave A files then land in their final
 directory instead of being moved twice, and the consumers absorb one
