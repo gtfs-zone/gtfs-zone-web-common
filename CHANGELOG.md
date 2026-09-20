@@ -1,3 +1,9 @@
+## v2.3.1 (2026-09-20)
+
+### Fix
+
+- keep notifications working when the container is gone
+
 ## v2.3.0 (2026-09-20)
 
 ### Feat
