@@ -1,3 +1,4 @@
+import { moduleState } from '../util/module-state';
 import { renderCloseIcon } from './modal-utils';
 
 interface NotificationAction {
@@ -23,20 +24,36 @@ interface Notification {
   element: HTMLElement | null;
 }
 
+const shared = moduleState('ui/notification-system', () => ({
+  /** The container element, once it has been put in the document. */
+  container: null as HTMLElement | null,
+  /** The notifications currently on screen. */
+  notifications: [] as Notification[],
+}));
+
 export class NotificationSystem {
-  private container: HTMLElement | null = null;
-  private notifications: Notification[] = [];
   private maxNotifications: number = 5;
   private autoHideDelay: number = 5000; // 5 seconds
 
   constructor() {}
 
+  /** Called at boot so the container exists before the first notification. */
   initialize(): void {
-    // Create notification container
-    this.container = document.createElement('div');
-    this.container.id = 'notification-container';
-    this.container.className = 'fixed top-32 left-2 z-[100] space-y-2 max-w-xs';
-    document.body.appendChild(this.container);
+    this.ensureContainer();
+  }
+
+  /** The container, created and appended when missing or detached. */
+  private ensureContainer(): HTMLElement {
+    const existing = shared.container;
+    if (existing && existing.isConnected) {
+      return existing;
+    }
+    const container = document.createElement('div');
+    container.id = 'notification-container';
+    container.className = 'fixed top-32 left-2 z-[100] space-y-2 max-w-xs';
+    document.body.appendChild(container);
+    shared.container = container;
+    return container;
   }
 
   show(
@@ -60,14 +77,14 @@ export class NotificationSystem {
       element: null,
     };
 
-    this.notifications.push(notification);
+    shared.notifications.push(notification);
     this.renderNotification(notification);
 
     // Remove oldest notifications if we exceed the limit
-    if (this.notifications.length > this.maxNotifications) {
-      const toRemove = this.notifications.splice(
+    if (shared.notifications.length > this.maxNotifications) {
+      const toRemove = shared.notifications.splice(
         0,
-        this.notifications.length - this.maxNotifications
+        shared.notifications.length - this.maxNotifications
       );
       toRemove.forEach((n) => this.removeNotification(n.id));
     }
@@ -177,7 +194,7 @@ export class NotificationSystem {
     `;
 
     notification.element = element;
-    this.container!.appendChild(element);
+    this.ensureContainer().appendChild(element);
 
     // Animate in
     requestAnimationFrame(() => {
@@ -206,12 +223,14 @@ export class NotificationSystem {
   }
 
   removeNotification(id: number): void {
-    const notificationIndex = this.notifications.findIndex((n) => n.id === id);
+    const notificationIndex = shared.notifications.findIndex(
+      (n) => n.id === id
+    );
     if (notificationIndex === -1) {
       return;
     }
 
-    const notification = this.notifications[notificationIndex];
+    const notification = shared.notifications[notificationIndex];
     if (!notification.element) {
       return;
     }
@@ -224,12 +243,12 @@ export class NotificationSystem {
       if (notification.element && notification.element.parentNode) {
         notification.element.parentNode.removeChild(notification.element);
       }
-      this.notifications.splice(notificationIndex, 1);
+      shared.notifications.splice(notificationIndex, 1);
     }, 300);
   }
 
   removeAllNotifications(): void {
-    this.notifications.forEach((notification) => {
+    shared.notifications.forEach((notification) => {
       this.removeNotification(notification.id);
     });
   }
@@ -239,7 +258,7 @@ export class NotificationSystem {
     newMessage: string,
     newType: string | null = null
   ): void {
-    const notification = this.notifications.find((n) => n.id === id);
+    const notification = shared.notifications.find((n) => n.id === id);
     if (!notification) {
       return;
     }
