@@ -1,3 +1,9 @@
+## v2.3.0 (2026-09-20)
+
+### Feat
+
+- add a shared color input with its own palette popover
+
 ## v2.2.1 (2026-09-20)
 
 ### Fix
