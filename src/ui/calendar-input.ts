@@ -22,9 +22,11 @@
  * out from under a click on a day. The keyboard path is the input itself, which
  * is why the box stays typeable rather than going readonly.
  *
- * No imports, by design: every string it renders is a number or a constant,
- * so it needs no escaping helper to be safe.
+ * Every string it renders is a number or a constant, so it needs no escaping
+ * helper to be safe.
  */
+
+import { moduleState } from '../util/module-state';
 
 /**
  * How the caller's stored date strings become days, and back.
@@ -81,11 +83,13 @@ export interface CalendarOptions {
 /** Class on the popover, for anyone styling or querying it. */
 const POPOVER_CLASS = 'calendar-input-popover';
 
-/**
- * The open popover's closer. Held here rather than found by class, so a second
- * open tears the first one's document listeners down with its DOM.
- */
-let activeClose: (() => void) | null = null;
+const shared = moduleState('ui/calendar-input', () => ({
+  /**
+   * The open popover's closer. Held here rather than found by class, so a
+   * second open tears the first one's document listeners down with its DOM.
+   */
+  activeClose: null as (() => void) | null,
+}));
 
 const MONTH_NAMES = [
   'January',
@@ -199,7 +203,7 @@ export function openCalendar(
   anchor: HTMLElement,
   options: CalendarOptions
 ): () => void {
-  activeClose?.();
+  shared.activeClose?.();
 
   const selected = options.codec.parse(options.value);
   const min = options.min ? options.codec.parse(options.min) : null;
@@ -247,8 +251,8 @@ export function openCalendar(
       return;
     }
     closed = true;
-    if (activeClose === close) {
-      activeClose = null;
+    if (shared.activeClose === close) {
+      shared.activeClose = null;
     }
     popover.remove();
     document.removeEventListener('mousedown', onOutside, true);
@@ -321,7 +325,7 @@ export function openCalendar(
     options.onPick(options.codec.format(day));
   });
 
-  activeClose = close;
+  shared.activeClose = close;
   document.addEventListener('mousedown', onOutside, true);
   document.addEventListener('keydown', onKeydown, true);
   // A scrolling ancestor would leave the popover behind, anchored to nothing.

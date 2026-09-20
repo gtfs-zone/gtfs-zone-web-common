@@ -37,6 +37,7 @@ import { normalizeFeedUrl, validateFeedUrl } from '../gtfs/feed-url-resolve';
 import type { ModalAction } from './modal-utils';
 import { renderUploadIcon, showModal } from './modal-utils';
 import { renderTooltipTrigger } from './field-label';
+import { moduleState } from '../util/module-state';
 
 /**
  * Where a row came from, in the order the groups are shown. The atlas is last
@@ -145,10 +146,12 @@ export interface LoadModalOptions {
 /** The unfiltered list is thousands of rows; cap what is painted. */
 const DISPLAY_CAP = 200;
 
-let cachedAtlas: Promise<AtlasRow[]> | null = null;
+const shared = moduleState('ui/load-modal', () => ({
+  cachedAtlas: null as Promise<AtlasRow[]> | null,
+}));
 
 function loadAtlasRows(): Promise<AtlasRow[]> {
-  cachedAtlas ??= fetch('/atlas-feeds.json')
+  shared.cachedAtlas ??= fetch('/atlas-feeds.json')
     .then((res) => {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
@@ -158,10 +161,10 @@ function loadAtlasRows(): Promise<AtlasRow[]> {
     .catch((err) => {
       // Not cached on failure, so reopening the modal retries rather than
       // reporting the atlas as unavailable for the rest of the session.
-      cachedAtlas = null;
+      shared.cachedAtlas = null;
       throw err;
     });
-  return cachedAtlas;
+  return shared.cachedAtlas;
 }
 
 function escHtml(s: string): string {

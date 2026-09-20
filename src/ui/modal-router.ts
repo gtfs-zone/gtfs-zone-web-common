@@ -13,6 +13,7 @@
  * it had before that opener ran.
  */
 
+import { moduleState } from '../util/module-state';
 import { closeModalsAbove, modalStackDepth } from './modal-utils';
 
 /**
@@ -152,14 +153,16 @@ class ModalRouter<M extends AnyModalState> {
   }
 }
 
-let instance: unknown = null;
+const shared = moduleState('ui/modal-router', () => ({
+  instance: null as unknown,
+}));
 
 /** Build the router for this app. Called once, during boot. */
 export function createModalRouter<M extends AnyModalState>(
   host: ModalHost
 ): ModalRouter<M> {
   const router = new ModalRouter<M>(host);
-  instance = router;
+  shared.instance = router;
   return router;
 }
 
@@ -171,8 +174,8 @@ export function createModalRouter<M extends AnyModalState>(
 export function getModalRouter<
   M extends AnyModalState = AnyModalState,
 >(): ModalRouter<M> {
-  if (!instance) {
+  if (!shared.instance) {
     throw new Error('[ModalRouter] createModalRouter has not run yet');
   }
-  return instance as ModalRouter<M>;
+  return shared.instance as ModalRouter<M>;
 }

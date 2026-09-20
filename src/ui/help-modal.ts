@@ -11,6 +11,7 @@
  */
 
 import { showSidebarModal } from './sidebar-modal';
+import { moduleState } from '../util/module-state';
 import { escapeHtml } from '../util/escape-html';
 
 /** One help page, as the viewer needs to see it. */
@@ -30,17 +31,22 @@ export interface HelpPageEntry {
   showOnce?: boolean;
 }
 
-let helpPages: HelpPageEntry[] = [];
-let groupOrder: string[] = [];
+const shared = moduleState('ui/help-modal', () => ({
+  pages: [] as HelpPageEntry[],
+  groupOrder: [] as string[],
+  // Open state, so F1 (and a second click on Guide) cannot stack a duplicate
+  // modal on top of the one already showing.
+  open: false,
+}));
 
 /** Hand the viewer this app's pages and the order to group them in. Called once, during boot. */
 export function setHelpPages(pages: HelpPageEntry[], groups: string[]): void {
-  helpPages = pages;
-  groupOrder = groups;
+  shared.pages = pages;
+  shared.groupOrder = groups;
 }
 
 function findHelpPage(id: string): HelpPageEntry | undefined {
-  return helpPages.find((page) => page.id === id);
+  return shared.pages.find((page) => page.id === id);
 }
 
 function shownKey(id: string): string {
@@ -68,10 +74,6 @@ function markSeen(id: string): void {
   }
 }
 
-// Open state, so F1 (and a second click on Guide) cannot stack a duplicate
-// modal on top of the one already showing.
-let helpModalOpen = false;
-
 /**
  * Shown when the guide is opened as a gate before another modal (the shapes
  * and fares buttons). The action button reads this label instead of "Close"
@@ -86,19 +88,19 @@ export async function showHelpModal(
   pageId?: string,
   options?: HelpModalOptions
 ): Promise<void> {
-  if (helpPages.length === 0 || helpModalOpen) {
+  if (shared.pages.length === 0 || shared.open) {
     return;
   }
 
-  helpModalOpen = true;
+  shared.open = true;
   try {
     await showSidebarModal({
       title: 'Guide',
-      groupOrder,
+      groupOrder: shared.groupOrder,
       initialId: pageId && findHelpPage(pageId) ? pageId : undefined,
       boxClassName: 'max-w-4xl w-11/12',
       closeLabel: options?.continueLabel,
-      entries: helpPages.map((page) => ({
+      entries: shared.pages.map((page) => ({
         id: page.id,
         label: page.label,
         group: page.group,
@@ -110,7 +112,7 @@ export async function showHelpModal(
       })),
     });
   } finally {
-    helpModalOpen = false;
+    shared.open = false;
   }
 }
 

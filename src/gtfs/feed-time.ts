@@ -19,9 +19,12 @@
  */
 
 import type { GTFSScheduled } from './scheduled';
+import { moduleState } from '../util/module-state';
 
-/** The IANA zone of the loaded feed, or null to mean "use the browser's". */
-let displayZone: string | null = null;
+const shared = moduleState('gtfs/feed-time', () => ({
+  /** The IANA zone of the loaded feed, or null to mean "use the browser's". */
+  displayZone: null as string | null,
+}));
 
 /**
  * Feeds are not obliged to carry a usable `agency_timezone`, and a malformed
@@ -46,12 +49,12 @@ export function adoptFeedTimezone(feed: GTFSScheduled | null): void {
   const tz = feed?.agencies
     .map((a) => a.timezone.trim())
     .find((t) => t && isUsableZone(t));
-  displayZone = tz ?? null;
+  shared.displayZone = tz ?? null;
 }
 
 /** The zone transit times are being rendered in, or null for browser-local. */
 export function feedTimezone(): string | null {
-  return displayZone;
+  return shared.displayZone;
 }
 
 /**
@@ -61,7 +64,7 @@ export function feedTimezone(): string | null {
  */
 export function zoneLabel(atMs: number = Date.now()): string {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: displayZone ?? undefined,
+    timeZone: shared.displayZone ?? undefined,
     timeZoneName: 'short',
     hour: 'numeric',
   }).formatToParts(new Date(atMs));
@@ -88,7 +91,7 @@ export function localClock(ms: number): string {
 /** `09:30 AM` in the feed's zone, from GTFS-RT epoch seconds. */
 export function clockAt(seconds: number): string {
   return new Date(seconds * 1000).toLocaleTimeString([], {
-    timeZone: displayZone ?? undefined,
+    timeZone: shared.displayZone ?? undefined,
     hour: '2-digit',
     minute: '2-digit',
   });

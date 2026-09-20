@@ -16,35 +16,39 @@
  * `data-tooltip-content` attribute holding the tooltip's HTML.
  */
 
+import { moduleState } from './module-state';
+
 const TRIGGER_SELECTOR = '.field-tooltip-trigger';
 const PORTAL_CLASS = 'field-tooltip-portal';
 const VIEWPORT_MARGIN = 8;
 const HIDE_DELAY_MS = 100;
 
-let activePortal: HTMLDivElement | null = null;
-let activeTrigger: HTMLElement | null = null;
-let hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
-let initialized = false;
+const shared = moduleState('util/tooltip-position', () => ({
+  activePortal: null as HTMLDivElement | null,
+  activeTrigger: null as HTMLElement | null,
+  hideTimeoutId: null as ReturnType<typeof setTimeout> | null,
+  initialized: false,
+}));
 
 function clearHideTimeout(): void {
-  if (hideTimeoutId !== null) {
-    clearTimeout(hideTimeoutId);
-    hideTimeoutId = null;
+  if (shared.hideTimeoutId !== null) {
+    clearTimeout(shared.hideTimeoutId);
+    shared.hideTimeoutId = null;
   }
 }
 
 function hidePortal(): void {
   clearHideTimeout();
-  if (activePortal) {
-    activePortal.remove();
-    activePortal = null;
+  if (shared.activePortal) {
+    shared.activePortal.remove();
+    shared.activePortal = null;
   }
-  activeTrigger = null;
+  shared.activeTrigger = null;
 }
 
 function scheduleHide(): void {
   clearHideTimeout();
-  hideTimeoutId = setTimeout(hidePortal, HIDE_DELAY_MS);
+  shared.hideTimeoutId = setTimeout(hidePortal, HIDE_DELAY_MS);
 }
 
 function positionPortal(trigger: HTMLElement, portal: HTMLDivElement): void {
@@ -77,7 +81,7 @@ function positionPortal(trigger: HTMLElement, portal: HTMLDivElement): void {
 
 function showPortal(trigger: HTMLElement): void {
   clearHideTimeout();
-  if (activeTrigger === trigger) {
+  if (shared.activeTrigger === trigger) {
     return;
   }
   hidePortal();
@@ -96,8 +100,8 @@ function showPortal(trigger: HTMLElement): void {
   portal.addEventListener('pointerleave', scheduleHide);
 
   document.body.appendChild(portal);
-  activePortal = portal;
-  activeTrigger = trigger;
+  shared.activePortal = portal;
+  shared.activeTrigger = trigger;
   positionPortal(trigger, portal);
 }
 
@@ -145,10 +149,10 @@ function handleFocusOut(event: FocusEvent): void {
 }
 
 function handleViewportChange(): void {
-  if (!activeTrigger || !activePortal) {
+  if (!shared.activeTrigger || !shared.activePortal) {
     return;
   }
-  const rect = activeTrigger.getBoundingClientRect();
+  const rect = shared.activeTrigger.getBoundingClientRect();
   const stillVisible =
     rect.bottom > 0 &&
     rect.top < window.innerHeight &&
@@ -158,7 +162,7 @@ function handleViewportChange(): void {
     hidePortal();
     return;
   }
-  positionPortal(activeTrigger, activePortal);
+  positionPortal(shared.activeTrigger, shared.activePortal);
 }
 
 /**
@@ -167,10 +171,10 @@ function handleViewportChange(): void {
  * once per page load.
  */
 export function initFieldTooltipPortal(): void {
-  if (initialized) {
+  if (shared.initialized) {
     return;
   }
-  initialized = true;
+  shared.initialized = true;
   document.addEventListener('pointerover', handlePointerOver);
   document.addEventListener('pointerout', handlePointerOut);
   document.addEventListener('focusin', handleFocusIn);

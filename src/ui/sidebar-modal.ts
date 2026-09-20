@@ -11,6 +11,7 @@
 import { showModal, renderHelpIcon } from './modal-utils';
 import { installGuideButtons } from './help-modal';
 import { escapeHtml } from '../util/escape-html';
+import { moduleState } from '../util/module-state';
 
 export interface SidebarModalEntry {
   /** Table name, help page id, or anything else unique within the modal. */
@@ -55,7 +56,9 @@ export interface SidebarModalConfig {
 }
 
 // Nested sidebar modals would otherwise collide on the element ids.
-let instanceCounter = 0;
+const shared = moduleState('ui/sidebar-modal', () => ({
+  instanceCounter: 0,
+}));
 
 function renderSidebar(
   config: SidebarModalConfig,
@@ -138,7 +141,7 @@ export async function showSidebarModal(
     return;
   }
 
-  const instanceId = `sidebar-modal-${++instanceCounter}`;
+  const instanceId = `sidebar-modal-${++shared.instanceCounter}`;
   const sidebarId = `${instanceId}-sidebar`;
   const paneId = `${instanceId}-pane`;
 

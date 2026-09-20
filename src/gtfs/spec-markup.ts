@@ -16,6 +16,7 @@
  */
 
 import { escapeHtml } from '../util/escape-html';
+import { moduleState } from '../util/module-state';
 
 export interface SpecMarkupConfig {
   /** Base URL a `#anchor` link in a description resolves against. */
@@ -31,14 +32,16 @@ export interface SpecMarkupConfig {
 const SCHEDULE_REFERENCE_URL =
   'https://gtfs.org/documentation/schedule/reference/';
 
-let config: Required<SpecMarkupConfig> = {
-  referenceUrl: SCHEDULE_REFERENCE_URL,
-  images: {},
-};
+const shared = moduleState('gtfs/spec-markup', () => ({
+  config: {
+    referenceUrl: SCHEDULE_REFERENCE_URL,
+    images: {},
+  } as Required<SpecMarkupConfig>,
+}));
 
 /** Point the renderer at one app's reference page and image set. */
 export function configureSpecMarkup(next: SpecMarkupConfig): void {
-  config = { images: {}, ...next };
+  shared.config = { images: {}, ...next };
 }
 
 const BLOCK_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr']);
@@ -59,7 +62,7 @@ const TOKEN_SOURCE =
 
 function renderImage(src: string): string {
   const basename = src.split('/').pop() ?? '';
-  const url = config.images[basename];
+  const url = shared.config.images[basename];
   if (!url) {
     console.warn('[SpecMarkup] no configured image for', src);
     return '';
@@ -76,7 +79,7 @@ function renderLink(text: string, target: string): string {
     return `<a class="link link-primary" href="${escapeHtml(target)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   }
   if (target.startsWith('#')) {
-    return `<a class="link link-primary" href="${escapeHtml(config.referenceUrl + target)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    return `<a class="link link-primary" href="${escapeHtml(shared.config.referenceUrl + target)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   }
   return label;
 }

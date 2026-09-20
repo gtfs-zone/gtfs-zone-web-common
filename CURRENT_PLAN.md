@@ -47,6 +47,9 @@ consumer. Two things that are easy to get wrong:
   running `pnpm install` so the lockfile re-resolves. Verify with
   `diff -rq <app>/node_modules/interlocking/src <this repo>/src`, which should
   be empty.
+- Restart the app's dev server after a repin. Vite does not watch
+  `node_modules`, so cached transforms keep importing the old pnpm store path
+  and the browser ends up with two copies of a shared module. See `README.md`.
 
 ## Phase 0: build the gate, then move the atlas script
 

@@ -88,3 +88,11 @@ they run from the app root.
 `CHANGELOG.md` and cuts the annotated `vX.Y.Z` tag. Push the commit and the tag,
 then repin each consumer. A shared change is one commit here, one tag, and three
 consumer bumps.
+
+Restart any dev server the repinned app has running. The `interlocking` alias
+resolves through a pnpm symlink to a path in the store, and a repin swaps that
+symlink for a new one. Vite does not watch `node_modules`, so every app file
+whose transform is still cached keeps importing the old store path: the browser
+then loads two copies of a shared module, one per path, and each copy gets its
+own module-level state. `util/module-state.ts` keeps that from corrupting
+anything and logs `loaded twice` when it happens; the restart is still the fix.
