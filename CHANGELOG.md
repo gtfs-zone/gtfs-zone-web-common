@@ -1,3 +1,9 @@
+## v2.4.0 (2026-09-21)
+
+### Feat
+
+- share the route coverage notes and stacked direction sections
+
 ## v2.3.1 (2026-09-20)
 
 ### Fix
