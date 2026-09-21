@@ -10,6 +10,10 @@
  * Pure string builders only - no DOM, no app context. Callers own the grid
  * wrapper and everything to the right of the rail.
  *
+ * The page-level scaffolding a strip sits in is here as well - the coverage
+ * notes and the per-direction sections - so the three apps stack a route's
+ * directions the same way over their own row content.
+ *
  * Stop highlighting lives here too, so both apps get the same behaviour: the
  * caller puts `STRIP_ROW_CLASS` + `data-stop-id` on each stop row, and the row
  * hover scales the dot. Passing `stop_id` to `railCell` additionally makes the
@@ -17,7 +21,8 @@
  */
 
 import type { RouteGraph } from './route-graph';
-import type { StopStats } from './route-sequence';
+import type { DirectionInfo, RouteSequence, StopStats } from './route-sequence';
+import { escapeHtml } from '../util/escape-html';
 
 export const RAIL_WIDTH = 9;
 
@@ -264,4 +269,62 @@ export function endpointNote(stats: StopStats, threshold: number): string {
 export function isMinority(stats: StopStats, totalTrips: number): boolean {
   const share = totalTrips > 0 ? stats.serves / totalTrips : 1;
   return share < MINORITY_SHARE;
+}
+
+/**
+ * What the strip is and is not showing, when that is not obvious.
+ *
+ * Empty for the common case: a route whose trips all run the same pattern and
+ * visit each stop once has nothing to explain.
+ */
+export function renderCoverage(sequence: RouteSequence): string {
+  const notes: string[] = [];
+  if (sequence.totalPatterns > 1) {
+    notes.push(
+      `${sequence.totalPatterns} stop patterns across ${sequence.totalTrips} trips, all of them on the strip. A trip count marks a stop fewer than half the trips call at; a filled dot marks where trips start or end. Platforms are shown under their parent station.`
+    );
+  }
+  if (sequence.isLoop) {
+    notes.push(
+      'Some trips visit a stop more than once. Repeat visits are shown as separate rows rather than collapsed onto one.'
+    );
+  }
+  if (notes.length === 0) {
+    return '';
+  }
+  return `<div class="text-xs opacity-60 space-y-1">${notes
+    .map((note) => `<p>${escapeHtml(note)}</p>`)
+    .join('')}</div>`;
+}
+
+/**
+ * Every direction of a route, stacked, one section each.
+ *
+ * Not tabs: a route's two directions are one object, and reading them together
+ * is the point. `directionsForRoute` groups by whatever `direction_id` the feed
+ * uses rather than forcing a 0/1 split, so this takes however many sections it
+ * is given.
+ *
+ * The heading lives here so no caller repeats it, and is dropped entirely when
+ * there is only one direction to label. A body that renders empty takes its
+ * section with it, so a direction with nothing to draw leaves no bare heading.
+ */
+export function renderDirectionSections(
+  directions: DirectionInfo[],
+  renderBody: (direction: DirectionInfo) => string
+): string {
+  const showLabel = directions.length > 1;
+  return directions
+    .map((direction) => {
+      const body = renderBody(direction);
+      if (body.trim() === '') {
+        return '';
+      }
+      const heading = showLabel
+        ? `<h3 class="text-sm font-semibold opacity-70">${escapeHtml(direction.label)}</h3>`
+        : '';
+      return `<div class="space-y-2">${heading}${body}</div>`;
+    })
+    .filter((section) => section !== '')
+    .join('');
 }
