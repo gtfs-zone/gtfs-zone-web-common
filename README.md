@@ -68,19 +68,16 @@ No barrel `index.ts` files: every module is its own entry point, imported as
 `interlocking/ui/navbar-actions` and resolved through each consumer's tsconfig
 path and vite alias.
 
-## Node tooling for consumers
+## Published data
 
-`scripts/` ships alongside `src/`: zero-dependency Node scripts an app runs
-straight out of `node_modules`. Paths in them resolve from `process.cwd()`, so
-they run from the app root.
-
-| script | what it does |
-| --- | --- |
-| `generate-atlas-data.ts` | writes `public/atlas-feeds.json` from the transitland-atlas DMFR corpus, reading a sibling `../transitland-atlas` checkout when there is one and the GitHub API otherwise. `--schedule-only` drops the realtime rows |
-
-```
-"atlas": "tsx node_modules/interlocking/scripts/generate-atlas-data.ts"
-```
+The load modal's curated examples and feed catalogs are fetched at runtime from
+`https://data.gtfs.zone` (`gtfs/data-origin.ts`), published daily by
+geometry-car: `examples.json` for the curated set and `sources.json` for the
+Transitland + Mobility Database catalog, each row carrying its last
+reachability check. Nothing is baked into a consumer's `public/`. A small
+compiled-in fallback (`gtfs/examples.ts`) keeps the example list non-empty when
+the fetch fails. The curated set itself is edited in geometry-car's
+`src/geometry_car/data/examples.yaml`, not here.
 
 ## Releasing
 

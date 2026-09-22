@@ -30,7 +30,9 @@
  */
 
 import UFuzzy from '@leeoniya/ufuzzy';
-import { EXAMPLES } from '../gtfs/examples';
+import { DATA_ORIGIN } from '../gtfs/data-origin';
+import type { ExampleFeed, SourceState } from '../gtfs/examples';
+import { FALLBACK_EXAMPLES, loadExamples } from '../gtfs/examples';
 import type { FeedSelection } from '../gtfs/feed-selection';
 import { describeMissing, isComplete } from '../gtfs/feed-selection';
 import { normalizeFeedUrl, validateFeedUrl } from '../gtfs/feed-url-resolve';
@@ -49,7 +51,7 @@ const GROUP_ORDER: readonly Group[] = ['example', 'atlas'];
 
 const GROUP_LABELS: Record<Group, string> = {
   example: 'Examples',
-  atlas: 'TransitLand Atlas',
+  atlas: 'Feed catalogs',
 };
 
 /** One offer in the result list, whichever source it came from. */
@@ -66,9 +68,22 @@ interface FeedRow {
   alertsUrl?: string;
   scheduledCors: boolean;
   rtCors: boolean;
+  /** True when geometry-car's last check found an endpoint down. */
+  down: boolean;
 }
 
-/** A row in public/atlas-feeds.json — one per feed *source kind*. */
+type Catalog = 'transitland' | 'mobilitydatabase' | 'curated';
+
+const CATALOG_LABELS: Record<Catalog, string> = {
+  transitland: 'Transitland',
+  mobilitydatabase: 'Mobility Database',
+  curated: 'Curated',
+};
+
+/**
+ * A row in geometry-car's sources.json, one per feed *source kind*. Only the
+ * fields read here; the document carries more (place, cross-links, notes).
+ */
 interface AtlasRow {
   rowId: string;
   kind: 'static' | 'rt';
@@ -76,10 +91,14 @@ interface AtlasRow {
   name: string;
   operator_name: string;
   source: string;
+  catalog: Catalog;
   scheduledUrl?: string;
   vehiclesUrl?: string;
   tripUpdatesUrl?: string;
   alertsUrl?: string;
+  /** Set when the endpoint needs an API key we cannot supply. */
+  auth?: number;
+  state?: SourceState;
 }
 
 /** What the stored feed is, for the boot screen's continue card. */
@@ -151,12 +170,13 @@ const shared = moduleState('ui/load-modal', () => ({
 }));
 
 function loadAtlasRows(): Promise<AtlasRow[]> {
-  shared.cachedAtlas ??= fetch('/atlas-feeds.json')
-    .then((res) => {
+  shared.cachedAtlas ??= fetch(`${DATA_ORIGIN}/sources.json`)
+    .then(async (res) => {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
       }
-      return res.json() as Promise<AtlasRow[]>;
+      const doc = (await res.json()) as { sources?: AtlasRow[] };
+      return doc.sources ?? [];
     })
     .catch((err) => {
       // Not cached on failure, so reopening the modal retries rather than
@@ -181,12 +201,17 @@ function reason(err: unknown): string {
 
 // ─── Sources ──────────────────────────────────────────────────────────────────
 
-function exampleRows(realtime: boolean): FeedRow[] {
-  return EXAMPLES.map((ex, i) => {
+function exampleRows(
+  examples: readonly ExampleFeed[],
+  realtime: boolean
+): FeedRow[] {
+  return examples.map((ex) => {
     const rt = realtime ? ex.selection.realtime : null;
     const src = ex.selection.scheduled;
     return {
-      rowId: `example:${i}`,
+      // Keyed by slug, so a row still reads as in use once the published set
+      // replaces the fallback.
+      rowId: `example:${ex.slug}`,
       group: 'example' as const,
       provides: (src && rt
         ? 'pair'
@@ -201,8 +226,16 @@ function exampleRows(realtime: boolean): FeedRow[] {
       alertsUrl: rt?.alertsUrl,
       scheduledCors: src?.kind === 'url' ? src.useCors : true,
       rtCors: rt?.useCors ?? true,
+      down:
+        (!!src && ex.state?.scheduled === 'down') ||
+        (!!rt && ex.state?.realtime === 'down'),
     };
   });
+}
+
+/** The published curated set. Rejects when it cannot be fetched. */
+async function publishedExampleRows(realtime: boolean): Promise<FeedRow[]> {
+  return exampleRows(await loadExamples(), realtime);
 }
 
 function atlasRow(row: AtlasRow): FeedRow {
@@ -212,7 +245,9 @@ function atlasRow(row: AtlasRow): FeedRow {
     // The atlas keeps the DMFR corpus's word for it; we do not.
     provides: row.kind === 'static' ? 'scheduled' : 'rt',
     name: row.name,
-    subtitle: [row.operator_name, row.source].filter(Boolean).join(' · '),
+    subtitle: [CATALOG_LABELS[row.catalog], row.operator_name, row.source]
+      .filter(Boolean)
+      .join(' · '),
     scheduledUrl: row.scheduledUrl,
     vehiclesUrl: row.vehiclesUrl,
     tripUpdatesUrl: row.tripUpdatesUrl,
@@ -221,18 +256,31 @@ function atlasRow(row: AtlasRow): FeedRow {
     // the ones that turn out not to.
     scheduledCors: true,
     rtCors: true,
+    down: row.state === 'down',
   };
 }
 
-/** The TransitLand corpus. Rejects when the file cannot be fetched. */
+/**
+ * The catalog rows worth offering. Curated rows are the examples, already
+ * listed; keyed rows cannot be fetched without a credential the app lacks.
+ * Rejects when the file cannot be fetched.
+ */
 async function atlasFeedRows(realtime: boolean): Promise<FeedRow[]> {
   const atlas = await loadAtlasRows();
-  const usable = realtime ? atlas : atlas.filter((r) => r.kind === 'static');
-  return usable.map(atlasRow);
+  return atlas
+    .filter(
+      (r) =>
+        r.catalog !== 'curated' && !r.auth && (realtime || r.kind === 'static')
+    )
+    .map(atlasRow);
 }
 
 function atlasNote(err: unknown): string | null {
-  return `TransitLand atlas unavailable — ${reason(err)}`;
+  return `Feed catalogs unavailable — ${reason(err)}`;
+}
+
+function examplesNote(err: unknown): string | null {
+  return `Showing built-in examples; the checked list is unavailable — ${reason(err)}`;
 }
 
 /** What each row is matched against when the search box has a query. */
@@ -294,6 +342,7 @@ function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
         ${inUse ? '<span class="text-xs opacity-60">in use</span>' : ''}
+        ${row.down ? '<span class="badge badge-xs badge-warning" title="Did not answer at the last daily check. Some hosts refuse a bare check but answer the CORS proxy.">down</span>' : ''}
         ${badges(row, realtime)}
       </div>
     </button>`;
@@ -467,20 +516,29 @@ export async function showLoadModal(
     return '';
   };
 
-  // The atlas fetch is already in flight while the modal paints, and is not
-  // allowed to keep it shut: the examples are compiled in, so there is always
-  // something to load, and the URL fields and upload need no list at all. Its
-  // rows fold in as they land.
+  // Both fetches are already in flight while the modal paints, and neither is
+  // allowed to keep it shut: a fallback set of examples is compiled in, so
+  // there is always something to load, and the URL fields and upload need no
+  // list at all. Rows fold in as they land; the published examples replace the
+  // fallback rather than adding to it.
   const sources: Array<{
     load: Promise<FeedRow[]>;
     note: (err: unknown) => string | null;
-  }> = [{ load: atlasFeedRows(realtime), note: atlasNote }];
+    replaces?: Group;
+  }> = [
+    {
+      load: publishedExampleRows(realtime),
+      note: examplesNote,
+      replaces: 'example',
+    },
+    { load: atlasFeedRows(realtime), note: atlasNote },
+  ];
   let pending = sources.length;
 
   const uf = new UFuzzy();
   // Rows are kept in group order, so a filtered view only has to keep that
   // order stable rather than re-derive it.
-  let rows = exampleRows(realtime);
+  let rows = exampleRows(FALLBACK_EXAMPLES, realtime);
   let haystack = buildHaystack(rows);
   const groupRank = new Map(GROUP_ORDER.map((g, i) => [g, i]));
 
@@ -812,8 +870,9 @@ export async function showLoadModal(
       };
 
       /** Fold a source's rows in, keeping group order and the current query. */
-      const addRows = (incoming: FeedRow[]) => {
-        rows = [...rows, ...incoming].sort(
+      const addRows = (incoming: FeedRow[], replaces?: Group) => {
+        const kept = replaces ? rows.filter((r) => r.group !== replaces) : rows;
+        rows = [...kept, ...incoming].sort(
           (a, b) => groupRank.get(a.group)! - groupRank.get(b.group)!
         );
         haystack = buildHaystack(rows);
@@ -824,9 +883,11 @@ export async function showLoadModal(
         void (async () => {
           let incoming: FeedRow[] = [];
           let note: string | null = null;
+          let failed = false;
           try {
             incoming = await source.load;
           } catch (err) {
+            failed = true;
             note = source.note(err);
           }
           pending--;
@@ -844,7 +905,8 @@ export async function showLoadModal(
           // specificity, so leaving `flex` on would keep the line visible.
           statusEl.classList.toggle('hidden', pending === 0);
           statusEl.classList.toggle('flex', pending > 0);
-          addRows(incoming);
+          // A failed source replaces nothing, so the fallback stays.
+          addRows(incoming, failed ? undefined : source.replaces);
         })();
       }
 

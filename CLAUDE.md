@@ -43,8 +43,12 @@ src/map/    everything that imports maplibre-gl
 src/util/   pure, domain-free
 ```
 
-`scripts/` ships alongside `src/`: zero-dependency Node scripts a consumer runs
-straight out of `node_modules`, resolving paths from `process.cwd()`.
+`scripts/` holds this repo's own dev tooling (`check-exports.ts`); nothing in
+it is run by a consumer.
+
+The curated examples and the feed catalog are not source here: geometry-car
+publishes them to `https://data.gtfs.zone` and the load modal fetches them.
+Edit the curated set in geometry-car's `src/geometry_car/data/examples.yaml`.
 
 ## Rules
 
