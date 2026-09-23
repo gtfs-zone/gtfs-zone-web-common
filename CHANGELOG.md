@@ -1,3 +1,13 @@
+## v3.0.0 (2026-09-23)
+
+### BREAKING CHANGE
+
+- EXAMPLES and scripts/generate-atlas-data.ts are removed. Use knownExamples() and drop the atlas script and public/atlas-feeds.json.
+
+### Feat
+
+- load examples and the feed catalog from data.gtfs.zone
+
 ## v2.4.0 (2026-09-21)
 
 ### Feat
