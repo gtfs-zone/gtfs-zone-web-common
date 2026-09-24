@@ -1,3 +1,10 @@
+## v3.1.0 (2026-09-24)
+
+### Feat
+
+- **ui**: hoist the app shell from test-track
+- **load-modal**: list logical feeds from feeds.json
+
 ## v3.0.0 (2026-09-23)
 
 ### BREAKING CHANGE
