@@ -6,6 +6,7 @@
  * rendered pane on the right, and a Close action. This owns that skeleton, the
  * sidebar markup, the entry click delegation and the pane header, so a modal of
  * this shape is a list of entries rather than another copy of the layout.
+ * Below the md breakpoint the menu stacks above the pane, capped in height.
  */
 
 import { showModal, renderHelpIcon } from './modal-utils';
@@ -98,7 +99,7 @@ function renderSidebar(
     })
     .join('');
 
-  return `<ul class="menu menu-sm bg-base-200 rounded-box w-52 shrink-0">${ungrouped.map(item).join('')}${grouped}</ul>`;
+  return `<ul class="menu menu-sm bg-base-200 rounded-box w-full max-h-48 overflow-y-auto flex-nowrap md:w-52 md:max-h-none md:overflow-visible shrink-0">${ungrouped.map(item).join('')}${grouped}</ul>`;
 }
 
 /**
@@ -194,7 +195,7 @@ export async function showSidebarModal(
 
   const body = `
     ${config.intro ? `<p class="text-xs text-base-content/60 mb-3">${config.intro}</p>` : ''}
-    <div class="flex gap-4 items-start">
+    <div class="flex flex-col gap-4 md:flex-row md:items-start">
       <div id="${sidebarId}" class="shrink-0"></div>
       <div id="${paneId}" class="flex-1 min-w-0"></div>
     </div>
