@@ -1,3 +1,9 @@
+## v3.1.1 (2026-09-24)
+
+### Fix
+
+- **ui**: stack the sidebar-modal menu above the pane below md
+
 ## v3.1.0 (2026-09-24)
 
 ### Feat
