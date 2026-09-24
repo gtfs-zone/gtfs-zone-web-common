@@ -66,9 +66,9 @@ Edit the curated set in geometry-car's `src/geometry_car/data/examples.yaml`.
   type only, so nothing here pulls protobufjs into a bundle.
 - Never include `Co-Authored-By: Claude ...` trailers in commit messages.
 
-## Consumer wiring: the tsconfig + vite + Tailwind triple
+## Consumer wiring: tsconfig, vite, Tailwind and the shell stylesheet
 
-Adding this library to an app takes three separate edits, and missing any one
+Adding this library to an app takes four separate edits, and missing any one
 of them fails in a different place:
 
 1. `tsconfig.json` path, so `tsc` resolves the import:
@@ -80,6 +80,10 @@ of them fails in a different place:
 3. The Tailwind `@source` line in the app's CSS, so classes used only inside
    this library are not purged:
    `@source "../../node_modules/interlocking/src/**/*.ts";`
+4. The shell stylesheet `@import`, directly after `@import 'tailwindcss'`
+   (postcss rejects an `@import` placed after any other statement), so the
+   grid, the mobile drawer and the map controls are styled:
+   `@import '../../node_modules/interlocking/src/ui/app-shell.css';`
 
 ## Releasing
 

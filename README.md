@@ -68,6 +68,23 @@ No barrel `index.ts` files: every module is its own entry point, imported as
 `interlocking/ui/navbar-actions` and resolved through each consumer's tsconfig
 path and vite alias.
 
+## App shell
+
+The layout every app shares, in four parts that go together:
+
+- `ui/app-shell.ts` mounts the markup: navbar, map with its search card and
+  auto-zoom toggle, the resizable right panel with `#panel-content`, and an
+  optional mobile dock. Its element ids are what `search-controller`,
+  `bottom-sheet`, `panel-resizer` and `navbar-actions` bind to.
+- `ui/app-shell.css` styles it: the map/panel grid, the <=767px bottom-sheet
+  drawer and the map controls. Imported from the app's stylesheet.
+- `ui/page-state-manager.ts` owns the current page state, its history and the
+  URL hash, generic over the app's page-state union. The app supplies the hash
+  codec and the validator.
+- `ui/focus-controller.ts` (`setFocus`, `onFocusChange` / `onStateChange`) and
+  `ui/panel-host.ts` (the `data-nav` dispatch, the breadcrumb header, and the
+  scroll and `<details>` restore) sit on top of it. The app supplies the pages.
+
 ## Published data
 
 The load modal's curated examples and feed catalogs are fetched at runtime from
