@@ -12,6 +12,11 @@ export interface ExampleFeed {
   selection: FeedSelection;
   /** Absent on the compiled-in fallback, which nothing has checked. */
   state?: { scheduled: SourceState; realtime: SourceState };
+  /**
+   * The feeds.json feed this example's catalog rows landed in. The load modal
+   * lists that feed as the example only, never twice.
+   */
+  feedId?: string;
 }
 
 /**

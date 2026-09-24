@@ -23,8 +23,11 @@
  * the CORS proxy. Nothing about that is app-specific, so it lives here.
  *
  * `options.realtime` is the one axis an app gets a say in. With it off the
- * realtime section, its URL fields, and every realtime-only atlas row are
- * simply not emitted, and a scheduled source alone is a complete selection.
+ * realtime section, its URL fields, and every realtime-only catalog feed are
+ * simply not emitted, and a scheduled source alone is a complete selection. It
+ * also picks which catalog feeds are listed by default: the editor's rule is a
+ * schedule that answered geometry-car's last check, the visualiser's is that
+ * plus at least one realtime endpoint that did. "Show all" lifts the rule.
  * Everything else, the search, the grouping, upload, CORS and seeding, is the
  * same everywhere, which is the whole reason this is one file.
  */
@@ -70,35 +73,38 @@ interface FeedRow {
   rtCors: boolean;
   /** True when geometry-car's last check found an endpoint down. */
   down: boolean;
+  /** Passes the host app's rule, so it is listed without "show all". */
+  valid: boolean;
 }
 
-type Catalog = 'transitland' | 'mobilitydatabase' | 'curated';
+type Role = 'scheduled' | 'vehicles' | 'trip_updates' | 'alerts';
 
-const CATALOG_LABELS: Record<Catalog, string> = {
-  transitland: 'Transitland',
-  mobilitydatabase: 'Mobility Database',
-  curated: 'Curated',
+const RT_ROLES: readonly Role[] = ['vehicles', 'trip_updates', 'alerts'];
+
+/** Catalog prefixes of geometry-car's row ids. */
+const CATALOG_LABELS: Record<string, string> = {
+  tl: 'Transitland',
+  md: 'Mobility Database',
 };
 
 /**
- * A row in geometry-car's sources.json, one per feed *source kind*. Only the
- * fields read here; the document carries more (place, cross-links, notes).
+ * A logical feed in geometry-car's feeds.json: every catalog row describing
+ * one transit system, static and realtime together. Only the fields read here;
+ * the document carries more (place, since).
  */
-interface AtlasRow {
-  rowId: string;
-  kind: 'static' | 'rt';
+interface CatalogFeed {
   feedId: string;
   name: string;
-  operator_name: string;
-  source: string;
-  catalog: Catalog;
-  scheduledUrl?: string;
-  vehiclesUrl?: string;
-  tripUpdatesUrl?: string;
-  alertsUrl?: string;
-  /** Set when the endpoint needs an API key we cannot supply. */
-  auth?: number;
-  state?: SourceState;
+  /** Catalog row ids, `tl:`, `md:` or `curated:` prefixed. */
+  members: string[];
+  /** Role to URLs, best first: the first is the one to load. */
+  urls: Partial<Record<Role, string[]>>;
+  roleState: Partial<Record<Role, SourceState>>;
+  /** Roles whose every URL needs an API key we cannot supply. */
+  auth?: Role[];
+  staticBytes?: number;
+  /** ISO timestamp from the schedule's Last-Modified header. */
+  lastModified?: string;
 }
 
 /** What the stored feed is, for the boot screen's continue card. */
@@ -166,17 +172,17 @@ export interface LoadModalOptions {
 const DISPLAY_CAP = 200;
 
 const shared = moduleState('ui/load-modal', () => ({
-  cachedAtlas: null as Promise<AtlasRow[]> | null,
+  cachedAtlas: null as Promise<CatalogFeed[]> | null,
 }));
 
-function loadAtlasRows(): Promise<AtlasRow[]> {
-  shared.cachedAtlas ??= fetch(`${DATA_ORIGIN}/sources.json`)
+function loadCatalogFeeds(): Promise<CatalogFeed[]> {
+  shared.cachedAtlas ??= fetch(`${DATA_ORIGIN}/feeds.json`)
     .then(async (res) => {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
       }
-      const doc = (await res.json()) as { sources?: AtlasRow[] };
-      return doc.sources ?? [];
+      const doc = (await res.json()) as { feeds?: CatalogFeed[] };
+      return doc.feeds ?? [];
     })
     .catch((err) => {
       // Not cached on failure, so reopening the modal retries rather than
@@ -229,6 +235,8 @@ function exampleRows(
       down:
         (!!src && ex.state?.scheduled === 'down') ||
         (!!rt && ex.state?.realtime === 'down'),
+      // Curated: always listed, and the down badge says the rest.
+      valid: true,
     };
   });
 }
@@ -238,41 +246,87 @@ async function publishedExampleRows(realtime: boolean): Promise<FeedRow[]> {
   return exampleRows(await loadExamples(), realtime);
 }
 
-function atlasRow(row: AtlasRow): FeedRow {
+function formatBytes(n: number): string {
+  if (n < 1024 * 1024) {
+    return `${Math.max(1, Math.round(n / 1024))} KB`;
+  }
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * One catalog feed as a row, or null when it offers nothing this app can
+ * load: no schedule in the editor, or only URLs behind a key we lack.
+ */
+function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
+  const usable = (role: Role): string | undefined =>
+    feed.auth?.includes(role) ? undefined : feed.urls[role]?.[0];
+  const scheduledUrl = usable('scheduled');
+  const rt = realtime
+    ? {
+        vehiclesUrl: usable('vehicles'),
+        tripUpdatesUrl: usable('trip_updates'),
+        alertsUrl: usable('alerts'),
+      }
+    : {};
+  const hasRt = Object.values(rt).some(Boolean);
+  if (!scheduledUrl && !hasRt) {
+    return null;
+  }
+
+  const up = (role: Role) => feed.roleState[role] === 'up';
+  const offered: Role[] = [
+    ...(scheduledUrl ? (['scheduled'] as const) : []),
+    ...(realtime ? RT_ROLES.filter(usable) : []),
+  ];
+  const catalogs = [
+    ...new Set(feed.members.map((m) => CATALOG_LABELS[m.split(':')[0]])),
+  ].filter(Boolean);
+
   return {
-    rowId: `atlas:${row.rowId}`,
+    rowId: `feed:${feed.feedId}`,
     group: 'atlas',
-    // The atlas keeps the DMFR corpus's word for it; we do not.
-    provides: row.kind === 'static' ? 'scheduled' : 'rt',
-    name: row.name,
-    subtitle: [CATALOG_LABELS[row.catalog], row.operator_name, row.source]
+    provides:
+      scheduledUrl && hasRt ? 'pair' : scheduledUrl ? 'scheduled' : 'rt',
+    name: feed.name,
+    subtitle: [
+      catalogs.join(', '),
+      feed.lastModified ? `updated ${feed.lastModified.slice(0, 10)}` : '',
+      feed.staticBytes ? formatBytes(feed.staticBytes) : '',
+    ]
       .filter(Boolean)
-      .join(' · '),
-    scheduledUrl: row.scheduledUrl,
-    vehiclesUrl: row.vehiclesUrl,
-    tripUpdatesUrl: row.tripUpdatesUrl,
-    alertsUrl: row.alertsUrl,
+      .join(' - '),
+    scheduledUrl,
+    ...rt,
     // Unknown origins, so assume the proxy is needed; the checkbox is there for
     // the ones that turn out not to.
     scheduledCors: true,
     rtCors: true,
-    down: row.state === 'down',
+    down: offered.some((role) => feed.roleState[role] === 'down'),
+    valid: realtime ? up('scheduled') && RT_ROLES.some(up) : up('scheduled'),
   };
 }
 
 /**
- * The catalog rows worth offering. Curated rows are the examples, already
- * listed; keyed rows cannot be fetched without a credential the app lacks.
- * Rejects when the file cannot be fetched.
+ * Newest schedule first by its Last-Modified, unknown last, larger first on a
+ * tie: a schedule someone republished last week is the likeliest to be alive
+ * and current, which a name says nothing about.
  */
-async function atlasFeedRows(realtime: boolean): Promise<FeedRow[]> {
-  const atlas = await loadAtlasRows();
-  return atlas
-    .filter(
-      (r) =>
-        r.catalog !== 'curated' && !r.auth && (realtime || r.kind === 'static')
-    )
-    .map(atlasRow);
+function byRecency(a: CatalogFeed, b: CatalogFeed): number {
+  const modified = (b.lastModified ?? '').localeCompare(a.lastModified ?? '');
+  return modified || (b.staticBytes ?? 0) - (a.staticBytes ?? 0);
+}
+
+/**
+ * The catalog feeds worth offering, newest first. A feed holding a curated row
+ * is already listed as that example. Rejects when the file cannot be fetched.
+ */
+async function catalogFeedRows(realtime: boolean): Promise<FeedRow[]> {
+  const feeds = await loadCatalogFeeds();
+  return feeds
+    .filter((f) => !f.members.some((m) => m.startsWith('curated:')))
+    .sort(byRecency)
+    .map((f) => feedRow(f, realtime))
+    .filter((r): r is FeedRow => r !== null);
 }
 
 function atlasNote(err: unknown): string | null {
@@ -391,6 +445,13 @@ function renderRows(
     out.push(renderRow(row, inUse.has(row.rowId), realtime));
   }
   return custom + out.join('');
+}
+
+function showAllTooltip(realtime: boolean): string {
+  const rule = realtime
+    ? 'a schedule and at least one realtime endpoint'
+    : 'a schedule';
+  return `Catalog feeds are listed when ${rule} answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.`;
 }
 
 const CORS_TOOLTIP =
@@ -531,7 +592,7 @@ export async function showLoadModal(
       note: examplesNote,
       replaces: 'example',
     },
-    { load: atlasFeedRows(realtime), note: atlasNote },
+    { load: catalogFeedRows(realtime), note: atlasNote },
   ];
   let pending = sources.length;
 
@@ -605,7 +666,14 @@ export async function showLoadModal(
       ${options.linkedWith ? linkedCard(options.linkedWith) : ''}
       ${options.continueWith ? continueCard(options.continueWith) : ''}
 
-      <input type="text" id="load-search" class="input input-bordered input-sm w-full shrink-0" placeholder="Search by agency, operator, source, or URL…" autofocus />
+      <div class="flex shrink-0 items-center gap-3">
+        <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="Search by agency, catalog, or URL…" autofocus />
+        <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
+          <input type="checkbox" id="load-show-all" class="checkbox checkbox-xs" />
+          Show all <span id="load-hidden-count" class="opacity-60"></span>
+          ${renderTooltipTrigger(showAllTooltip(realtime), '<span class="cursor-help opacity-60">?</span>')}
+        </label>
+      </div>
       <div id="load-results" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden"></div>
 
       <p id="load-status" class="shrink-0 text-xs opacity-60 flex items-center gap-2">
@@ -707,6 +775,8 @@ export async function showLoadModal(
         });
 
       const searchInput = input('load-search');
+      const showAllInput = input('load-show-all');
+      const hiddenCountEl = document.getElementById('load-hidden-count')!;
       const resultsEl = document.getElementById('load-results')!;
       const scheduledLabelEl = document.getElementById('load-scheduled-label')!;
       const rtLabelEl = document.getElementById('load-rt-label');
@@ -854,18 +924,17 @@ export async function showLoadModal(
 
       const filterAndRender = () => {
         const query = searchInput.value.trim();
-        if (!query) {
-          visible = rows.slice(0, DISPLAY_CAP);
-        } else {
-          const idxs = uf.filter(haystack, query) ?? [];
-          // uFuzzy ranks by match quality; re-sorting by group keeps the feeds
-          // we can vouch for at the top of any query. Stable, so match order
-          // still decides within a group.
-          visible = idxs
-            .map((i) => rows[i])
-            .sort((a, b) => groupRank.get(a.group)! - groupRank.get(b.group)!)
-            .slice(0, DISPLAY_CAP);
-        }
+        // `filter` keeps haystack order, which is group order and, within the
+        // catalog group, newest schedule first.
+        const matched = query
+          ? (uf.filter(haystack, query) ?? []).map((i) => rows[i])
+          : rows;
+        const listed = showAllInput.checked
+          ? matched
+          : matched.filter((r) => r.valid);
+        const hidden = matched.length - listed.length;
+        hiddenCountEl.textContent = hidden > 0 ? `(+${hidden})` : '';
+        visible = listed.slice(0, DISPLAY_CAP);
         renderResults();
       };
 
@@ -994,6 +1063,7 @@ export async function showLoadModal(
         });
 
       searchInput.addEventListener('input', filterAndRender);
+      showAllInput.addEventListener('change', filterAndRender);
 
       // Seed from what is loaded, so reopening the modal is how a feed is edited.
       if (current?.scheduled?.kind === 'url') {

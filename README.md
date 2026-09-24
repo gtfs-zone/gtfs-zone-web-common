@@ -72,9 +72,11 @@ path and vite alias.
 
 The load modal's curated examples and feed catalogs are fetched at runtime from
 `https://data.gtfs.zone` (`gtfs/data-origin.ts`), published daily by
-geometry-car: `examples.json` for the curated set and `sources.json` for the
-Transitland + Mobility Database catalog, each row carrying its last
-reachability check. Nothing is baked into a consumer's `public/`. A small
+geometry-car: `examples.json` for the curated set and `feeds.json` for the
+Transitland + Mobility Database catalog, one entry per transit system with the
+last reachability check of each of its endpoints. The modal lists the feeds the
+host app can use by default (a schedule that answered; in the visualiser, plus
+a realtime endpoint that did), newest schedule first, with a "show all" toggle. Nothing is baked into a consumer's `public/`. A small
 compiled-in fallback (`gtfs/examples.ts`) keeps the example list non-empty when
 the fetch fails. The curated set itself is edited in geometry-car's
 `src/geometry_car/data/examples.yaml`, not here.
