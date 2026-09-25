@@ -11,7 +11,9 @@
 import type { GTFSScheduled, RawRow, Route } from './scheduled';
 import type { VehiclePosition } from './rt-types';
 import type { FeedSession } from './feed-session';
-import type { VehicleStopSequence } from './rt-index';
+import type { Prediction, VehicleStopSequence } from './rt-index';
+import type { ResolvedEvent, StopTimeUpdate } from './stop-time-event';
+import { presentNumber } from './rt-types';
 import {
   clockAt,
   feedTimezone,
@@ -19,6 +21,7 @@ import {
   zoneLabel,
 } from './feed-time';
 import { escapeHtml } from '../util/escape-html';
+import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 
 /**
  * The escaper every renderer here goes through, under the short name the pages
@@ -224,22 +227,269 @@ export function timestampWithAge(seconds: number | undefined): string {
 // ─── Delay ────────────────────────────────────────────────────────────────────
 
 /**
- * Delay coloring. Under a minute is noise in every feed worth reading; five
- * minutes is where a rider would call it late.
+ * Signed delay, "+3m" / "-45s". Never rounded to "on time": a feed that says
+ * 45 seconds late said 45 seconds late. Colour carries the judgement: under a
+ * minute either way is green, five minutes late is where a rider would call it
+ * late.
  */
 export function formatDelay(seconds: number | undefined): string {
   if (seconds === undefined) {
     return '';
   }
-  if (Math.abs(seconds) < 60) {
-    return '<span class="text-success">on time</span>';
+  const cls =
+    Math.abs(seconds) < 60
+      ? 'text-success'
+      : seconds < 0
+        ? 'text-info'
+        : seconds < 300
+          ? 'text-warning'
+          : 'text-error';
+  return `<span class="${cls}">${escHtml(signedDuration(seconds))}</span>`;
+}
+
+function signedDuration(seconds: number): string {
+  return `${seconds < 0 ? '-' : '+'}${formatDuration(seconds)}`;
+}
+
+/** "+3m 59s": the unrounded delay, for hovers. */
+function exactDelay(seconds: number): string {
+  const a = Math.abs(Math.round(seconds));
+  const sign = seconds < 0 ? '-' : '+';
+  if (a < 60) {
+    return `${sign}${a}s`;
   }
-  const magnitude = formatDuration(seconds);
-  if (seconds < 0) {
-    return `<span class="text-info">${escHtml(magnitude)} early</span>`;
+  const h = Math.floor(a / 3600);
+  const m = Math.floor((a % 3600) / 60);
+  const rest = `${m}m ${a % 60}s`;
+  return `${sign}${h ? `${h}h ` : ''}${rest}`;
+}
+
+// ─── Predictions ──────────────────────────────────────────────────────────────
+
+/**
+ * The events a prediction row shows: departure, or arrival where the feed
+ * sent nothing for departure. Both when the feed sent both and they differ.
+ * With nothing sent at all, the one carrying a schedule.
+ */
+function shownEvents(p: Prediction): ResolvedEvent[] {
+  const a = p.arrivalEvent;
+  const d = p.departureEvent;
+  if (a.reported && d.reported && (a.time !== d.time || a.delay !== d.delay)) {
+    return [a, d];
   }
-  const cls = seconds < 300 ? 'text-warning' : 'text-error';
-  return `<span class="${cls}">${escHtml(magnitude)} late</span>`;
+  if (d.reported) {
+    return [d];
+  }
+  if (a.reported) {
+    return [a];
+  }
+  return [d.scheduledText ? d : a];
+}
+
+/** The one event a compact display shows: departure over arrival. */
+export function primaryEvent(p: Prediction): ResolvedEvent {
+  const events = shownEvents(p);
+  return events[events.length - 1];
+}
+
+/** Classes marking a value as calculated rather than sent. */
+export function derivedClass(from: ResolvedEvent['timeFrom']): string {
+  return from === 'derived' ? ' italic opacity-70' : '';
+}
+
+const DELAY_COLOURS =
+  '<span class="text-success">green</span> under 1m either way, <span class="text-warning">yellow</span> 1m to 5m late, <span class="text-error">red</span> 5m or more late, <span class="text-info">blue</span> 1m or more early';
+
+const HEADER_TIPS = {
+  sched:
+    'Scheduled time from <code>stop_times.txt</code>, matched by <code>stop_sequence</code>. Struck through when the feed marks the stop SKIPPED.',
+  pred: 'Predicted time. Plain when the feed sent <code>time</code>. <i>Italic</i> when the feed sent only <code>delay</code> and the time was calculated as scheduled + delay.',
+  delay: `Delay, + late and - early, never rounded. Plain when the feed sent <code>delay</code>. <i>Italic</i> when the feed sent only <code>time</code> and the delay was calculated as predicted - scheduled.<br>${DELAY_COLOURS}.`,
+};
+
+function headerCell(label: string, tip: string): string {
+  return `<th class="text-right"><span class="${TOOLTIP_TRIGGER_CLASS}" tabindex="0" ${tooltipContentAttr(tip)}>${escHtml(label)}</span></th>`;
+}
+
+/** The three header cells matching `predictionCells`, each explaining its column on hover. */
+export function predictionHeaders(): string {
+  const zone = zoneLabel();
+  return [
+    headerCell(`Sched ${zone}`, HEADER_TIPS.sched),
+    headerCell(`Pred ${zone}`, HEADER_TIPS.pred),
+    headerCell('Delay', HEADER_TIPS.delay),
+  ].join('');
+}
+
+/**
+ * One prediction as three table cells: scheduled, predicted, delay. Calculated
+ * values are italic; skipped and no-data stops carry their badge in the delay
+ * cell. All three cells open the same tooltip (`predictionTooltip`).
+ */
+export function predictionCells(p: Prediction): string {
+  const skipped = p.scheduleRelationship === 1;
+  const events = shownEvents(p);
+  const label = (ev: ResolvedEvent) =>
+    events.length > 1
+      ? `<span class="opacity-50 mr-1">${ev.kind === 'arrival' ? 'arr' : 'dep'}</span>`
+      : '';
+  const lines = (render: (ev: ResolvedEvent) => string) =>
+    events.map((ev) => `<div>${render(ev)}</div>`).join('');
+
+  const sched = lines(
+    (ev) =>
+      `${label(ev)}<span class="opacity-50${skipped ? ' line-through' : ''}">${escHtml(
+        ev.scheduledText ? formatScheduleTime(ev.scheduledText) : '—'
+      )}</span>`
+  );
+  const pred = skipped
+    ? ''
+    : lines((ev) =>
+        ev.time === undefined
+          ? '<span class="opacity-30">—</span>'
+          : `<span class="${derivedClass(ev.timeFrom).trim()}">${escHtml(clockAt(ev.time))}</span>`
+      );
+  const delay = skipped
+    ? ''
+    : lines(
+        (ev) =>
+          `<span class="${derivedClass(ev.delayFrom).trim()}">${formatDelay(ev.delay)}</span>${
+            ev.uncertainty
+              ? ` <span class="opacity-60">+/-${escHtml(formatDuration(ev.uncertainty))}</span>`
+              : ''
+          }`
+      );
+  const mark = stopTimeRelationshipMark(p.scheduleRelationship);
+
+  const tip = TOOLTIP_TRIGGER_CLASS;
+  const attr = tooltipContentAttr(predictionTooltip(p));
+  const cell = (body: string) =>
+    `<td class="text-right whitespace-nowrap tabular-nums align-top ${tip}" ${attr}>${body}</td>`;
+  return cell(sched) + cell(pred) + cell(`${delay}${mark}`);
+}
+
+function originNote(from: ResolvedEvent['timeFrom'], how: string): string {
+  return from === 'derived'
+    ? `<i>calculated: ${escHtml(how)}</i>`
+    : 'from feed';
+}
+
+function tipRow(name: string, value: string, note: string): string {
+  return `<tr><td class="opacity-70 pr-3">${escHtml(name)}</td><td class="pr-3 whitespace-nowrap">${value}</td><td class="opacity-70">${note}</td></tr>`;
+}
+
+function eventTooltip(ev: ResolvedEvent): string {
+  const rows = [
+    tipRow(
+      'Scheduled',
+      ev.scheduledText ? escHtml(formatScheduleTime(ev.scheduledText)) : 'none',
+      ev.scheduledText
+        ? `stop_times ${ev.kind}_time <code>${escHtml(ev.scheduledText)}</code>`
+        : 'no matching stop_times row'
+    ),
+    tipRow(
+      'Predicted',
+      ev.time === undefined ? 'none' : escHtml(formatEpochTime(ev.time)),
+      ev.time === undefined
+        ? 'not sent'
+        : originNote(ev.timeFrom, 'scheduled + delay, feed sent delay only')
+    ),
+    tipRow(
+      'Delay',
+      ev.delay === undefined ? 'none' : escHtml(exactDelay(ev.delay)),
+      ev.delay === undefined
+        ? 'not sent'
+        : originNote(ev.delayFrom, 'predicted - scheduled, feed sent time only')
+    ),
+  ];
+  if (ev.uncertainty !== undefined) {
+    rows.push(tipRow('Uncertainty', `${ev.uncertainty}s`, 'from feed'));
+  }
+  return `<div class="font-semibold">${ev.kind === 'arrival' ? 'Arrival' : 'Departure'}</div><table>${rows.join('')}</table>`;
+}
+
+/**
+ * The hover behind a prediction row: every value and where it came from, any
+ * assumption made to calculate one, and the StopTimeUpdate as sent.
+ */
+export function predictionTooltip(p: Prediction): string {
+  const events = [p.arrivalEvent, p.departureEvent].filter(
+    (ev) => ev.reported || ev.scheduledText
+  );
+  const notes: string[] = [];
+  const derived = events.some(
+    (ev) => ev.timeFrom === 'derived' || ev.delayFrom === 'derived'
+  );
+  if (derived && p.schedule.serviceDateInferred) {
+    notes.push(
+      'The trip update has no <code>start_date</code>; the service date nearest the prediction was assumed.'
+    );
+  }
+  if (p.schedule.ambiguousStop) {
+    notes.push(
+      `No <code>stop_sequence</code> sent and the trip calls at ${escHtml(p.stop_id)} more than once; the first visit was assumed.`
+    );
+  }
+  const rel = p.scheduleRelationship;
+  if (rel) {
+    notes.push(
+      `Stop is ${escHtml(STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS[rel] ?? String(rel))}: nothing calculated.`
+    );
+  } else if (p.tripScheduleRelationship) {
+    notes.push(
+      `Trip is ${escHtml(
+        TRIP_SCHEDULE_RELATIONSHIP_LABELS[p.tripScheduleRelationship] ??
+          String(p.tripScheduleRelationship)
+      )}: nothing calculated.`
+    );
+  }
+  return `<div class="space-y-2">${events.map(eventTooltip).join('')}${notes
+    .map((n) => `<p>${n}</p>`)
+    .join(
+      ''
+    )}<div class="font-semibold">Sent by the feed</div>${stopTimeUpdateFields(p.stu)}</div>`;
+}
+
+/**
+ * The StopTimeUpdate fields exactly as sent. Absent fields say so rather than
+ * showing the proto2 default.
+ */
+function stopTimeUpdateFields(stu: StopTimeUpdate): string {
+  const absent = '<span class="opacity-50">absent</span>';
+  const value = (msg: object | null | undefined, field: string): string => {
+    const n = presentNumber(msg, field);
+    return n === undefined ? absent : escHtml(String(n));
+  };
+  const time = (msg: object | null | undefined): string => {
+    const n = presentNumber(msg, 'time');
+    return n === undefined
+      ? absent
+      : `${escHtml(String(n))} <span class="opacity-70">${escHtml(formatEpochTime(n))}</span>`;
+  };
+  const rel = presentNumber(stu, 'scheduleRelationship');
+  const rows: [string, string][] = [
+    ['stop_sequence', value(stu, 'stopSequence')],
+    ['stop_id', stu.stopId ? escHtml(stu.stopId) : absent],
+    ['arrival.time', time(stu.arrival)],
+    ['arrival.delay', value(stu.arrival, 'delay')],
+    ['arrival.uncertainty', value(stu.arrival, 'uncertainty')],
+    ['departure.time', time(stu.departure)],
+    ['departure.delay', value(stu.departure, 'delay')],
+    ['departure.uncertainty', value(stu.departure, 'uncertainty')],
+    [
+      'schedule_relationship',
+      rel === undefined
+        ? absent
+        : escHtml(
+            `${rel} ${STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS[rel] ?? ''}`.trim()
+          ),
+    ],
+  ];
+  return `<table class="font-mono">${rows
+    .map(
+      ([k, v]) => `<tr><td class="opacity-70 pr-3">${k}</td><td>${v}</td></tr>`
+    )
+    .join('')}</table>`;
 }
 
 // ─── Enum labels ──────────────────────────────────────────────────────────────

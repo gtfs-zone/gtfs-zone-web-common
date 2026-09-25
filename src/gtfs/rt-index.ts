@@ -12,10 +12,18 @@ import type { TripUpdate, VehiclePosition } from './rt-types';
 import { presentNumber } from './rt-types';
 import type { GTFSScheduled } from './scheduled';
 import type { FeedSession } from './feed-session';
+import type {
+  ResolvedEvent,
+  ScheduleMatch,
+  StopTimeUpdate,
+} from './stop-time-event';
+import { matchStopTime, resolveStopTimeUpdate } from './stop-time-event';
 
 /** One prediction, with the trip it came from and its resolved stop. */
 export interface Prediction {
   update: TripUpdate;
+  /** The StopTimeUpdate this prediction was read from, verbatim. */
+  stu: StopTimeUpdate;
   trip_id: string;
   stop_id: string;
   stop_sequence: number | undefined;
@@ -24,8 +32,14 @@ export interface Prediction {
   departure?: number;
   /** Seconds; positive is late. Arrival delay preferred, else departure. */
   delay?: number;
-  /** The best time to sort and display by. */
+  /**
+   * The best time to sort and display by: departure, else arrival, from
+   * `departureEvent`/`arrivalEvent`, so it may be derived from a delay.
+   */
   time?: number;
+  arrivalEvent: ResolvedEvent;
+  departureEvent: ResolvedEvent;
+  schedule: ScheduleMatch;
   /** TripDescriptor.schedule_relationship of the enclosing trip update. */
   tripScheduleRelationship?: number;
   /** StopTimeUpdate.schedule_relationship for this stop: SKIPPED, NO_DATA, … */
@@ -172,16 +186,26 @@ export class RtIndex<V extends VehiclePosition = VehiclePosition> {
       const delay =
         presentNumber(stu.arrival, 'delay') ??
         presentNumber(stu.departure, 'delay');
+      const resolved = resolveStopTimeUpdate(
+        stu,
+        update,
+        matchStopTime(times, sequence, stopId),
+        this.nowSeconds
+      );
 
       predictions.push({
         update,
+        stu,
         trip_id: tripId,
         stop_id: stopId,
         stop_sequence: sequence,
         arrival,
         departure,
         delay,
-        time: departure ?? arrival,
+        time: resolved.departure.time ?? resolved.arrival.time,
+        arrivalEvent: resolved.arrival,
+        departureEvent: resolved.departure,
+        schedule: resolved.match,
         scheduleRelationship: stopRelationship,
         tripScheduleRelationship: tripRelationship,
       });

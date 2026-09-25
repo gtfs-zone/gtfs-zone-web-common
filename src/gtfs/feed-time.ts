@@ -139,3 +139,63 @@ export function formatScheduleTime(value: string | undefined): string {
   const clock = `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
   return dayOffset > 0 ? `${clock} (+${dayOffset}d)` : clock;
 }
+
+/** Calendar date parts of an instant, read in the feed's zone. */
+function feedDateParts(ms: number): { y: number; m: number; d: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: shared.displayZone ?? undefined,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(new Date(ms));
+  const get = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  return { y: get('year'), m: get('month'), d: get('day') };
+}
+
+/** Wall clock minus UTC, in ms, for the feed's zone at an instant. */
+function zoneOffsetMs(ms: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: shared.displayZone ?? undefined,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  }).formatToParts(new Date(ms));
+  const get = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  const wall = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second')
+  );
+  return wall - Math.floor(ms / 1000) * 1000;
+}
+
+/**
+ * Epoch seconds that a GTFS clock time counts from on a service date: noon
+ * minus 12h in the feed's zone, which is midnight except on DST change days.
+ * Takes a `YYYYMMDD` date; null if it does not parse.
+ */
+export function serviceDayStart(date: string): number | null {
+  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(date.trim());
+  if (!m) {
+    return null;
+  }
+  const guess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  const noon = guess - zoneOffsetMs(guess);
+  return noon / 1000 - 12 * 3600;
+}
+
+/** The `YYYYMMDD` service date `offsetDays` from the feed-zone date at `ms`. */
+export function feedServiceDate(ms: number, offsetDays = 0): string {
+  const { y, m, d } = feedDateParts(ms);
+  const shifted = new Date(Date.UTC(y, m - 1, d + offsetDays));
+  return `${shifted.getUTCFullYear()}${String(shifted.getUTCMonth() + 1).padStart(2, '0')}${String(shifted.getUTCDate()).padStart(2, '0')}`;
+}
