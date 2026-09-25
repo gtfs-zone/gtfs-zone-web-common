@@ -1,3 +1,9 @@
+## v3.2.0 (2026-09-25)
+
+### Feat
+
+- **gtfs**: resolve stop time events against the schedule and render them as shared prediction cells
+
 ## v3.1.1 (2026-09-24)
 
 ### Fix
