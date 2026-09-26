@@ -1,3 +1,9 @@
+## v3.3.1 (2026-09-27)
+
+### Fix
+
+- **shell**: render the brand as text instead of an h1
+
 ## v3.3.0 (2026-09-26)
 
 ### Feat
