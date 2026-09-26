@@ -42,6 +42,7 @@ import { normalizeFeedUrl, validateFeedUrl } from '../gtfs/feed-url-resolve';
 import type { ModalAction } from './modal-utils';
 import { renderUploadIcon, showModal } from './modal-utils';
 import { renderTooltipTrigger } from './field-label';
+import { SELECTED_ROW_CLASS } from './selectable-row';
 import { moduleState } from '../util/module-state';
 
 /**
@@ -381,9 +382,7 @@ function badges(row: FeedRow, realtime: boolean): string {
 }
 
 function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
-  const classes = inUse
-    ? 'bg-primary/10 ring-1 ring-primary/40'
-    : 'hover:bg-base-200';
+  const classes = inUse ? SELECTED_ROW_CLASS : 'hover:bg-base-200';
   return `
     <button type="button" class="w-full text-left px-3 py-2 rounded-lg flex items-start gap-2 ${classes}" data-row-id="${escHtml(row.rowId)}">
       <div class="flex-1 min-w-0">
@@ -460,9 +459,9 @@ const CORS_TOOLTIP =
 function corsToggle(id: string): string {
   return `
     <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
-      <input type="checkbox" id="${id}" class="checkbox checkbox-xs" checked />
+      <input type="checkbox" id="${id}" class="toggle toggle-xs" checked />
       CORS proxy
-      ${renderTooltipTrigger(CORS_TOOLTIP, '<span class="cursor-help opacity-60">?</span>')}
+      ${renderTooltipTrigger(CORS_TOOLTIP, '<span class="opacity-60">?</span>')}
     </label>`;
 }
 
@@ -669,9 +668,9 @@ export async function showLoadModal(
       <div class="flex shrink-0 items-center gap-3">
         <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="Search by agency, catalog, or URL…" autofocus />
         <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
-          <input type="checkbox" id="load-show-all" class="checkbox checkbox-xs" />
+          <input type="checkbox" id="load-show-all" class="toggle toggle-xs" />
           Show all <span id="load-hidden-count" class="opacity-60"></span>
-          ${renderTooltipTrigger(showAllTooltip(realtime), '<span class="cursor-help opacity-60">?</span>')}
+          ${renderTooltipTrigger(showAllTooltip(realtime), '<span class="opacity-60">?</span>')}
         </label>
       </div>
       <div id="load-results" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden"></div>

@@ -66,6 +66,17 @@ Edit the curated set in geometry-car's `src/geometry_car/data/examples.yaml`.
   type only, so nothing here pulls protobufjs into a bundle.
 - Never include `Co-Authored-By: Claude ...` trailers in commit messages.
 
+## UI conventions
+
+These apply here and in all three consumers:
+
+- No `cursor-help` (the question-mark pointer) on tooltip triggers or anywhere
+  else.
+- An on/off setting is a daisyUI `toggle`, never a `checkbox`. The hidden
+  inputs behind `swap` icon buttons are the only checkboxes.
+- Rows picked from a list are highlighted with `SELECTED_ROW_CLASS` from
+  `interlocking/ui/selectable-row`, not marked with a per-row checkbox.
+
 ## Consumer wiring: tsconfig, vite, Tailwind and the shell stylesheet
 
 Adding this library to an app takes four separate edits, and missing any one
