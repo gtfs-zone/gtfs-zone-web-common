@@ -71,9 +71,9 @@ function renderAppShell(opts: AppShellOptions): string {
             <div class="avatar">
               <div class="w-8 rounded-lg"><img src="logo.svg" alt="${escapeHtml(host)} logo" /></div>
             </div>
-            <h1 class="text-xl font-bold hidden md:block">
+            <div class="text-xl font-bold hidden md:block">
               <span class="text-primary">${escapeHtml(opts.brandPrefix)}</span>${escapeHtml(opts.brandSuffix)}<sup id="app-version" class="text-xs opacity-50 font-normal ml-1"></sup>
-            </h1>
+            </div>
           </a>
         </div>
         <div class="navbar-end">
