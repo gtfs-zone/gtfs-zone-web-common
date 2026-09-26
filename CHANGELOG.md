@@ -1,3 +1,9 @@
+## v3.3.0 (2026-09-26)
+
+### Feat
+
+- **ui**: share the selected-row class and use toggles in the load modal
+
 ## v3.2.0 (2026-09-25)
 
 ### Feat
