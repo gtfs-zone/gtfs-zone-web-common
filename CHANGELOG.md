@@ -1,3 +1,9 @@
+## v3.3.2 (2026-09-27)
+
+### Fix
+
+- **ui**: style the guide's continue button as primary
+
 ## v3.3.1 (2026-09-27)
 
 ### Fix
