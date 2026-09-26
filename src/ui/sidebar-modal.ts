@@ -204,7 +204,13 @@ export async function showSidebarModal(
   await showModal({
     title: config.title,
     body,
-    actions: [{ label: config.closeLabel ?? 'Close', onClick: () => {} }],
+    actions: [
+      {
+        label: config.closeLabel ?? 'Close',
+        className: config.closeLabel ? 'btn-primary' : undefined,
+        onClick: () => {},
+      },
+    ],
     escapeAction: 0,
     boxClassName: config.boxClassName ?? 'max-w-6xl w-11/12',
     onMount: (close) => {
