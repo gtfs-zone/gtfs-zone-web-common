@@ -2,6 +2,12 @@
  * Basemap style configurations for MapLibre GL
  */
 
+/**
+ * The deepest zoom the apps' maps allow. Past a source's `maxzoom` MapLibre
+ * overzooms its last real tile, so no basemap runs out of imagery before this.
+ */
+export const MAP_MAX_ZOOM = 20;
+
 export interface BasemapStyle {
   id: string;
   name: string;
@@ -51,7 +57,7 @@ export const basemapStyles: BasemapStyle[] = [
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
           ],
           tileSize: 256,
-          maxzoom: 20,
+          maxzoom: 18,
           attribution: '© Esri',
         },
       },
@@ -79,7 +85,7 @@ export const basemapStyles: BasemapStyle[] = [
             'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png',
           ],
           tileSize: 256,
-          maxzoom: 21,
+          maxzoom: 20,
           attribution: '© Stadia Maps © Stamen Design © OpenMapTiles',
         },
       },
@@ -107,7 +113,7 @@ export const basemapStyles: BasemapStyle[] = [
             'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png',
           ],
           tileSize: 256,
-          maxzoom: 21,
+          maxzoom: 20,
           attribution: '© Stadia Maps © Stamen Design © OpenMapTiles',
         },
       },
@@ -163,7 +169,7 @@ export const basemapStyles: BasemapStyle[] = [
             'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
           ],
           tileSize: 256,
-          maxzoom: 19,
+          maxzoom: 18,
           attribution: '© Esri',
         },
       },
