@@ -76,6 +76,8 @@ These apply here and in all three consumers:
   inputs behind `swap` icon buttons are the only checkboxes.
 - Rows picked from a list are highlighted with `SELECTED_ROW_CLASS` from
   `interlocking/ui/selectable-row`, not marked with a per-row checkbox.
+- Disable, don't hide, conditional action buttons. A control that cannot act
+  right now is still rendered, `disabled`, with a `title` saying why.
 
 ## Consumer wiring: tsconfig, vite, Tailwind and the shell stylesheet
 
