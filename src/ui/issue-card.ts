@@ -28,8 +28,8 @@ export interface IssueItem {
 
 /**
  * A button in the row header, for a fix that applies to the whole row rather
- * than to one item. The card only renders it and stamps the data attribute; the
- * host app attaches its own delegated click handler, as it does for items.
+ * than to one item. The card only renders it and stamps the data attributes;
+ * the host app attaches its own delegated click handler, as it does for items.
  */
 export interface IssueAction {
   label: string;
@@ -44,7 +44,18 @@ export interface IssueRow {
   items?: IssueItem[];
   /** Items omitted from `items` because of the display cap. */
   moreCount?: number;
-  action?: IssueAction;
+  actions?: IssueAction[];
+  /**
+   * Stamped as `data-issue-key` on the row and on each of its buttons, so a
+   * delegated click can tell which row it came from.
+   */
+  key?: string;
+}
+
+function keyAttr(row: IssueRow): string {
+  return row.key === undefined
+    ? ''
+    : ` data-issue-key="${escapeHtml(row.key)}"`;
 }
 
 function renderItem(item: IssueItem): string {
@@ -61,18 +72,24 @@ function renderItem(item: IssueItem): string {
   return `<li><span class="${classes}"${attrs}>${escapeHtml(item.label)}</span>${detail}</li>`;
 }
 
-function renderAction(row: IssueRow): string {
-  if (!row.action) {
+function renderActions(row: IssueRow): string {
+  if (!row.actions || row.actions.length === 0) {
     return '';
   }
-  return `<button type="button" class="btn btn-xs btn-warning btn-outline" data-issue-action="${escapeHtml(row.action.dataAction)}">${escapeHtml(row.action.label)}</button>`;
+  const buttons = row.actions
+    .map(
+      (action) =>
+        `<button type="button" class="btn btn-xs btn-warning btn-outline" data-issue-action="${escapeHtml(action.dataAction)}"${keyAttr(row)}>${escapeHtml(action.label)}</button>`
+    )
+    .join('');
+  return `<span class="flex flex-wrap items-center gap-1">${buttons}</span>`;
 }
 
 function renderHeader(row: IssueRow): string {
   return `
     <span>${escapeHtml(row.label)}</span>
     <span class="flex items-center gap-2 shrink-0">
-      ${renderAction(row)}
+      ${renderActions(row)}
       <span class="tabular-nums font-semibold">${row.count}</span>
     </span>
   `;
@@ -87,19 +104,20 @@ function renderNote(row: IssueRow): string {
 function renderRow(row: IssueRow): string {
   if (!row.items || row.items.length === 0) {
     return `
-      <div>
+      <div${keyAttr(row)}>
         <div class="flex justify-between gap-2 text-xs">${renderHeader(row)}</div>
         ${renderNote(row)}
       </div>
     `;
   }
 
+  const total = row.items.length + (row.moreCount ?? 0);
   const more = row.moreCount
-    ? `<li class="opacity-50">and ${row.moreCount} more</li>`
+    ? `<li class="list-none mt-1"><button type="button" class="btn btn-xs btn-ghost" data-issue-show-all${keyAttr(row)}>Show all ${total}</button></li>`
     : '';
 
   return `
-    <details>
+    <details${keyAttr(row)}>
       <summary class="flex justify-between gap-2 text-xs cursor-pointer">${renderHeader(row)}</summary>
       ${renderNote(row)}
       <ul class="mt-1 ml-3 space-y-0.5 text-xs list-disc list-inside">
