@@ -108,4 +108,13 @@ body {
     overflow-wrap: break-word;
     font-size: 11px;
   }
+
+  /* Tooltips wait before showing, so sweeping the pointer across a toolbar
+     does not flash them. Only the hover state carries the delay, so hiding
+     stays immediate and keyboard focus shows at once. */
+  .tooltip:hover > .tooltip-content,
+  .tooltip[data-tip]:hover:before,
+  .tooltip:hover:after {
+    transition-delay: 150ms;
+  }
 }

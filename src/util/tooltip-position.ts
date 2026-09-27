@@ -22,11 +22,14 @@ const TRIGGER_SELECTOR = '.field-tooltip-trigger';
 const PORTAL_CLASS = 'field-tooltip-portal';
 const VIEWPORT_MARGIN = 8;
 const HIDE_DELAY_MS = 100;
+// A pointer resting this long shows the tooltip; one passing over does not.
+const SHOW_DELAY_MS = 150;
 
 const shared = moduleState('util/tooltip-position', () => ({
   activePortal: null as HTMLDivElement | null,
   activeTrigger: null as HTMLElement | null,
   hideTimeoutId: null as ReturnType<typeof setTimeout> | null,
+  showTimeoutId: null as ReturnType<typeof setTimeout> | null,
   initialized: false,
 }));
 
@@ -37,8 +40,16 @@ function clearHideTimeout(): void {
   }
 }
 
+function clearShowTimeout(): void {
+  if (shared.showTimeoutId !== null) {
+    clearTimeout(shared.showTimeoutId);
+    shared.showTimeoutId = null;
+  }
+}
+
 function hidePortal(): void {
   clearHideTimeout();
+  clearShowTimeout();
   if (shared.activePortal) {
     shared.activePortal.remove();
     shared.activePortal = null;
@@ -81,6 +92,7 @@ function positionPortal(trigger: HTMLElement, portal: HTMLDivElement): void {
 
 function showPortal(trigger: HTMLElement): void {
   clearHideTimeout();
+  clearShowTimeout();
   if (shared.activeTrigger === trigger) {
     return;
   }
@@ -116,9 +128,23 @@ function findTrigger(target: EventTarget | null): HTMLElement | null {
 
 function handlePointerOver(event: PointerEvent): void {
   const trigger = findTrigger(event.target);
-  if (trigger) {
-    showPortal(trigger);
+  if (!trigger) {
+    return;
   }
+  clearHideTimeout();
+  if (shared.activeTrigger === trigger) {
+    return;
+  }
+  // With a tooltip already open, moving to another trigger swaps at once.
+  if (shared.activePortal) {
+    showPortal(trigger);
+    return;
+  }
+  clearShowTimeout();
+  shared.showTimeoutId = setTimeout(() => {
+    shared.showTimeoutId = null;
+    showPortal(trigger);
+  }, SHOW_DELAY_MS);
 }
 
 function handlePointerOut(event: PointerEvent): void {
@@ -131,6 +157,7 @@ function handlePointerOut(event: PointerEvent): void {
   if (related instanceof Element && trigger.contains(related)) {
     return;
   }
+  clearShowTimeout();
   scheduleHide();
 }
 
