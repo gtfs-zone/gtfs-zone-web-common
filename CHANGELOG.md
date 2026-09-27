@@ -1,3 +1,9 @@
+## v3.4.0 (2026-09-27)
+
+### Feat
+
+- **ui**: tint a highlight range as a band in the calendar input
+
 ## v3.3.2 (2026-09-27)
 
 ### Fix
