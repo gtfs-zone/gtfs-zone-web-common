@@ -182,29 +182,42 @@ function renderPopover(
       }
     }
 
-    const classes = ['btn', 'btn-xs', 'btn-ghost', 'w-full', 'px-0'];
-    if (selected && time === selected.getTime()) {
-      classes.push('btn-primary');
-    } else if (time === today.getTime()) {
-      classes.push('ring-1', 'ring-primary');
-    }
+    const isSelected = selected !== null && time === selected.getTime();
+    const classes = ['btn', 'btn-xs', 'w-full', 'px-0', 'relative'];
+    classes.push(isSelected ? 'btn-primary font-bold' : 'btn-ghost');
     if (outside) {
       classes.push('opacity-40');
     }
 
+    // Today is a dot under the number rather than a ring, so it can share a
+    // cell with the selected day and still be seen.
+    const todayDot =
+      time === today.getTime()
+        ? `<span class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${
+            isSelected ? 'bg-primary-content' : 'bg-primary'
+          }"></span>`
+        : '';
+
     cells.push(
       `<div class="${bandClasses.join(' ')}"><button type="button" class="${classes.join(' ')}" data-day="${i}"${
         disabled ? ' disabled' : ''
-      }>${day.getUTCDate()}</button></div>`
+      }>${day.getUTCDate()}${todayDot}</button></div>`
     );
   }
 
   const legend = highlight
     ? `<div class="flex items-center gap-3 pt-1 text-[0.65rem] text-base-content/60">
         <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-primary/15"></span>${escapeHtml(highlight.label)}</span>
-        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm ring-1 ring-primary"></span>Today</span>
+        <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3"><span class="w-1 h-1 rounded-full bg-primary"></span></span>Today</span>
       </div>`
     : '';
+
+  // The feed-edge buttons are always there, and disabled without a range to
+  // jump to.
+  const edgeAttrs = (label: string): string =>
+    highlight
+      ? `aria-label="${label}" title="${label}"`
+      : 'disabled aria-label="No feed_info date range" title="No feed_info date range"';
 
   const clearButton = options.allowEmpty
     ? '<button type="button" class="btn btn-xs btn-ghost" data-nav="clear">Clear</button>'
@@ -212,9 +225,15 @@ function renderPopover(
 
   return `
     <div class="flex items-center justify-between gap-1 mb-1">
-      <button type="button" class="btn btn-xs btn-ghost" data-nav="prev" aria-label="Previous month">&#8249;</button>
+      <span class="flex items-center">
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-start" ${edgeAttrs('Go to the start of the feed')}>&#171;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="prev" aria-label="Previous month">&#8249;</button>
+      </span>
       <span class="text-sm font-semibold">${MONTH_NAMES[month0]} ${year}</span>
-      <button type="button" class="btn btn-xs btn-ghost" data-nav="next" aria-label="Next month">&#8250;</button>
+      <span class="flex items-center">
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="next" aria-label="Next month">&#8250;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-end" ${edgeAttrs('Go to the end of the feed')}>&#187;</button>
+      </span>
     </div>
     <div class="grid grid-cols-7 gap-y-0.5">
       ${headers}
@@ -347,6 +366,13 @@ export function openCalendar(
         month0 = 0;
         year++;
       }
+      draw();
+      return;
+    }
+    if ((nav === 'feed-start' || nav === 'feed-end') && highlight) {
+      const edge = nav === 'feed-start' ? highlight.start : highlight.end;
+      year = edge.getUTCFullYear();
+      month0 = edge.getUTCMonth();
       draw();
       return;
     }
