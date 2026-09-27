@@ -217,10 +217,7 @@ export class RtIndex<V extends VehiclePosition = VehiclePosition> {
     }
   }
 
-  private ingestVehicle(
-    vehicle: V,
-    feed: GTFSScheduled | null
-  ): void {
+  private ingestVehicle(vehicle: V, feed: GTFSScheduled | null): void {
     if (vehicle.tripId) {
       push(this.vehiclesByTrip, vehicle.tripId, vehicle);
     }
