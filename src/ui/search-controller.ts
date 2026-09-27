@@ -10,6 +10,10 @@
  * invalidate against the patch system. If typing ever feels laggy on a large
  * feed, the fix is to cache the entry list in the adapter and invalidate it on
  * feed load/reset and on patch writes; nothing in here has to change.
+ *
+ * An app may also supply `getRemoteEntries()`, a server-side search (places,
+ * say). Its results are appended under a "Places" heading after the local
+ * matches, unfiltered, since the server already matched them.
  */
 
 import uFuzzy from '@leeoniya/ufuzzy';
@@ -29,10 +33,19 @@ export interface SearchEntry<T> {
 
 export interface SearchControllerOptions<T> {
   getEntries: () => SearchEntry<T>[] | Promise<SearchEntry<T>[]>;
+  /** Server-side matches for the query. Aborted when a newer query starts. */
+  getRemoteEntries?: (
+    query: string,
+    signal: AbortSignal
+  ) => Promise<SearchEntry<T>[]>;
   onSelect: (payload: T) => void;
   limit?: number;
   minQueryLength?: number;
+  /** Shortest query sent to `getRemoteEntries`. Defaults to 3. */
+  remoteMinQueryLength?: number;
 }
+
+type RemoteState = 'idle' | 'pending' | 'done' | 'error';
 
 // `intraIns: 1` tolerates one inserted character inside a term; terms
 // themselves are already allowed to be far apart, so "Charles MGH" finds
@@ -103,7 +116,12 @@ export class SearchController<T> {
   private opts: SearchControllerOptions<T>;
   private input: HTMLInputElement | null = null;
   private dropdown: HTMLElement | null = null;
+  /** Local then remote matches, in the order the rows are rendered. */
   private matches: SearchEntry<T>[] = [];
+  private localMatches: SearchEntry<T>[] = [];
+  private remoteMatches: SearchEntry<T>[] = [];
+  private remoteState: RemoteState = 'idle';
+  private remoteAbort: AbortController | null = null;
   private activeIndex = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   /** Guards against a slow `getEntries()` overwriting a newer query. */
@@ -159,12 +177,15 @@ export class SearchController<T> {
   }
 
   private async search(query: string): Promise<void> {
+    this.remoteAbort?.abort();
+    this.remoteAbort = null;
+    const id = ++this.requestId;
+
     if (query.length < (this.opts.minQueryLength ?? 2)) {
       this.hide();
       return;
     }
 
-    const id = ++this.requestId;
     let entries: SearchEntry<T>[];
     try {
       entries = await this.opts.getEntries();
@@ -188,8 +209,37 @@ export class SearchController<T> {
     // Stable sort: entries with equal priority keep uFuzzy's quality order.
     const matches = ranked.map((i) => entries[i]);
     matches.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
-    this.matches = matches.slice(0, this.opts.limit ?? 20);
+    this.localMatches = matches.slice(0, this.opts.limit ?? 20);
+    this.remoteMatches = [];
     this.activeIndex = 0;
+
+    const getRemote = this.opts.getRemoteEntries;
+    if (!getRemote || query.length < (this.opts.remoteMinQueryLength ?? 3)) {
+      this.remoteState = 'idle';
+      this.render(query);
+      return;
+    }
+
+    this.remoteState = 'pending';
+    this.render(query);
+
+    const abort = new AbortController();
+    this.remoteAbort = abort;
+    try {
+      const remote = await getRemote(query, abort.signal);
+      if (id !== this.requestId || abort.signal.aborted) {
+        return;
+      }
+      this.remoteMatches = remote;
+      this.remoteState = 'done';
+    } catch (error) {
+      if (id !== this.requestId || abort.signal.aborted) {
+        return;
+      }
+      console.warn('[Search] Remote search failed:', error);
+      this.remoteState = 'error';
+    }
+    this.remoteAbort = null;
     this.render(query);
   }
 
@@ -197,14 +247,23 @@ export class SearchController<T> {
     if (!this.dropdown) {
       return;
     }
-    if (this.matches.length === 0) {
-      this.renderMessage(`No results for "${esc(query)}"`);
+    this.matches = [...this.localMatches, ...this.remoteMatches];
+    if (this.matches.length === 0 && this.remoteState !== 'pending') {
+      if (this.remoteState === 'error') {
+        this.renderMessage('No feed results. Place search unavailable');
+      } else {
+        this.renderMessage(`No results for "${esc(query)}"`);
+      }
       return;
     }
 
     this.dropdown.innerHTML = '';
     this.matches.forEach((entry, i) => {
+      if (i === this.localMatches.length) {
+        this.appendRemoteHeading();
+      }
       const row = document.createElement('div');
+      row.dataset.index = String(i);
       row.className =
         'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-base-200 border-b border-base-200 last:border-0';
       row.innerHTML = `
@@ -216,9 +275,33 @@ export class SearchController<T> {
       row.addEventListener('click', () => this.select(i));
       this.dropdown!.appendChild(row);
     });
+    // Still searching, or failed, with no remote rows to head.
+    if (this.remoteMatches.length === 0 && this.remoteState !== 'done') {
+      this.appendRemoteHeading();
+    }
 
     this.show();
-    this.setActive(0);
+    this.setActive(
+      Math.max(0, Math.min(this.activeIndex, this.matches.length - 1))
+    );
+  }
+
+  /** The "Places" heading row. Carries no `data-index`, so it is not selectable. */
+  private appendRemoteHeading(): void {
+    if (!this.dropdown || this.remoteState === 'idle') {
+      return;
+    }
+    const label =
+      this.remoteState === 'pending'
+        ? 'Searching places...'
+        : this.remoteState === 'error'
+          ? 'Place search unavailable'
+          : 'Places';
+    const heading = document.createElement('div');
+    heading.className =
+      'px-3 pt-2 pb-1 text-xs font-semibold opacity-60 border-b border-base-200';
+    heading.textContent = label;
+    this.dropdown.appendChild(heading);
   }
 
   private renderMessage(html: string): void {
@@ -226,19 +309,21 @@ export class SearchController<T> {
       return;
     }
     this.matches = [];
+    this.localMatches = [];
+    this.remoteMatches = [];
     this.dropdown.innerHTML = `<div class="px-3 py-4 text-center text-sm opacity-60">${html}</div>`;
     this.show();
   }
 
   private setActive(index: number): void {
     this.activeIndex = index;
-    const rows = this.dropdown?.children;
-    if (!rows) {
+    if (!this.dropdown) {
       return;
     }
-    for (let i = 0; i < rows.length; i++) {
-      rows[i].classList.toggle('bg-base-200', i === index);
-    }
+    const rows = this.dropdown.querySelectorAll<HTMLElement>('[data-index]');
+    rows.forEach((row) => {
+      row.classList.toggle('bg-base-200', Number(row.dataset.index) === index);
+    });
     rows[index]?.scrollIntoView({ block: 'nearest' });
   }
 
@@ -275,6 +360,8 @@ export class SearchController<T> {
   }
 
   private hide(): void {
+    this.remoteAbort?.abort();
+    this.remoteAbort = null;
     this.dropdown?.classList.add('hidden');
   }
 }
