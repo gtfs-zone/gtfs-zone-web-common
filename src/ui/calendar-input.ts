@@ -22,10 +22,11 @@
  * out from under a click on a day. The keyboard path is the input itself, which
  * is why the box stays typeable rather than going readonly.
  *
- * Every string it renders is a number or a constant, so it needs no escaping
- * helper to be safe.
+ * Every string it renders is a number or a constant, except the caller's
+ * highlight label, which is escaped.
  */
 
+import { escapeHtml } from '../util/escape-html';
 import { moduleState } from '../util/module-state';
 
 /**
@@ -72,6 +73,12 @@ export interface CalendarOptions {
   /** Days before this one, and after `max`, cannot be picked. */
   min?: string;
   max?: string;
+  /**
+   * A span of days to tint as a band, in the stored format, both ends
+   * inclusive. Also turns on the legend under the grid, which names the band
+   * with `label`.
+   */
+  highlight?: { start: string; end: string; label: string };
   /** Offer a Clear button, for a field that is allowed to be empty. */
   allowEmpty?: boolean;
   /** A day was picked. Given the stored string, or '' from Clear. */
@@ -138,6 +145,7 @@ function renderPopover(
   selected: Date | null,
   min: Date | null,
   max: Date | null,
+  highlight: { start: Date; end: Date; label: string } | null,
   options: CalendarOptions
 ): string {
   const today = todayUtc();
@@ -157,6 +165,23 @@ function renderPopover(
       (min !== null && time < min.getTime()) ||
       (max !== null && time > max.getTime());
 
+    // The band sits on a wrapper so the button's own states draw over it.
+    // Rounded only where the range or the week row ends.
+    const bandClasses: string[] = [];
+    if (
+      highlight &&
+      time >= highlight.start.getTime() &&
+      time <= highlight.end.getTime()
+    ) {
+      bandClasses.push('bg-primary/15');
+      if (time === highlight.start.getTime() || i % 7 === 0) {
+        bandClasses.push('rounded-l-field');
+      }
+      if (time === highlight.end.getTime() || i % 7 === 6) {
+        bandClasses.push('rounded-r-field');
+      }
+    }
+
     const classes = ['btn', 'btn-xs', 'btn-ghost', 'w-full', 'px-0'];
     if (selected && time === selected.getTime()) {
       classes.push('btn-primary');
@@ -168,11 +193,18 @@ function renderPopover(
     }
 
     cells.push(
-      `<button type="button" class="${classes.join(' ')}" data-day="${i}"${
+      `<div class="${bandClasses.join(' ')}"><button type="button" class="${classes.join(' ')}" data-day="${i}"${
         disabled ? ' disabled' : ''
-      }>${day.getUTCDate()}</button>`
+      }>${day.getUTCDate()}</button></div>`
     );
   }
+
+  const legend = highlight
+    ? `<div class="flex items-center gap-3 pt-1 text-[0.65rem] text-base-content/60">
+        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-primary/15"></span>${escapeHtml(highlight.label)}</span>
+        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm ring-1 ring-primary"></span>Today</span>
+      </div>`
+    : '';
 
   const clearButton = options.allowEmpty
     ? '<button type="button" class="btn btn-xs btn-ghost" data-nav="clear">Clear</button>'
@@ -184,10 +216,11 @@ function renderPopover(
       <span class="text-sm font-semibold">${MONTH_NAMES[month0]} ${year}</span>
       <button type="button" class="btn btn-xs btn-ghost" data-nav="next" aria-label="Next month">&#8250;</button>
     </div>
-    <div class="grid grid-cols-7 gap-0.5">
+    <div class="grid grid-cols-7 gap-y-0.5">
       ${headers}
       ${cells.join('')}
     </div>
+    ${legend}
     <div class="flex items-center justify-between pt-1">
       <button type="button" class="btn btn-xs btn-ghost text-primary" data-nav="today">Today</button>
       ${clearButton}
@@ -208,6 +241,20 @@ export function openCalendar(
   const selected = options.codec.parse(options.value);
   const min = options.min ? options.codec.parse(options.min) : null;
   const max = options.max ? options.codec.parse(options.max) : null;
+  const highlightStart = options.highlight
+    ? options.codec.parse(options.highlight.start)
+    : null;
+  const highlightEnd = options.highlight
+    ? options.codec.parse(options.highlight.end)
+    : null;
+  const highlight =
+    options.highlight && highlightStart && highlightEnd
+      ? {
+          start: highlightStart,
+          end: highlightEnd,
+          label: options.highlight.label,
+        }
+      : null;
   const opensOn = selected ?? todayUtc();
   let year = opensOn.getUTCFullYear();
   let month0 = opensOn.getUTCMonth();
@@ -224,6 +271,7 @@ export function openCalendar(
       selected,
       min,
       max,
+      highlight,
       options
     );
   };
