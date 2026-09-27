@@ -1,3 +1,17 @@
+## v3.5.0 (2026-09-27)
+
+### Feat
+
+- **ui**: search appends remote entries under a Places heading
+- **ui**: tooltips wait 150ms on hover before showing
+- **map**: fitPadding keeps fits clear of the map controls overlay
+- **ui**: calendar input marks today with a dot and jumps to the feed's edges
+- **ui**: issue rows carry several actions, a key and a show all button
+
+### Fix
+
+- **map**: cap basemap sources at their last real tile and export MAP_MAX_ZOOM
+
 ## v3.4.0 (2026-09-27)
 
 ### Feat
