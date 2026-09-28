@@ -1,3 +1,9 @@
+## v3.6.0 (2026-09-29)
+
+### Feat
+
+- **ui**: credit the feed catalogs and their licenses
+
 ## v3.5.0 (2026-09-27)
 
 ### Feat
