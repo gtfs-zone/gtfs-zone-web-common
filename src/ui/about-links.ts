@@ -94,7 +94,24 @@ export function renderResourcesSection(): string {
     divider('Resources') +
     list([
       `${link('https://gtfs.org/reference/', 'GTFS Spec Reference')}: official file format and field reference`,
-      `${link('https://www.transit.land/', 'TransitLand Atlas')}: real-world GTFS feeds, the source behind Load -&gt; From TransitLand Atlas`,
+      `${link('https://www.transit.land/', 'Transitland')}: real-world GTFS feeds, one of the catalogs behind Load -&gt; Feed catalogs`,
+    ])
+  );
+}
+
+/**
+ * Where Load -> Feed catalogs comes from and whose data a loaded feed is. The
+ * Transitland Atlas is CC BY 4.0 and asks for a link; the Mobility Database
+ * catalog is CC0.
+ */
+export function renderDataSourcesSection(): string {
+  return (
+    divider('Data Sources') +
+    list([
+      `${link('https://list.gtfs.zone', 'list.gtfs.zone')}: the checked feed list behind Load -&gt; Feed catalogs`,
+      `${link('https://github.com/transitland/transitland-atlas', 'Transitland Atlas')}: feed catalog, ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}`,
+      `${link('https://mobilitydatabase.org', 'Mobility Database')}: feed catalog by MobilityData, ${link('https://creativecommons.org/publicdomain/zero/1.0/', 'CC0')}`,
+      "A feed you load belongs to its publisher and stays under the publisher's license.",
     ])
   );
 }

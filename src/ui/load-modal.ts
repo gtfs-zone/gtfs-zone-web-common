@@ -58,6 +58,11 @@ const GROUP_LABELS: Record<Group, string> = {
   atlas: 'Feed catalogs',
 };
 
+/** Credit after a group's heading: the catalogs the atlas rows come from. */
+const GROUP_CREDITS: Partial<Record<Group, string>> = {
+  atlas: `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>) and the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a>`,
+};
+
 /** One offer in the result list, whichever source it came from. */
 interface FeedRow {
   rowId: string;
@@ -440,6 +445,10 @@ function renderRows(
       out.push(
         `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${GROUP_LABELS[group]}</p>`
       );
+      const credit = GROUP_CREDITS[group];
+      if (credit) {
+        out.push(`<p class="text-xs opacity-60 px-3 pb-1">${credit}</p>`);
+      }
     }
     out.push(renderRow(row, inUse.has(row.rowId), realtime));
   }
