@@ -60,7 +60,7 @@ export async function downloadWithProgress(
     if (isAbort(err)) {
       throw new LoadCancelledError();
     }
-    throw new Error(describeNetworkError(url, err));
+    throw new Error(describeNetworkError(url, err), { cause: err });
   }
   if (!response.ok) {
     const body = await response.text().catch(() => '');

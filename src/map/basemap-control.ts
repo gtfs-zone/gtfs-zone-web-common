@@ -2,8 +2,30 @@
  * Basemap control UI component using DaisyUI FAB and speed dial
  */
 
-import { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
+import {
+  Map as MapLibreMap,
+  StyleSpecification,
+  Subscription,
+} from 'maplibre-gl';
 import { basemapStyles, getBasemapStyle } from './basemap-styles';
+
+/** Fired on the map once a basemap swap's new style has loaded. */
+const BASEMAP_CHANGED = 'basemap:changed';
+
+// maplibre types `on`/`fire` against its closed `MapEventType`, so the custom
+// event goes through the untyped string signature the runtime still accepts.
+type UntypedEvented = {
+  on(type: string, listener: () => void): Subscription;
+  fire(type: string, properties?: object): unknown;
+};
+
+/** Run `listener` after every basemap swap, to re-add dropped sources/layers. */
+export function onBasemapChanged(
+  map: MapLibreMap,
+  listener: () => void
+): Subscription {
+  return (map as unknown as UntypedEvented).on(BASEMAP_CHANGED, listener);
+}
 
 export interface MapAppearance {
   basemap: string;
@@ -236,7 +258,7 @@ export class BasemapControl {
       this.map.setZoom(zoom);
       this.map.setBearing(bearing);
       this.map.setPitch(pitch);
-      this.map.fire('basemap:changed', detail);
+      (this.map as unknown as UntypedEvented).fire(BASEMAP_CHANGED, detail);
     });
   }
 
