@@ -67,13 +67,13 @@ export function renderBlurb(app: AboutApp): string {
 }
 
 export function renderVersionAndSource(app: AboutApp, version: string): string {
-  const repo = `${FORGE_URL}/${app.repo}`;
+  const repo = `${GITHUB_URL}/${app.repo}`;
   return (
     divider('Version &amp; Source') +
     list([
       `Version: <code class="font-mono">${version}</code>`,
       link(repo, 'Source code'),
-      link(`${repo}/src/branch/main/CHANGELOG.md`, 'Changelog'),
+      link(`${repo}/blob/main/CHANGELOG.md`, 'Changelog'),
     ])
   );
 }
