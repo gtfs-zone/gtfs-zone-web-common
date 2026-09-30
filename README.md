@@ -87,16 +87,17 @@ The layout every app shares, in four parts that go together:
 
 ## Published data
 
-The load modal's curated examples and feed catalogs are fetched at runtime from
-`https://data.gtfs.zone` (`gtfs/data-origin.ts`), published daily by
-geometry-car: `examples.json` for the curated set and `feeds.json` for the
-Transitland + Mobility Database catalog, one entry per transit system with the
-last reachability check of each of its endpoints. The modal lists the feeds the
-host app can use by default (a schedule that answered; in the visualiser, plus
-a realtime endpoint that did), newest schedule first, with a "show all" toggle. Nothing is baked into a consumer's `public/`. A small
-compiled-in fallback (`gtfs/examples.ts`) keeps the example list non-empty when
-the fetch fails. The curated set itself is edited in geometry-car's
-`src/geometry_car/data/examples.yaml`, not here.
+The load modal's feed catalog is fetched at runtime from `https://data.gtfs.zone`
+(`gtfs/data-origin.ts`), published daily by geometry-car: `search.json`, a
+compact cut of `feeds.json` listed in `manifest.json` with its hash, one entry
+per transit system from Transitland, the Mobility Database and rt.gtfs.zone,
+with the last reachability check of each of its roles. `gtfs/feed-catalog.ts`
+loads it (falling back to `feeds.json` when the manifest does not list it),
+`gtfs/feed-search.ts` searches it and `gtfs/feed-badges.ts` renders a feed's
+state and role chips. The modal lists the feeds the host app can use by default
+(a schedule that answered; in the visualiser, plus a realtime role that did),
+newest schedule first, with a "show all" toggle. Nothing is baked into a
+consumer's `public/`.
 
 ## Releasing
 

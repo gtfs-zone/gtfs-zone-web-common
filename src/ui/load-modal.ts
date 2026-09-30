@@ -1,15 +1,14 @@
 /**
  * The one way into a feed.
  *
- * Everything that used to be several modals behind a dropdown — curated
- * examples, TransitLand search, hand-typed URLs, file upload — is one screen
- * here, because they were never really different tasks: you are always choosing
- * a feed source, and the only thing that varies is where the URLs come from.
+ * The feed catalog, hand-typed URLs and file upload are one screen here,
+ * because they were never really different tasks: you are always choosing a
+ * feed source, and the only thing that varies is where the URLs come from.
  *
  * So the slots at the top are plain URL fields, and every result row is a
  * shortcut that fills them in. That single change is what makes the rest work:
- * "load an example and then fix one of its URLs" needs no separate mode, and
- * neither does "come back and edit what is loaded" — the modal opens seeded
+ * "load a catalog feed and then fix one of its URLs" needs no separate mode,
+ * and neither does "come back and edit what is loaded": the modal opens seeded
  * from the current selection, which is why the right panel needs no editors of
  * its own.
  *
@@ -23,19 +22,25 @@
  * the CORS proxy. Nothing about that is app-specific, so it lives here.
  *
  * `options.realtime` is the one axis an app gets a say in. With it off the
- * realtime section, its URL fields, and every realtime-only catalog feed are
- * simply not emitted, and a scheduled source alone is a complete selection. It
- * also picks which catalog feeds are listed by default: the editor's rule is a
- * schedule that answered geometry-car's last check, the visualiser's is that
- * plus at least one realtime endpoint that did. "Show all" lifts the rule.
- * Everything else, the search, the grouping, upload, CORS and seeding, is the
- * same everywhere, which is the whole reason this is one file.
+ * realtime section, its URL fields, the role chips and every realtime-only
+ * catalog feed are simply not emitted, and a scheduled source alone is a
+ * complete selection. It also picks which catalog feeds are listed by default:
+ * the editor's rule is a schedule that answered geometry-car's last check, the
+ * visualiser's is that plus at least one realtime role that did. "Show all"
+ * lifts the rule. Everything else, the search, upload, CORS and seeding, is
+ * the same everywhere, which is the whole reason this is one file.
  */
 
-import UFuzzy from '@leeoniya/ufuzzy';
-import { DATA_ORIGIN } from '../gtfs/data-origin';
-import type { ExampleFeed, SourceState } from '../gtfs/examples';
-import { FALLBACK_EXAMPLES, loadExamples } from '../gtfs/examples';
+import type { CatalogFeed } from '../gtfs/feed-catalog';
+import {
+  RT_ROLES,
+  loadFeedCatalog,
+  placeLine,
+  realtimeSlots,
+  usableUrl,
+} from '../gtfs/feed-catalog';
+import { feedStateBadge, roleChips } from '../gtfs/feed-badges';
+import { FeedMatcher } from '../gtfs/feed-search';
 import type { FeedSelection } from '../gtfs/feed-selection';
 import { describeMissing, isComplete } from '../gtfs/feed-selection';
 import { normalizeFeedUrl, validateFeedUrl } from '../gtfs/feed-url-resolve';
@@ -43,33 +48,17 @@ import type { ModalAction } from './modal-utils';
 import { renderUploadIcon, showModal } from './modal-utils';
 import { renderTooltipTrigger } from './field-label';
 import { SELECTED_ROW_CLASS } from './selectable-row';
-import { moduleState } from '../util/module-state';
 
-/**
- * Where a row came from, in the order the groups are shown. The atlas is last
- * because it is thousands of rows of unverified metadata.
- */
-type Group = 'example' | 'atlas';
+/** Heading of the result list, and the catalogs its rows come from. */
+const LIST_HEADING = 'Feed catalogs';
+const LIST_CREDIT = `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>), the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a> and <a href="https://rt.gtfs.zone" target="_blank" rel="noopener noreferrer" class="link">rt.gtfs.zone</a>`;
 
-const GROUP_ORDER: readonly Group[] = ['example', 'atlas'];
-
-const GROUP_LABELS: Record<Group, string> = {
-  example: 'Examples',
-  atlas: 'Feed catalogs',
-};
-
-/** Credit after a group's heading: the catalogs the atlas rows come from. */
-const GROUP_CREDITS: Partial<Record<Group, string>> = {
-  atlas: `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>) and the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a>`,
-};
-
-/** One offer in the result list, whichever source it came from. */
+/** One catalog feed as an offer in the result list. */
 interface FeedRow {
   rowId: string;
-  group: Group;
-  /** Which slots a click fills. Atlas rows describe one half of a feed. */
+  feed: CatalogFeed;
+  /** Which slots a click fills. */
   provides: 'pair' | 'scheduled' | 'rt';
-  name: string;
   subtitle: string;
   scheduledUrl?: string;
   vehiclesUrl?: string;
@@ -77,40 +66,8 @@ interface FeedRow {
   alertsUrl?: string;
   scheduledCors: boolean;
   rtCors: boolean;
-  /** True when geometry-car's last check found an endpoint down. */
-  down: boolean;
   /** Passes the host app's rule, so it is listed without "show all". */
   valid: boolean;
-}
-
-type Role = 'scheduled' | 'vehicles' | 'trip_updates' | 'alerts';
-
-const RT_ROLES: readonly Role[] = ['vehicles', 'trip_updates', 'alerts'];
-
-/** Catalog prefixes of geometry-car's row ids. */
-const CATALOG_LABELS: Record<string, string> = {
-  tl: 'Transitland',
-  md: 'Mobility Database',
-};
-
-/**
- * A logical feed in geometry-car's feeds.json: every catalog row describing
- * one transit system, static and realtime together. Only the fields read here;
- * the document carries more (place, since).
- */
-interface CatalogFeed {
-  feedId: string;
-  name: string;
-  /** Catalog row ids, `tl:`, `md:` or `curated:` prefixed. */
-  members: string[];
-  /** Role to URLs, best first: the first is the one to load. */
-  urls: Partial<Record<Role, string[]>>;
-  roleState: Partial<Record<Role, SourceState>>;
-  /** Roles whose every URL needs an API key we cannot supply. */
-  auth?: Role[];
-  staticBytes?: number;
-  /** ISO timestamp from the schedule's Last-Modified header. */
-  lastModified?: string;
 }
 
 /** What the stored feed is, for the boot screen's continue card. */
@@ -177,28 +134,6 @@ export interface LoadModalOptions {
 /** The unfiltered list is thousands of rows; cap what is painted. */
 const DISPLAY_CAP = 200;
 
-const shared = moduleState('ui/load-modal', () => ({
-  cachedAtlas: null as Promise<CatalogFeed[]> | null,
-}));
-
-function loadCatalogFeeds(): Promise<CatalogFeed[]> {
-  shared.cachedAtlas ??= fetch(`${DATA_ORIGIN}/feeds.json`)
-    .then(async (res) => {
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
-      }
-      const doc = (await res.json()) as { feeds?: CatalogFeed[] };
-      return doc.feeds ?? [];
-    })
-    .catch((err) => {
-      // Not cached on failure, so reopening the modal retries rather than
-      // reporting the atlas as unavailable for the rest of the session.
-      shared.cachedAtlas = null;
-      throw err;
-    });
-  return shared.cachedAtlas;
-}
-
 function escHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -213,45 +148,6 @@ function reason(err: unknown): string {
 
 // ─── Sources ──────────────────────────────────────────────────────────────────
 
-function exampleRows(
-  examples: readonly ExampleFeed[],
-  realtime: boolean
-): FeedRow[] {
-  return examples.map((ex) => {
-    const rt = realtime ? ex.selection.realtime : null;
-    const src = ex.selection.scheduled;
-    return {
-      // Keyed by slug, so a row still reads as in use once the published set
-      // replaces the fallback.
-      rowId: `example:${ex.slug}`,
-      group: 'example' as const,
-      provides: (src && rt
-        ? 'pair'
-        : src
-          ? 'scheduled'
-          : 'rt') as FeedRow['provides'],
-      name: ex.name,
-      subtitle: ex.description ?? '',
-      scheduledUrl: src?.kind === 'url' ? src.url : undefined,
-      vehiclesUrl: rt?.vehiclesUrl,
-      tripUpdatesUrl: rt?.tripUpdatesUrl,
-      alertsUrl: rt?.alertsUrl,
-      scheduledCors: src?.kind === 'url' ? src.useCors : true,
-      rtCors: rt?.useCors ?? true,
-      down:
-        (!!src && ex.state?.scheduled === 'down') ||
-        (!!rt && ex.state?.realtime === 'down'),
-      // Curated: always listed, and the down badge says the rest.
-      valid: true,
-    };
-  });
-}
-
-/** The published curated set. Rejects when it cannot be fetched. */
-async function publishedExampleRows(realtime: boolean): Promise<FeedRow[]> {
-  return exampleRows(await loadExamples(), realtime);
-}
-
 function formatBytes(n: number): string {
   if (n < 1024 * 1024) {
     return `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -264,51 +160,37 @@ function formatBytes(n: number): string {
  * load: no schedule in the editor, or only URLs behind a key we lack.
  */
 function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
-  const usable = (role: Role): string | undefined =>
-    feed.auth?.includes(role) ? undefined : feed.urls[role]?.[0];
-  const scheduledUrl = usable('scheduled');
-  const rt = realtime
-    ? {
-        vehiclesUrl: usable('vehicles'),
-        tripUpdatesUrl: usable('trip_updates'),
-        alertsUrl: usable('alerts'),
-      }
-    : {};
+  const scheduledUrl = usableUrl(feed, 'scheduled');
+  const rt = realtime ? realtimeSlots(feed) : {};
   const hasRt = Object.values(rt).some(Boolean);
   if (!scheduledUrl && !hasRt) {
     return null;
   }
 
-  const up = (role: Role) => feed.roleState[role] === 'up';
-  const offered: Role[] = [
-    ...(scheduledUrl ? (['scheduled'] as const) : []),
-    ...(realtime ? RT_ROLES.filter(usable) : []),
-  ];
-  const catalogs = [
-    ...new Set(feed.members.map((m) => CATALOG_LABELS[m.split(':')[0]])),
-  ].filter(Boolean);
-
+  const up = (role: (typeof RT_ROLES)[number]) => feed.roleState[role] === 'up';
   return {
     rowId: `feed:${feed.feedId}`,
-    group: 'atlas',
+    feed,
     provides:
       scheduledUrl && hasRt ? 'pair' : scheduledUrl ? 'scheduled' : 'rt',
-    name: feed.name,
     subtitle: [
-      catalogs.join(', '),
-      feed.lastModified ? `updated ${feed.lastModified.slice(0, 10)}` : '',
+      feed.subtitle,
+      placeLine(feed),
+      feed.lastModified ? `updated ${feed.lastModified}` : '',
       feed.staticBytes ? formatBytes(feed.staticBytes) : '',
     ]
       .filter(Boolean)
       .join(' - '),
     scheduledUrl,
     ...rt,
-    // Unknown origins, so assume the proxy is needed; the checkbox is there for
+    // Unknown origins, so assume the proxy is needed; the toggle is there for
     // the ones that turn out not to.
     scheduledCors: true,
     rtCors: true,
-    down: offered.some((role) => feed.roleState[role] === 'down'),
-    valid: realtime ? up('scheduled') && RT_ROLES.some(up) : up('scheduled'),
+    // An untyped realtime role is in RT_ROLES, so it counts for the viewer.
+    valid: realtime
+      ? feed.roleState.scheduled === 'up' && RT_ROLES.some(up)
+      : feed.roleState.scheduled === 'up',
   };
 }
 
@@ -323,40 +205,19 @@ function byRecency(a: CatalogFeed, b: CatalogFeed): number {
 }
 
 /**
- * The catalog feeds worth offering, newest first. A feed holding a curated row
- * is already listed as that example. Rejects when the file cannot be fetched.
+ * The catalog feeds worth offering, newest first. Rejects when the catalog
+ * cannot be fetched.
  */
 async function catalogFeedRows(realtime: boolean): Promise<FeedRow[]> {
-  const feeds = await loadCatalogFeeds();
-  return feeds
-    .filter((f) => !f.members.some((m) => m.startsWith('curated:')))
+  const feeds = await loadFeedCatalog();
+  return [...feeds]
     .sort(byRecency)
     .map((f) => feedRow(f, realtime))
     .filter((r): r is FeedRow => r !== null);
 }
 
-function atlasNote(err: unknown): string | null {
-  return `Feed catalogs unavailable — ${reason(err)}`;
-}
-
-function examplesNote(err: unknown): string | null {
-  return `Showing built-in examples; the checked list is unavailable — ${reason(err)}`;
-}
-
-/** What each row is matched against when the search box has a query. */
-function buildHaystack(rows: FeedRow[]): string[] {
-  return rows.map((r) =>
-    [
-      r.name,
-      r.subtitle,
-      r.scheduledUrl,
-      r.vehiclesUrl,
-      r.tripUpdatesUrl,
-      r.alertsUrl,
-    ]
-      .filter(Boolean)
-      .join(' ')
-  );
+function catalogNote(err: unknown): string {
+  return `Feed catalogs unavailable - ${reason(err)}`;
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
@@ -370,28 +231,13 @@ function urlLine(label: string, url: string | undefined): string {
   </p>`;
 }
 
-function badges(row: FeedRow, realtime: boolean): string {
-  // With one kind of source there is nothing to tell apart, so the badges are
-  // pure noise.
-  if (!realtime) {
-    return '';
-  }
-  const parts: string[] = [];
-  if (row.provides !== 'rt') {
-    parts.push('<span class="badge badge-xs badge-neutral">Scheduled</span>');
-  }
-  if (row.provides !== 'scheduled') {
-    parts.push('<span class="badge badge-xs badge-primary">RT</span>');
-  }
-  return parts.join('');
-}
-
 function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
   const classes = inUse ? SELECTED_ROW_CLASS : 'hover:bg-base-200';
+  const { feed } = row;
   return `
     <button type="button" class="w-full text-left px-3 py-2 rounded-lg flex items-start gap-2 ${classes}" data-row-id="${escHtml(row.rowId)}">
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium truncate">${escHtml(row.name)}</p>
+        <p class="text-sm font-medium truncate">${escHtml(feed.name)}</p>
         ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${escHtml(row.subtitle)}</p>` : ''}
         ${urlLine(realtime ? 'scheduled' : '', row.scheduledUrl)}
         ${realtime ? urlLine('vp', row.vehiclesUrl) : ''}
@@ -400,8 +246,8 @@ function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
         ${inUse ? '<span class="text-xs opacity-60">in use</span>' : ''}
-        ${row.down ? '<span class="badge badge-xs badge-warning" title="Did not answer at the last daily check. Some hosts refuse a bare check but answer the CORS proxy.">down</span>' : ''}
-        ${badges(row, realtime)}
+        ${feedStateBadge(feed.state, feed.since)}
+        ${realtime ? roleChips(feed) : ''}
       </div>
     </button>`;
 }
@@ -426,7 +272,7 @@ function customUrlRow(realtime: boolean): string {
     </button>`;
 }
 
-/** The visible rows, with a heading wherever the group changes. */
+/** The visible rows under the catalogs' heading and credit. */
 function renderRows(
   rows: FeedRow[],
   inUse: Set<string>,
@@ -437,21 +283,11 @@ function renderRows(
   if (rows.length === 0) {
     return `${custom}<p class="text-sm opacity-40 text-center py-8">${emptyText}</p>`;
   }
-  let group: Group | null = null;
-  const out: string[] = [];
-  for (const row of rows) {
-    if (row.group !== group) {
-      group = row.group;
-      out.push(
-        `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${GROUP_LABELS[group]}</p>`
-      );
-      const credit = GROUP_CREDITS[group];
-      if (credit) {
-        out.push(`<p class="text-xs opacity-60 px-3 pb-1">${credit}</p>`);
-      }
-    }
-    out.push(renderRow(row, inUse.has(row.rowId), realtime));
-  }
+  const out = [
+    `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${LIST_HEADING}</p>`,
+    `<p class="text-xs opacity-60 px-3 pb-1">${LIST_CREDIT}</p>`,
+    ...rows.map((row) => renderRow(row, inUse.has(row.rowId), realtime)),
+  ];
   return custom + out.join('');
 }
 
@@ -585,33 +421,14 @@ export async function showLoadModal(
     return '';
   };
 
-  // Both fetches are already in flight while the modal paints, and neither is
-  // allowed to keep it shut: a fallback set of examples is compiled in, so
-  // there is always something to load, and the URL fields and upload need no
-  // list at all. Rows fold in as they land; the published examples replace the
-  // fallback rather than adding to it.
-  const sources: Array<{
-    load: Promise<FeedRow[]>;
-    note: (err: unknown) => string | null;
-    replaces?: Group;
-  }> = [
-    {
-      load: publishedExampleRows(realtime),
-      note: examplesNote,
-      replaces: 'example',
-    },
-    { load: catalogFeedRows(realtime), note: atlasNote },
-  ];
-  let pending = sources.length;
-
-  const uf = new UFuzzy();
-  // Rows are kept in group order, so a filtered view only has to keep that
-  // order stable rather than re-derive it.
-  let rows = exampleRows(FALLBACK_EXAMPLES, realtime);
-  let haystack = buildHaystack(rows);
-  const groupRank = new Map(GROUP_ORDER.map((g, i) => [g, i]));
-
-  let visible = rows.slice(0, DISPLAY_CAP);
+  // The catalog is already in flight while the modal paints, and is not
+  // allowed to keep it shut: the URL fields and upload need no list at all.
+  // Rows land when it does.
+  const catalog = catalogFeedRows(realtime);
+  let loading = true;
+  let rows: FeedRow[] = [];
+  let matcher = new FeedMatcher([]);
+  let visible: FeedRow[] = [];
   let result: LoadModalResult = null;
 
   // Slot state that is not held in the DOM: the labels a row click supplies,
@@ -675,7 +492,7 @@ export async function showLoadModal(
       ${options.continueWith ? continueCard(options.continueWith) : ''}
 
       <div class="flex shrink-0 items-center gap-3">
-        <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="Search by agency, catalog, or URL…" autofocus />
+        <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="Search by agency, place, or URL..." autofocus />
         <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
           <input type="checkbox" id="load-show-all" class="toggle toggle-xs" />
           Show all <span id="load-hidden-count" class="opacity-60"></span>
@@ -685,7 +502,7 @@ export async function showLoadModal(
       <div id="load-results" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden"></div>
 
       <p id="load-status" class="shrink-0 text-xs opacity-60 flex items-center gap-2">
-        <span class="loading loading-spinner loading-xs"></span> Loading more feeds…
+        <span class="loading loading-spinner loading-xs"></span> Loading feeds…
       </p>
       <div id="load-notes" class="shrink-0 space-y-1"></div>
 
@@ -806,7 +623,7 @@ export async function showLoadModal(
           visible,
           inUse,
           realtime,
-          pending > 0 ? 'Loading…' : 'No results.'
+          loading ? 'Loading…' : 'No results.'
         );
       };
 
@@ -866,7 +683,7 @@ export async function showLoadModal(
           showFile();
           input('load-scheduled-url').value = row.scheduledUrl ?? '';
           input('load-scheduled-cors').checked = row.scheduledCors;
-          scheduledLabel = row.name;
+          scheduledLabel = row.feed.name;
           scheduledRowId = row.rowId;
           flashSection('load-scheduled-section');
         }
@@ -875,7 +692,7 @@ export async function showLoadModal(
           input('load-trip-updates-url').value = row.tripUpdatesUrl ?? '';
           input('load-alerts-url').value = row.alertsUrl ?? '';
           input('load-rt-cors').checked = row.rtCors;
-          rtLabel = row.name;
+          rtLabel = row.feed.name;
           rtRowId = row.rowId;
           flashSection('load-rt-section');
         }
@@ -931,12 +748,9 @@ export async function showLoadModal(
       };
 
       const filterAndRender = () => {
-        const query = searchInput.value.trim();
-        // `filter` keeps haystack order, which is group order and, within the
-        // catalog group, newest schedule first.
-        const matched = query
-          ? (uf.filter(haystack, query) ?? []).map((i) => rows[i])
-          : rows;
+        // No query keeps catalog order, newest schedule first; a query ranks.
+        const ranked = matcher.match(searchInput.value);
+        const matched = ranked ? ranked.map((i) => rows[i]) : rows;
         const listed = showAllInput.checked
           ? matched
           : matched.filter((r) => r.valid);
@@ -946,46 +760,31 @@ export async function showLoadModal(
         renderResults();
       };
 
-      /** Fold a source's rows in, keeping group order and the current query. */
-      const addRows = (incoming: FeedRow[], replaces?: Group) => {
-        const kept = replaces ? rows.filter((r) => r.group !== replaces) : rows;
-        rows = [...kept, ...incoming].sort(
-          (a, b) => groupRank.get(a.group)! - groupRank.get(b.group)!
-        );
-        haystack = buildHaystack(rows);
+      void (async () => {
+        let note: string | null = null;
+        try {
+          rows = await catalog;
+        } catch (err) {
+          note = catalogNote(err);
+        }
+        loading = false;
+        // A slow fetch can land after the modal is gone.
+        if (!resultsEl.isConnected) {
+          return;
+        }
+        if (note) {
+          notesEl.insertAdjacentHTML(
+            'beforeend',
+            `<p class="text-xs text-warning">${escHtml(note)}</p>`
+          );
+        }
+        // Both classes, like the file row: `hidden` and `flex` are the same
+        // specificity, so leaving `flex` on would keep the line visible.
+        statusEl.classList.add('hidden');
+        statusEl.classList.remove('flex');
+        matcher = new FeedMatcher(rows.map((r) => r.feed));
         filterAndRender();
-      };
-
-      for (const source of sources) {
-        void (async () => {
-          let incoming: FeedRow[] = [];
-          let note: string | null = null;
-          let failed = false;
-          try {
-            incoming = await source.load;
-          } catch (err) {
-            failed = true;
-            note = source.note(err);
-          }
-          pending--;
-          // A slow fetch can land after the modal is gone.
-          if (!resultsEl.isConnected) {
-            return;
-          }
-          if (note) {
-            notesEl.insertAdjacentHTML(
-              'beforeend',
-              `<p class="text-xs text-warning">${escHtml(note)}</p>`
-            );
-          }
-          // Both classes, like the file row: `hidden` and `flex` are the same
-          // specificity, so leaving `flex` on would keep the line visible.
-          statusEl.classList.toggle('hidden', pending === 0);
-          statusEl.classList.toggle('flex', pending > 0);
-          // A failed source replaces nothing, so the fallback stays.
-          addRows(incoming, failed ? undefined : source.replaces);
-        })();
-      }
+      })();
 
       // Delegated, so re-rendering the list never re-wires handlers.
       resultsEl.addEventListener('click', (e) => {

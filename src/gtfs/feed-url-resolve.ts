@@ -5,9 +5,9 @@
  * rules there stay readable:
  *
  * 1. `resolveRealtimeUrl` — a feed URL may be stored as a bare path (`/amtrak/
- *    vehicle_positions.pb`). That form is environment-agnostic, so a shared link
- *    works for whoever opens it. Resolution happens at fetch time only, against
- *    a base the caller supplies; the selection and the hash keep the path.
+ *    vehicle_positions.pb`) or as an absolute rt.gtfs.zone URL. Resolution
+ *    happens at fetch time only, against a base the caller supplies; the
+ *    selection and the hash keep the URL as stored.
  * 2. `normalizeFeedUrl` — accept the shapes people actually type.
  * 3. `isLocalUrl` — the CORS proxy lives on the public internet and cannot reach
  *    the user's own machine, so a local URL must never be routed through it.
@@ -40,15 +40,26 @@ export function isPathOnly(url: string): boolean {
   return url.startsWith('/') && !url.startsWith('//');
 }
 
+/** The deployed realtime server, as the feed catalog spells its URLs. */
+const RT_ORIGIN = 'https://rt.gtfs.zone';
+
 /**
- * Resolve a path-only realtime URL against `rtBase`; leave anything else alone.
+ * Resolve a realtime URL against `rtBase`: a bare path (old share links), or an
+ * absolute `https://rt.gtfs.zone/...` (the feed catalog), so dev reaches the
+ * local server. Anything else is left alone.
  *
  * The base is an argument rather than a constant here because the apps do not
  * agree on it: one with a local feed server wants localhost in dev, one without
  * wants the deployed server always. Each passes its own `CONFIG.RT_BASE`.
  */
 export function resolveRealtimeUrl(url: string, rtBase: string): string {
-  return isPathOnly(url) ? rtBase + url : url;
+  if (isPathOnly(url)) {
+    return rtBase + url;
+  }
+  if (url.startsWith(`${RT_ORIGIN}/`)) {
+    return rtBase + url.slice(RT_ORIGIN.length);
+  }
+  return url;
 }
 
 /**
@@ -147,7 +158,7 @@ export function normalizeFeedUrl(raw: string): string {
  * `useCors` is the source's proxy setting, and it decides the mixed-content rule
  * below: through the proxy the browser only ever requests
  * `https://cors.kcfam.us/…` and the plain-http hop happens server-side, so an
- * http feed is perfectly usable. Several curated examples are http for exactly
+ * http feed is perfectly usable. Several catalog feeds are http for exactly
  * that reason.
  */
 export function validateFeedUrl(raw: string, useCors = false): string | null {

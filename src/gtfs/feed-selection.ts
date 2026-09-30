@@ -2,8 +2,8 @@
  * Feed selection model.
  *
  * A session needs BOTH a scheduled GTFS source and at least one GTFS-RT endpoint
- * before it can load. That contract lives here: every load path (examples,
- * atlas, manual, and later the URL hash) produces a `FeedSelection`, and
+ * before it can load. That contract lives here: every load path (the feed
+ * catalog, manual, and later the URL hash) produces a `FeedSelection`, and
  * `isComplete` is the single gate.
  *
  * `useCors` is per-source rather than global, because a scheduled feed from an

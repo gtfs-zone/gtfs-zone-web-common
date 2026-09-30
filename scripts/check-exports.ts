@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const siblingRoot = resolve(packageRoot, '..');
-const SIBLINGS = ['coloring-book', 'test-track', 'yard-master'];
+const SIBLINGS = ['coloring-book', 'test-track', 'yard-master', 'globe-of-contents'];
 
 /** Every `.ts` file under `dir`, recursively. */
 function tsFiles(dir: string): string[] {

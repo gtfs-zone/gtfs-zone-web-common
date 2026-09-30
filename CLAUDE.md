@@ -46,9 +46,9 @@ src/util/   pure, domain-free
 `scripts/` holds this repo's own dev tooling (`check-exports.ts`); nothing in
 it is run by a consumer.
 
-The curated examples and the feed catalog are not source here: geometry-car
-publishes them to `https://data.gtfs.zone` and the load modal fetches them.
-Edit the curated set in geometry-car's `src/geometry_car/data/examples.yaml`.
+The feed catalog is not source here: geometry-car publishes it to
+`https://data.gtfs.zone` as `search.json` (and the full `feeds.json`), and
+`gtfs/feed-catalog.ts` fetches it.
 
 ## Rules
 
