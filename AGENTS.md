@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project Overview
 
@@ -10,7 +10,7 @@ with no build step; each consumer's vite compiles it as source.
 Consumed as a pinned git dependency:
 
 ```
-pnpm add "interlocking@git+https://git.kcfam.us/gtfs.zone/interlocking.git#vX.Y.Z"
+pnpm add "interlocking@github:gtfs-zone/interlocking#vX.Y.Z"
 ```
 
 `README.md` covers the layout and the public surface. `CURRENT_PLAN.md` holds
@@ -64,7 +64,6 @@ The feed catalog is not source here: geometry-car publishes it to
   and `papaparse` are peers because a second copy of maplibre is a broken map,
   not a duplicate. `gtfs-realtime-bindings` is an optional peer, imported as a
   type only, so nothing here pulls protobufjs into a bundle.
-- Never include `Co-Authored-By: Claude ...` trailers in commit messages.
 
 ## UI conventions
 
@@ -106,8 +105,8 @@ annotated `vX.Y.Z` tag.
 
 **Push the commit and the tag to both remotes.** `origin` is Forgejo
 (`ssh://git@git.kcfam.us:2222/gtfs.zone/interlocking.git`) and `github` is
-`git@github.com:gtfs-zone/interlocking.git`. Consumers pin by tag over HTTPS, so
-a tag that exists on only one remote breaks `pnpm install` for every app that
+`git@github.com:gtfs-zone/interlocking.git`. Consumers pin by tag from GitHub,
+so a tag pushed only to `origin` breaks `pnpm install` for every app that
 repins:
 
 ```bash
@@ -126,8 +125,8 @@ module, each with its own module-level state. `util/module-state.ts` logs
 
 | Repo | Description | URL |
 |---|---|---|
-| coloring-book | edit.gtfs.zone, the GTFS editor | https://git.kcfam.us/gtfs.zone/coloring-book |
-| test-track | viz.rt.gtfs.zone, the realtime visualiser | https://git.kcfam.us/gtfs.zone/test-track |
-| yard-master | manage.rt.gtfs.zone, the feed manager | https://git.kcfam.us/gtfs.zone/yard-master |
-| cafe-car | GTFS-RT API and manager backend | https://git.kcfam.us/gtfs.zone/cafe-car |
-| deploy-gtfs-rt | ArgoCD manifests for the whole stack | https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt |
+| coloring-book | edit.gtfs.zone, the GTFS editor | https://github.com/gtfs-zone/coloring-book |
+| test-track | viz.rt.gtfs.zone, the realtime visualiser | https://github.com/gtfs-zone/test-track |
+| yard-master | manage.rt.gtfs.zone, the feed manager | https://github.com/gtfs-zone/yard-master |
+| cafe-car | GTFS-RT API and manager backend | https://github.com/gtfs-zone/cafe-car |
+| deploy-gtfs-rt | ArgoCD manifests for the whole stack | https://github.com/gtfs-zone/deploy-gtfs-rt |
