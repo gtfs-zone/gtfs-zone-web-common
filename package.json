@@ -15,7 +15,8 @@
     "format": "prettier --write src/ scripts/",
     "check:exports": "tsx scripts/check-exports.ts",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run check:exports",
-    "commit": "cz commit"
+    "commit": "cz commit",
+    "vuln": "sh scripts/vuln-gate.sh"
   },
   "peerDependencies": {
     "@leeoniya/ufuzzy": "*",
