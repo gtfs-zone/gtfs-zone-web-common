@@ -1,3 +1,9 @@
+## v3.7.0 (2026-09-30)
+
+### Feat
+
+- **gtfs**: shared feed catalog, state badges, role chips, search and place search
+
 ## v3.6.0 (2026-09-29)
 
 ### Feat
