@@ -8,7 +8,7 @@ Ships raw `.ts` source under `src/`. There is no build step: each app's vite
 compiles it as source. Consumed as a pinned git dependency:
 
 ```
-pnpm add "interlocking@git+https://git.kcfam.us/gtfs.zone/interlocking.git#vX.Y.Z"
+pnpm add "interlocking@github:gtfs-zone/interlocking#vX.Y.Z"
 ```
 
 `maplibre-gl`, `@leeoniya/ufuzzy`, `jszip` and `papaparse` are peer
