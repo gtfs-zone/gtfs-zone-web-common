@@ -20,7 +20,7 @@ export interface AboutApp {
   blurbFooter?: string;
   /** Subject line the contact link opens with. */
   contactSubject: string;
-  /** Repo name, the same on the Forgejo origin and the GitHub mirror. */
+  /** Repo name, the same on Forgejo and GitHub. */
   repo: string;
   /** The other app, linked so each modal points at its sibling. */
   sibling: { name: string; href: string; note: string };
