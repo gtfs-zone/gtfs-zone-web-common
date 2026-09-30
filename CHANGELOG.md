@@ -1,3 +1,17 @@
+## v4.0.0 (2026-09-30)
+
+### BREAKING CHANGE
+
+- consumers need maplibre-gl 6 and lib ES2022, and should subscribe through onBasemapChanged instead of map.on('basemap:changed')
+
+### Feat
+
+- **map**: require maplibre-gl 6 and update dependencies
+
+### Fix
+
+- **ui**: link About source and changelog to GitHub
+
 ## v3.7.0 (2026-09-30)
 
 ### Feat
