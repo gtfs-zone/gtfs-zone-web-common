@@ -61,7 +61,7 @@ between the apps and the layout this package is moving to.
 ## Checks
 
 `pnpm run check` runs all three, and a pre-commit hook runs them on every
-commit (enable it with `git config core.hooksPath .githooks`).
+commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 | script | what it does |
 | --- | --- |
