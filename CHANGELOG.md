@@ -1,3 +1,9 @@
+## v5.0.2 (2026-10-01)
+
+### Fix
+
+- drop the Forgejo issue link
+
 ## v5.0.1 (2026-10-01)
 
 ### Fix
