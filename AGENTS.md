@@ -21,7 +21,7 @@ The public surface, the app shell and the four edits a consumer needs are in
 
 - **No barrel `index.ts` files.** Every module is its own entry point
   (`gtfs-zone-web-common/ui/navbar-actions`). Barrels would defeat
-  `check:exports`, which stands in for knip here.
+  `check:exports`, which stands in for knip's export check here.
 - **A module arrives by moving out of an app, not by being copied.** Once here
   it is edited here, never in parallel in a consumer.
 - **Nothing app-specific belongs here.** If it only makes sense for one app, it

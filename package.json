@@ -14,7 +14,8 @@
     "lint:fix": "eslint src/ scripts/ --fix",
     "format": "prettier --write src/ scripts/",
     "check:exports": "tsx scripts/check-exports.ts",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run check:exports",
+    "knip": "knip",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run check:exports",
     "commit": "cz commit",
     "vuln": "sh scripts/vuln-gate.sh"
   },
@@ -39,6 +40,7 @@
     "eslint-config-prettier": "^10.1.8",
     "gtfs-realtime-bindings": "^2.2.0",
     "jszip": "^3.10.2",
+    "knip": "^6.39.0",
     "maplibre-gl": "^6.11",
     "papaparse": "^5.7.0",
     "prettier": "^3.9.9",

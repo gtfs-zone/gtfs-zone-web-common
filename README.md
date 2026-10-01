@@ -60,20 +60,22 @@ between the apps and the layout this package is moving to.
 
 ## Checks
 
-`pnpm run check` runs all three, and a pre-commit hook runs them on every
+`pnpm run check` runs all four, and a pre-commit hook runs them on every
 commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 | script | what it does |
 | --- | --- |
 | `typecheck` | `tsc --noEmit` over `src/` and `scripts/` |
 | `lint` | `eslint src/ scripts/ --max-warnings 0` |
+| `knip` | reports unused files and dependencies |
 | `check:exports` | reports exports no consumer imports |
 
 `format` runs prettier over the same directories.
 
-`check:exports` replaces knip, which is vacuous for a library with no barrel
-files: every module is its own entry point, so nothing ever looks unused.
-Instead it resolves the sibling checkouts, collects every `gtfs-zone-web-common/...`
+knip only checks files and dependencies here. Its unused-export check is
+vacuous for a library with no barrel files: every module is its own entry
+point, so nothing ever looks unused. `check:exports` covers exports instead: it
+resolves the sibling checkouts, collects every `gtfs-zone-web-common/...`
 import across them and diffs that against what `src/` exports. An export only
 another module here imports is reported as `internal` rather than unused. A
 sibling that is not checked out is skipped, and the run exits 0 when all three
