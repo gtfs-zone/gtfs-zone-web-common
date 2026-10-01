@@ -52,6 +52,11 @@ function list(items: string[]): string {
     .join('')}</ul>`;
 }
 
+/** A titled block of links, for an app's own sections next to the shared ones. */
+export function renderSection(label: string, items: string[]): string {
+  return divider(label) + list(items);
+}
+
 export function renderBlurb(app: AboutApp): string {
   // Lead paragraphs, then the bullets, then a closing line. Breaking the blurb
   // up this way is what keeps a long one from reading as a wall of prose.
@@ -101,7 +106,7 @@ export function renderResourcesSection(): string {
 /**
  * Where Load -> Feed catalogs comes from and whose data a loaded feed is. The
  * Transitland Atlas is CC BY 4.0 and asks for a link; the Mobility Database
- * catalog is CC0.
+ * catalog is CC0; the NTD GTFS weblinks are a US government work.
  */
 export function renderDataSourcesSection(): string {
   return (
@@ -110,6 +115,7 @@ export function renderDataSourcesSection(): string {
       `${link('https://list.gtfs.zone', 'list.gtfs.zone')}: the checked feed list behind Load -&gt; Feed catalogs`,
       `${link('https://github.com/transitland/transitland-atlas', 'Transitland Atlas')}: feed catalog, ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}`,
       `${link('https://mobilitydatabase.org', 'Mobility Database')}: feed catalog by MobilityData, ${link('https://creativecommons.org/publicdomain/zero/1.0/', 'CC0')}`,
+      `${link('https://data.transportation.gov/d/2u7n-ub22', 'National Transit Database')}: GTFS weblinks reported to the FTA, public domain`,
       "A feed you load belongs to its publisher and stays under the publisher's license.",
     ])
   );
