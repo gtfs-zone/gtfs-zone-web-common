@@ -1,3 +1,13 @@
+## v5.0.0 (2026-10-01)
+
+### BREAKING CHANGE
+
+- consumers import from gtfs-zone-web-common/... and depend on github:gtfs-zone/gtfs-zone-web-common
+
+### Feat
+
+- rename the package to gtfs-zone-web-common and read the CORS proxy from VITE_CORS_PROXY
+
 ## v4.0.0 (2026-09-30)
 
 ### BREAKING CHANGE
