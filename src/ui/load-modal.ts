@@ -51,7 +51,7 @@ import { SELECTED_ROW_CLASS } from './selectable-row';
 
 /** Heading of the result list, and the catalogs its rows come from. */
 const LIST_HEADING = 'Feed catalogs';
-const LIST_CREDIT = `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>), the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a> and <a href="https://rt.gtfs.zone" target="_blank" rel="noopener noreferrer" class="link">rt.gtfs.zone</a>`;
+const LIST_CREDIT = `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>), the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a>, the <a href="https://data.transportation.gov/d/2u7n-ub22" target="_blank" rel="noopener noreferrer" class="link">National Transit Database</a> and <a href="https://rt.gtfs.zone" target="_blank" rel="noopener noreferrer" class="link">rt.gtfs.zone</a>`;
 
 /** One catalog feed as an offer in the result list. */
 interface FeedRow {
