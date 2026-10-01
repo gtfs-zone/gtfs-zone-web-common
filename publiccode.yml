@@ -1,0 +1,44 @@
+publiccodeYmlVersion: "0.4"
+
+name: GTFS.zone Web Common
+url: "https://github.com/gtfs-zone/gtfs-zone-web-common"
+
+platforms:
+  - web
+
+categories:
+  - application-development
+  - geographic-information-systems
+
+developmentStatus: beta
+
+softwareType: "library"
+
+description:
+  en:
+    shortDescription: >
+      Shared browser-side GTFS and map modules for the gtfs.zone web apps.
+    longDescription: >
+      GTFS.zone Web Common holds the browser-side modules shared by the
+      gtfs.zone editor, realtime viewer, realtime manager and feed list: GTFS
+      parsing, map helpers and UI pieces. It ships raw TypeScript source with
+      no build step, and each app compiles it with its own Vite build. Apps
+      consume it as a git dependency pinned to a release tag.
+    features:
+      - GTFS Schedule parsing in the browser
+      - MapLibre map helpers shared across the apps
+      - Shipped as raw TypeScript, pinned by tag
+
+legal:
+  license: AGPL-3.0-or-later
+
+maintenance:
+  type: community
+  contacts:
+    - name: Max Katz-Christy
+      email: maxkatzchristy@gmail.com
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
