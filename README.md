@@ -18,6 +18,25 @@ an optional peer: `gtfs/rt-types.ts` imports its namespace as a type and
 nothing here pulls protobufjs into a bundle, so only the apps that read GTFS-RT
 need it installed.
 
+## Consumer wiring
+
+Adding this library to an app takes four separate edits, and missing any one
+of them fails in a different place:
+
+1. `tsconfig.json` path, so `tsc` resolves the import:
+   `"gtfs-zone-web-common/*": ["node_modules/gtfs-zone-web-common/src/*"]`
+2. `vite.config.js` alias, so the bundler resolves the same specifier, plus
+   `optimizeDeps.exclude: ['gtfs-zone-web-common']` because the package ships raw `.ts`
+   and must be transformed as source:
+   `'gtfs-zone-web-common': resolve(__dirname, 'node_modules/gtfs-zone-web-common/src')`
+3. The Tailwind `@source` line in the app's CSS, so classes used only inside
+   this library are not purged:
+   `@source "../../node_modules/gtfs-zone-web-common/src/**/*.ts";`
+4. The shell stylesheet `@import`, directly after `@import 'tailwindcss'`
+   (postcss rejects an `@import` placed after any other statement), so the
+   grid, the mobile drawer and the map controls are styled:
+   `@import '../../node_modules/gtfs-zone-web-common/src/ui/app-shell.css';`
+
 ## Configuration
 
 Read from the consumer's Vite env at its build time:
