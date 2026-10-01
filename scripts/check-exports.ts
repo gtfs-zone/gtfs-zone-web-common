@@ -3,7 +3,7 @@
  *
  * knip is vacuous here: with every module its own entry point nothing ever
  * looks unused. What is actually worth knowing is whether anything outside
- * this package imports a given export, so this resolves the three sibling
+ * this package imports a given export, so this resolves the four sibling
  * checkouts the way `vendor-check.ts` does, collects every `gtfs-zone-web-common/...`
  * import across them, and diffs that against what `src/` exports.
  *
@@ -16,7 +16,7 @@
  * - unused: imported by nobody. These are the findings.
  *
  * A sibling that is not checked out is skipped, and the run exits 0 when all
- * three are absent, so CI is never blocked by this. Unused exports are a
+ * four are absent, so CI is never blocked by this. Unused exports are a
  * warning by default, matching vendor-check's staleness pass; `--strict`
  * makes them fatal.
  */
@@ -26,7 +26,12 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const siblingRoot = resolve(packageRoot, '..');
-const SIBLINGS = ['coloring-book', 'test-track', 'yard-master', 'globe-of-contents'];
+const SIBLINGS = [
+  'gtfs-zone-editor',
+  'gtfs-zone-rt-viewer',
+  'gtfs-zone-rt-manager',
+  'gtfs-zone-feed-list',
+];
 
 /** Every `.ts` file under `dir`, recursively. */
 function tsFiles(dir: string): string[] {
