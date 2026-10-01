@@ -13,7 +13,7 @@
 
 import { isLocalUrl, resolveRealtimeUrl } from './feed-url-resolve';
 
-const CORS_PROXY = import.meta.env.VITE_CORS_PROXY ?? 'https://cors.kcfam.us/';
+const CORS_PROXY = import.meta.env.VITE_CORS_PROXY || 'https://cors.kcfam.us/';
 
 /** True when a URL is already routed through the CORS proxy. */
 export function isProxied(url: string): boolean {
