@@ -1,3 +1,9 @@
+## v5.0.1 (2026-10-01)
+
+### Fix
+
+- fall back to the default CORS proxy when VITE_CORS_PROXY is empty
+
 ## v5.0.0 (2026-10-01)
 
 ### BREAKING CHANGE
