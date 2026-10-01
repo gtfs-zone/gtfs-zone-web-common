@@ -166,8 +166,8 @@ export type RowPathsOptions =
 
 /**
  * A row's line segments, for either a stop row or a gap row between a stop
- * and something drawn beside it (test-track sits vehicle chips there;
- * coloring-book has none today).
+ * and something drawn beside it (rt-viewer sits vehicle chips there;
+ * the editor has none today).
  *
  * `stop`: the row's own through/merge/branch lanes, from `RouteGraph`.
  * `leadIn`/`leadOut` extend the row's own lane to the row edge at a terminus
@@ -250,8 +250,8 @@ export function isEndpoint(stats: StopStats, threshold: number): boolean {
  * about the route rather than about one trip. Empty when neither count meets
  * the threshold.
  *
- * Unused in coloring-book's timetable stop column, which has no room for the
- * note; test-track's route page renders it, and Phase 10's route-page diagram
+ * Unused in the editor's timetable stop column, which has no room for the
+ * note; rt-viewer's route page renders it, and Phase 10's route-page diagram
  * will too.
  */
 export function endpointNote(stats: StopStats, threshold: number): string {

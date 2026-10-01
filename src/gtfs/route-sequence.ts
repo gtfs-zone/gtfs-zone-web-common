@@ -698,7 +698,7 @@ function build(
 /**
  * Cached per RouteSource instance: the fold is the most expensive thing this
  * module does. The cache is keyed on the `RouteSource` object itself, so a
- * fresh adapter instance drops it. coloring-book's data is mutable, so callers
+ * fresh adapter instance drops it. The editor's data is mutable, so callers
  * that mutate the feed must call `clearRouteSequenceCache` explicitly.
  */
 const cache = new WeakMap<RouteSource, Map<string, RouteSequence>>();

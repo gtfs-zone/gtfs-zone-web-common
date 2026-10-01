@@ -1,5 +1,5 @@
 {
-  "name": "interlocking",
+  "name": "gtfs-zone-web-common",
   "version": "4.0.0",
   "description": "Shared browser-side GTFS/map modules for the gtfs.zone apps, consumed as a git dependency shipping raw TypeScript",
   "type": "module",

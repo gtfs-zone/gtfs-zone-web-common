@@ -1,7 +1,7 @@
 /**
- * Where geometry-car publishes the feed catalog (`search.json`, `feeds.json`).
+ * Where feed-catalog publishes the feed catalog (`search.json`, `feeds.json`).
  * A public bucket refreshed daily. Its CORS rule allows each app's origin and
- * the localhost dev ports (geometry-car's `bucket_cors.py`), so every app reads
+ * the localhost dev ports (feed-catalog's `bucket_cors.py`), so every app reads
  * it directly, in dev as well as in the built site.
  */
 export const DATA_ORIGIN = 'https://data.gtfs.zone';

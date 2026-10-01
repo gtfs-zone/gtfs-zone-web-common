@@ -1,7 +1,7 @@
 /**
  * Fetching a feed archive with real byte progress.
  *
- * Split out of test-track's private downloader so both apps share one
+ * Split out of rt-viewer's private downloader so both apps share one
  * implementation: the progress line, the error wording (borrowed from
  * `feed-selection.ts` so the CORS-proxy hints come along), and the cancel
  * semantics.

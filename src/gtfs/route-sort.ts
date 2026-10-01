@@ -47,7 +47,7 @@ const BASE_TYPE_BY_HUNDREDS: Record<number, number> = {
 
 /**
  * Map a GTFS route_type to its paint rank. Accepts `unknown` because
- * coloring-book's `Routes` is a loose record, route_type may arrive as a
+ * the editor's `Routes` is a loose record, route_type may arrive as a
  * string straight from the CSV.
  */
 export function routeTypeRank(rawRouteType: unknown): number {

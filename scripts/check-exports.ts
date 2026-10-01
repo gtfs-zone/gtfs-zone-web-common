@@ -4,7 +4,7 @@
  * knip is vacuous here: with every module its own entry point nothing ever
  * looks unused. What is actually worth knowing is whether anything outside
  * this package imports a given export, so this resolves the three sibling
- * checkouts the way `vendor-check.ts` does, collects every `interlocking/...`
+ * checkouts the way `vendor-check.ts` does, collects every `gtfs-zone-web-common/...`
  * import across them, and diffs that against what `src/` exports.
  *
  * Three verdicts per export:
@@ -47,7 +47,7 @@ function tsFiles(dir: string): string[] {
 
 /** Module specifier a consumer writes for a file in this package's `src/`. */
 function specifierFor(file: string): string {
-  return `interlocking/${relative(join(packageRoot, 'src'), file).replace(/\.ts$/, '')}`;
+  return `gtfs-zone-web-common/${relative(join(packageRoot, 'src'), file).replace(/\.ts$/, '')}`;
 }
 
 const EXPORT_DECL =
@@ -109,14 +109,14 @@ function record(
   }
 }
 
-/** Imports of `interlocking/...` anywhere under a sibling checkout. */
+/** Imports of `gtfs-zone-web-common/...` anywhere under a sibling checkout. */
 function collectSiblingImports(repo: string, usage: Usage): void {
   for (const dir of ['src', 'scripts', 'tests']) {
     for (const file of tsFiles(join(repo, dir))) {
       const source = readFileSync(file, 'utf8');
       for (const m of source.matchAll(IMPORT_STMT)) {
         const specifier = m[2] ?? m[3];
-        if (!specifier.startsWith('interlocking/')) {
+        if (!specifier.startsWith('gtfs-zone-web-common/')) {
           continue;
         }
         record(usage, specifier, m[2] === undefined ? undefined : m[1]);

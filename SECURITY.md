@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately through
-[GitHub private vulnerability reporting](https://github.com/gtfs-zone/interlocking/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/gtfs-zone/gtfs-zone-web-common/security/advisories/new).
 Do not open a public issue.
 
 If you cannot use GitHub, email maxkatzchristy@gmail.com instead.
@@ -20,6 +20,5 @@ Only the latest tagged release is supported. Fixes are not backported to older t
 ## Dependency scanning
 
 Every push and pull request runs [osv-scanner](https://github.com/google/osv-scanner)
-against `pnpm-lock.yaml` on both GitHub Actions and Forgejo Actions. The
-build fails on any critical finding. Run the same check locally with
+against `pnpm-lock.yaml` on GitHub Actions. The build fails on any critical finding. Run the same check locally with
 `pnpm vuln`.

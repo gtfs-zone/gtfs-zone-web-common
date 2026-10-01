@@ -9,7 +9,7 @@
  * as one of those.
  */
 
-const REGISTRY = Symbol.for('interlocking.moduleState');
+const REGISTRY = Symbol.for('gtfs-zone-web-common.moduleState');
 
 /** This module's state, shared with any duplicate copy of the same module. */
 export function moduleState<T extends object>(key: string, create: () => T): T {
@@ -21,8 +21,8 @@ export function moduleState<T extends object>(key: string, create: () => T): T {
   const existing = store.get(key);
   if (existing) {
     console.error(
-      `[interlocking] ${key} loaded twice; state is shared across both copies. ` +
-        'Restart the dev server: its module cache is holding an older interlocking pin.'
+      `[gtfs-zone-web-common] ${key} loaded twice; state is shared across both copies. ` +
+        'Restart the dev server: its module cache is holding an older gtfs-zone-web-common pin.'
     );
     return existing as T;
   }

@@ -39,7 +39,7 @@ export interface AlertRecord {
 /**
  * One vehicle's reported position, normalized.
  *
- * Consumers extend this where they carry more: yard-master's adds the tracker
+ * Consumers extend this where they carry more: rt-manager's adds the tracker
  * a vehicle reports under. Nothing in this package reads beyond these fields.
  */
 export interface VehiclePosition {

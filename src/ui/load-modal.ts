@@ -25,7 +25,7 @@
  * realtime section, its URL fields, the role chips and every realtime-only
  * catalog feed are simply not emitted, and a scheduled source alone is a
  * complete selection. It also picks which catalog feeds are listed by default:
- * the editor's rule is a schedule that answered geometry-car's last check, the
+ * the editor's rule is a schedule that answered feed-catalog's last check, the
  * visualiser's is that plus at least one realtime role that did. "Show all"
  * lifts the rule. Everything else, the search, upload, CORS and seeding, is
  * the same everywhere, which is the whole reason this is one file.

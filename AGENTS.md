@@ -2,15 +2,16 @@
 
 ## Project Overview
 
-`interlocking` is the shared browser-side library for the three gtfs.zone
-frontends: **coloring-book** (edit.gtfs.zone), **test-track** (viz.rt.gtfs.zone)
-and **yard-master** (manage.rt.gtfs.zone). It ships raw TypeScript under `src/`
+`gtfs-zone-web-common` is the shared browser-side library for the three
+gtfs.zone frontends: **gtfs-zone-editor** (edit.gtfs.zone),
+**gtfs-zone-rt-viewer** (viz.rt.gtfs.zone) and **gtfs-zone-rt-manager**
+(manage.rt.gtfs.zone). It ships raw TypeScript under `src/`
 with no build step; each consumer's vite compiles it as source.
 
 Consumed as a pinned git dependency:
 
 ```
-pnpm add "interlocking@github:gtfs-zone/interlocking#vX.Y.Z"
+pnpm add "gtfs-zone-web-common@github:gtfs-zone/gtfs-zone-web-common#vX.Y.Z"
 ```
 
 `README.md` covers the layout and the public surface. `CURRENT_PLAN.md` holds
@@ -46,14 +47,14 @@ src/util/   pure, domain-free
 `scripts/` holds this repo's own dev tooling (`check-exports.ts`); nothing in
 it is run by a consumer.
 
-The feed catalog is not source here: geometry-car publishes it to
+The feed catalog is not source here: feed-catalog publishes it to
 `https://data.gtfs.zone` as `search.json` (and the full `feeds.json`), and
 `gtfs/feed-catalog.ts` fetches it.
 
 ## Rules
 
 - **No barrel `index.ts` files.** Every module is its own entry point, imported
-  as `interlocking/ui/navbar-actions`. A barrel would defeat `check:exports`,
+  as `gtfs-zone-web-common/ui/navbar-actions`. A barrel would defeat `check:exports`,
   which is what stands in for knip here: with no barrels, an unimported export
   is genuinely unused rather than re-exported.
 - **A module arrives by moving out of an app, not by being copied from it.**
@@ -74,7 +75,7 @@ These apply here and in all three consumers:
 - An on/off setting is a daisyUI `toggle`, never a `checkbox`. The hidden
   inputs behind `swap` icon buttons are the only checkboxes.
 - Rows picked from a list are highlighted with `SELECTED_ROW_CLASS` from
-  `interlocking/ui/selectable-row`, not marked with a per-row checkbox.
+  `gtfs-zone-web-common/ui/selectable-row`, not marked with a per-row checkbox.
 - Disable, don't hide, conditional action buttons. A control that cannot act
   right now is still rendered, `disabled`, with a `title` saying why.
 
@@ -84,18 +85,18 @@ Adding this library to an app takes four separate edits, and missing any one
 of them fails in a different place:
 
 1. `tsconfig.json` path, so `tsc` resolves the import:
-   `"interlocking/*": ["node_modules/interlocking/src/*"]`
+   `"gtfs-zone-web-common/*": ["node_modules/gtfs-zone-web-common/src/*"]`
 2. `vite.config.js` alias, so the bundler resolves the same specifier, plus
-   `optimizeDeps.exclude: ['interlocking']` because the package ships raw `.ts`
+   `optimizeDeps.exclude: ['gtfs-zone-web-common']` because the package ships raw `.ts`
    and must be transformed as source:
-   `interlocking: resolve(__dirname, 'node_modules/interlocking/src')`
+   `'gtfs-zone-web-common': resolve(__dirname, 'node_modules/gtfs-zone-web-common/src')`
 3. The Tailwind `@source` line in the app's CSS, so classes used only inside
    this library are not purged:
-   `@source "../../node_modules/interlocking/src/**/*.ts";`
+   `@source "../../node_modules/gtfs-zone-web-common/src/**/*.ts";`
 4. The shell stylesheet `@import`, directly after `@import 'tailwindcss'`
    (postcss rejects an `@import` placed after any other statement), so the
    grid, the mobile drawer and the map controls are styled:
-   `@import '../../node_modules/interlocking/src/ui/app-shell.css';`
+   `@import '../../node_modules/gtfs-zone-web-common/src/ui/app-shell.css';`
 
 ## Releasing
 
@@ -103,15 +104,11 @@ of them fails in a different place:
 version into `package.json` and `.cz.toml`, updates `CHANGELOG.md` and cuts the
 annotated `vX.Y.Z` tag.
 
-**Push the commit and the tag to both remotes.** `origin` is Forgejo
-(`ssh://git@git.kcfam.us:2222/gtfs.zone/interlocking.git`) and `github` is
-`git@github.com:gtfs-zone/interlocking.git`. Consumers pin by tag from GitHub,
-so a tag pushed only to `origin` breaks `pnpm install` for every app that
-repins:
+**Push the commit and the tag.** Consumers pin by tag from GitHub, so a tag
+left unpushed breaks `pnpm install` for every app that repins:
 
 ```bash
 git push origin main --follow-tags
-git push github main --follow-tags
 ```
 
 Then repin each consumer, and restart any dev server the repinned app has
@@ -125,8 +122,9 @@ module, each with its own module-level state. `util/module-state.ts` logs
 
 | Repo | Description | URL |
 |---|---|---|
-| coloring-book | edit.gtfs.zone, the GTFS editor | https://github.com/gtfs-zone/coloring-book |
-| test-track | viz.rt.gtfs.zone, the realtime visualiser | https://github.com/gtfs-zone/test-track |
-| yard-master | manage.rt.gtfs.zone, the feed manager | https://github.com/gtfs-zone/yard-master |
-| cafe-car | GTFS-RT API and manager backend | https://github.com/gtfs-zone/cafe-car |
-| deploy-gtfs-rt | ArgoCD manifests for the whole stack | https://github.com/gtfs-zone/deploy-gtfs-rt |
+| gtfs-zone-editor | edit.gtfs.zone, the GTFS editor | https://github.com/gtfs-zone/gtfs-zone-editor |
+| gtfs-zone-rt-viewer | viz.rt.gtfs.zone, the realtime visualiser | https://github.com/gtfs-zone/gtfs-zone-rt-viewer |
+| gtfs-zone-rt-manager | manage.rt.gtfs.zone, the feed manager | https://github.com/gtfs-zone/gtfs-zone-rt-manager |
+| gtfs-zone-feed-list | list.gtfs.zone, the feed catalog | https://github.com/gtfs-zone/gtfs-zone-feed-list |
+| gtfs-zone-rt-api | GTFS-RT API and manager backend | https://github.com/gtfs-zone/gtfs-zone-rt-api |
+| gtfs-zone-infra | ArgoCD manifests for the whole stack | https://github.com/gtfs-zone/gtfs-zone-infra |

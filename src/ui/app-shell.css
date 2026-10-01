@@ -5,7 +5,7 @@
    since an @import must precede every other statement. The daisyUI color
    properties it reads resolve at runtime, so the plugin can come later:
 
-     @import '../../node_modules/interlocking/src/ui/app-shell.css';
+     @import '../../node_modules/gtfs-zone-web-common/src/ui/app-shell.css';
 
    `--panel-width` is written by `panel-resizer.ts`. `--dock-height` is 4rem
    when a `#mobile-dock` exists and 0 otherwise, until `bottom-sheet.ts`

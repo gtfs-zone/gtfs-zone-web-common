@@ -1,5 +1,5 @@
 /**
- * geometry-car's feed catalog: one entry per logical feed, from `search.json`.
+ * The feed catalog from feed-catalog: one entry per logical feed, from `search.json`.
  *
  * `search.json` is `feeds.json` cut down, with short keys, to what a picker
  * lists and searches. Both are listed in `manifest.json` with their hash, and
@@ -14,7 +14,7 @@
 import { moduleState } from '../util/module-state';
 import { DATA_ORIGIN } from './data-origin';
 
-/** geometry-car's last check of one role: whether any of its URLs answered. */
+/** feed-catalog's last check of one role: whether any of its URLs answered. */
 export type RoleState = 'up' | 'down' | 'unknown';
 
 /**
@@ -244,7 +244,7 @@ export function usableUrl(feed: CatalogFeed, role: Role): string | undefined {
 
 /**
  * The three typed realtime slots a feed fills. An endpoint of undeclared type
- * takes the first empty slot, in the same order as geometry-car's viewer link.
+ * takes the first empty slot, in the same order as feed-catalog's viewer link.
  */
 export function realtimeSlots(feed: CatalogFeed): {
   vehiclesUrl?: string;
