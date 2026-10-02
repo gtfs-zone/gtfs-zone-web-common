@@ -1,3 +1,9 @@
+## v5.5.0 (2026-10-03)
+
+### Feat
+
+- **gtfs**: add FeedSessionBase owning the schedule load
+
 ## v5.4.0 (2026-10-03)
 
 ### Feat
