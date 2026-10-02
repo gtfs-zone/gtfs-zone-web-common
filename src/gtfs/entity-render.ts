@@ -21,6 +21,7 @@ import {
   zoneLabel,
 } from './feed-time';
 import { escapeHtml } from '../util/escape-html';
+import { formatDate } from '../i18n/fmt';
 import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 
 /**
@@ -184,7 +185,7 @@ export function formatAbsolute(seconds: number | undefined): string {
     return '—';
   }
   const ms = seconds * 1000;
-  return `${new Date(ms).toLocaleString([], { timeZone: feedTimezone() ?? undefined })} ${zoneLabel(ms)}`;
+  return `${formatDate(ms, { dateStyle: 'short', timeStyle: 'medium', timeZone: feedTimezone() ?? undefined })} ${zoneLabel(ms)}`;
 }
 
 /** "12s ago" / "3m ago" — driven by the panel's shared ticker. */

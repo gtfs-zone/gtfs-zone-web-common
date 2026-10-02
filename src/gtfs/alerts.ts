@@ -13,6 +13,7 @@
 import type { AlertRecord, ServiceAlert } from './rt-types';
 import { presentNumber } from './rt-types';
 import type { FeedSession } from './feed-session';
+import { getLocale } from '../i18n/index';
 
 type EntitySelector = NonNullable<ServiceAlert['informedEntity']>[number];
 type TranslatedString = NonNullable<ServiceAlert['headerText']>;
@@ -221,15 +222,20 @@ export function translations(
   }));
 }
 
-/** The browser's language if the feed has it, else English, else the first. */
+/**
+ * The page's locale if the feed has it, else the browser's language, else
+ * English, else the first.
+ */
 export function preferredText(ts: TranslatedString | null | undefined): string {
   const list = translations(ts);
   if (list.length === 0) {
     return '';
   }
-  const wanted = navigator.language.split('-')[0].toLowerCase();
+  const inLanguage = (wanted: string) =>
+    list.find((t) => t.language.toLowerCase().split('-')[0] === wanted);
   const match =
-    list.find((t) => t.language.toLowerCase().split('-')[0] === wanted) ??
+    inLanguage(getLocale()) ??
+    inLanguage(navigator.language.split('-')[0].toLowerCase()) ??
     list.find((t) => t.language.toLowerCase().startsWith('en'));
   return (match ?? list[0]).text;
 }

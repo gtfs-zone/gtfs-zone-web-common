@@ -20,6 +20,7 @@
 
 import type { GTFSScheduled } from './scheduled';
 import { moduleState } from '../util/module-state';
+import { dateFormat, formatDate } from '../i18n/fmt';
 
 const shared = moduleState('gtfs/feed-time', () => ({
   /** The IANA zone of the loaded feed, or null to mean "use the browser's". */
@@ -63,7 +64,7 @@ export function feedTimezone(): string | null {
  * say EDT in July and EST in January.
  */
 export function zoneLabel(atMs: number = Date.now()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
+  const parts = dateFormat({
     timeZone: shared.displayZone ?? undefined,
     timeZoneName: 'short',
     hour: 'numeric',
@@ -78,8 +79,8 @@ export function zoneLabel(atMs: number = Date.now()): string {
  * sitting near a feed clock time can't be mistaken for one.
  */
 export function localClock(ms: number): string {
-  const clock = new Date(ms).toLocaleTimeString();
-  const zone = new Intl.DateTimeFormat('en-US', {
+  const clock = formatDate(ms, { timeStyle: 'medium' });
+  const zone = dateFormat({
     timeZoneName: 'short',
     hour: 'numeric',
   })
@@ -88,9 +89,9 @@ export function localClock(ms: number): string {
   return zone ? `${clock} ${zone}` : clock;
 }
 
-/** `09:30 AM` in the feed's zone, from GTFS-RT epoch seconds. */
+/** `09:30 AM` (`09:30` in French) in the feed's zone, from GTFS-RT epoch seconds. */
 export function clockAt(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleTimeString([], {
+  return formatDate(seconds * 1000, {
     timeZone: shared.displayZone ?? undefined,
     hour: '2-digit',
     minute: '2-digit',
@@ -134,9 +135,11 @@ export function formatScheduleTime(value: string | undefined): string {
   const hour24 = Math.floor(inDay / 3600);
   const minute = Math.floor((inDay % 3600) / 60);
 
-  const suffix = hour24 < 12 ? 'AM' : 'PM';
-  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  const clock = `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
+  const clock = formatDate(Date.UTC(1970, 0, 1, hour24, minute), {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
   return dayOffset > 0 ? `${clock} (+${dayOffset}d)` : clock;
 }
 
