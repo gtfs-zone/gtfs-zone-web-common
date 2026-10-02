@@ -1,3 +1,9 @@
+## v5.7.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add transfers, translations and attributions nav icons
+
 ## v5.6.0 (2026-10-03)
 
 ### Feat
