@@ -1,5 +1,7 @@
 import { escapeHtml } from '../util/escape-html';
 import { renderNavIcon, type NavIconName } from './nav-icons';
+import { getLocale, setLocale, type Locale } from '../i18n/index';
+import { t } from '../i18n/messages';
 
 /**
  * The navbar's action row, as data.
@@ -70,13 +72,28 @@ export interface LabeledAction extends CommonAction {
   labelId?: string;
 }
 
+/**
+ * The language toggle. Shows the other locale's code; a click stores it and
+ * reloads. The label comes from the catalog, so the entry carries none.
+ */
+export interface LocaleAction extends Omit<TooltippedAction, 'label'> {
+  kind: 'locale';
+}
+
 export type NavbarAction =
-  IconAction | LinkAction | ToggleAction | LabeledAction;
+  IconAction | LinkAction | ToggleAction | LabeledAction | LocaleAction;
 
 const ICON_BTN_CLASS = 'btn btn-ghost btn-sm btn-square';
 
+/** The locale the toggle switches to. */
+function otherLocale(): Locale {
+  return getLocale() === 'fr' ? 'en' : 'fr';
+}
+
 function renderAction(action: NavbarAction): string {
-  const label = escapeHtml(action.label);
+  const label = escapeHtml(
+    action.kind === 'locale' ? t('locale.switchTo') : action.label
+  );
 
   if (action.kind === 'labeled') {
     const disabled = action.disabled ? ' disabled' : '';
@@ -90,6 +107,9 @@ function renderAction(action: NavbarAction): string {
       `<label id="${action.id}" class="${ICON_BTN_CLASS} swap swap-rotate" aria-label="${label}">` +
       `<input type="checkbox" class="${action.inputClass}"${action.value ? ` value="${action.value}"` : ''} />` +
       `${action.iconOn}${action.iconOff}</label>`;
+  } else if (action.kind === 'locale') {
+    const target = otherLocale();
+    control = `<button id="${action.id}" class="${ICON_BTN_CLASS} text-xs font-semibold" aria-label="${label}" lang="${target}" data-locale-toggle="${target}">${target.toUpperCase()}</button>`;
   } else if (action.kind === 'link') {
     const target = action.external
       ? ' target="_blank" rel="noopener noreferrer"'
@@ -153,6 +173,15 @@ export function renderNavbarActions(
   }
 
   container.innerHTML = parts.join('');
+
+  container
+    .querySelector<HTMLElement>('[data-locale-toggle]')
+    ?.addEventListener('click', (e) => {
+      setLocale(
+        (e.currentTarget as HTMLElement).dataset.localeToggle as Locale
+      );
+      window.location.reload();
+    });
 }
 
 /**
