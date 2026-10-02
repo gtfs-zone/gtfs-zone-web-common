@@ -40,6 +40,8 @@ interface ModalHost {
 export interface ModalTransient {
   /** Primary key of a row the modal should scroll to and highlight. */
   rowKey?: string;
+  /** Stop whose rows the modal should open on, e.g. a station's transfers. */
+  focusStopId?: string;
   /** Run after the modal closes, however it was closed. */
   onClosed?: () => void;
 }
