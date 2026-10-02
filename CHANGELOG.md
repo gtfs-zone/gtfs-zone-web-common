@@ -1,3 +1,13 @@
+## v5.8.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add focusStopId to the modal transient
+
+### Refactor
+
+- **ui**: drop the feedData nav icon
+
 ## v5.7.0 (2026-10-03)
 
 ### Feat
