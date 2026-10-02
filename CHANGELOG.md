@@ -1,3 +1,9 @@
+## v5.3.0 (2026-10-02)
+
+### Feat
+
+- **ui**: add page-state schema building the hash codec and guard
+
 ## v5.2.0 (2026-10-02)
 
 ### Feat
