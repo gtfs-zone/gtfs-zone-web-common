@@ -13,6 +13,7 @@ import { showModal, renderHelpIcon } from './modal-utils';
 import { installGuideButtons } from './help-modal';
 import { escapeHtml } from '../util/escape-html';
 import { moduleState } from '../util/module-state';
+import { t } from '../i18n/messages';
 
 export interface SidebarModalEntry {
   /** Table name, help page id, or anything else unique within the modal. */
@@ -41,6 +42,8 @@ export interface SidebarModalConfig {
   intro?: string;
   /** Group headers, in order. Groups not listed follow, in entry order. */
   groupOrder?: string[];
+  /** Display text for a group id. Defaults to the id itself. */
+  groupLabel?: (group: string) => string;
   entries: SidebarModalEntry[];
   /** Entry to open on. Falls back to the first entry. */
   initialId?: string;
@@ -95,7 +98,7 @@ function renderSidebar(
       if (items.length === 0) {
         return '';
       }
-      return `<li class="menu-title">${escapeHtml(group)}</li>${items.map(item).join('')}`;
+      return `<li class="menu-title">${escapeHtml(config.groupLabel?.(group) ?? group)}</li>${items.map(item).join('')}`;
     })
     .join('');
 
@@ -121,7 +124,7 @@ function renderPaneHeader(entry: SidebarModalEntry): string {
     ? `<button type="button" class="btn btn-sm btn-primary" data-pane-action>${escapeHtml(entry.primaryAction.label)}</button>`
     : '';
   const guide = entry.guidePage
-    ? `<button type="button" class="btn btn-sm btn-ghost btn-square" data-open-guide="${escapeHtml(entry.guidePage)}" title="Guide">${renderHelpIcon()}</button>`
+    ? `<button type="button" class="btn btn-sm btn-ghost btn-square" data-open-guide="${escapeHtml(entry.guidePage)}" title="${t('common.guide')}">${renderHelpIcon()}</button>`
     : '';
   const buttons =
     action || guide
@@ -206,7 +209,7 @@ export async function showSidebarModal(
     body,
     actions: [
       {
-        label: config.closeLabel ?? 'Close',
+        label: config.closeLabel ?? t('common.close'),
         className: config.closeLabel ? 'btn-primary' : undefined,
         onClick: () => {},
       },

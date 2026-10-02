@@ -23,6 +23,7 @@
  */
 
 import { moduleState } from '../util/module-state';
+import { t } from '../i18n/messages';
 
 /**
  * How the caller's stored color strings become `#rrggbb`, and back.
@@ -155,13 +156,13 @@ function renderPopover(palette: string[], allowEmpty: boolean): string {
     .join('');
 
   const clearRow = allowEmpty
-    ? '<button type="button" class="btn btn-xs btn-ghost w-full justify-start" data-nav="clear">Clear</button>'
+    ? `<button type="button" class="btn btn-xs btn-ghost w-full justify-start" data-nav="clear">${t('common.clear')}</button>`
     : '';
 
   return `
     <div class="grid grid-cols-6 gap-1">${swatches}</div>
     <div class="flex flex-col pt-1">
-      <button type="button" class="btn btn-xs btn-ghost w-full justify-start" data-nav="custom">Custom&hellip;</button>
+      <button type="button" class="btn btn-xs btn-ghost w-full justify-start" data-nav="custom">${t('color.custom')}</button>
       ${clearRow}
     </div>
   `;
@@ -335,7 +336,7 @@ export function attachColorInput(
   swatch.type = 'button';
   swatch.className =
     'absolute right-1 w-5 h-5 rounded border border-base-300 text-base-content/40';
-  swatch.setAttribute('aria-label', 'Pick a color');
+  swatch.setAttribute('aria-label', t('color.pick'));
   wrapper.appendChild(swatch);
 
   // Off-screen rather than `display:none`: Firefox will not open the OS dialog

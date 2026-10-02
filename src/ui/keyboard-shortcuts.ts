@@ -1,5 +1,7 @@
 import { notify } from './notification-system';
 import { isOutsideTopModal } from './modal-utils';
+import { t } from '../i18n/messages';
+import { getLocale } from '../i18n/index';
 
 /**
  * One keyboard command. `keys` is a normalized key string as
@@ -77,7 +79,10 @@ export class KeyboardShortcuts {
         if (!isInputField || shortcut.allowInInputFields) {
           void Promise.resolve(shortcut.handler(e)).catch((error: unknown) =>
             notify.error(
-              `${shortcut.description} failed: ${error instanceof Error ? error.message : String(error)}`
+              t('shortcuts.failed', {
+                action: shortcut.description,
+                error: error instanceof Error ? error.message : String(error),
+              })
             )
           );
         }
@@ -138,26 +143,30 @@ export function describeShortcuts(
       key: formatKeyForDisplay(command.keys),
       description: command.description,
     }))
-    .sort((a, b) => a.description.localeCompare(b.description));
+    .sort((a, b) => a.description.localeCompare(b.description, getLocale()));
 }
+
+const NAMED_KEYS = [
+  'ctrl',
+  'alt',
+  'shift',
+  'meta',
+  'escape',
+  'enter',
+  'tab',
+  'space',
+  'backspace',
+  'delete',
+] as const;
+type NamedKey = (typeof NAMED_KEYS)[number];
 
 function formatKeyForDisplay(keyString: string): string {
   return keyString
     .split('+')
     .map((part: string) => {
-      const capitalizeMap: Record<string, string> = {
-        ctrl: 'Ctrl',
-        alt: 'Alt',
-        shift: 'Shift',
-        meta: 'Cmd',
-        escape: 'Esc',
-        enter: 'Enter',
-        tab: 'Tab',
-        space: 'Space',
-        backspace: 'Backspace',
-        delete: 'Delete',
-      };
-      return capitalizeMap[part] || part.toUpperCase();
+      return NAMED_KEYS.includes(part as NamedKey)
+        ? t(`shortcuts.key.${part as NamedKey}`)
+        : part.toUpperCase();
     })
     .join('+');
 }

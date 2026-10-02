@@ -17,6 +17,8 @@
 import type { DateCodec } from './calendar-input';
 import { showModal } from './modal-utils';
 import { escapeHtml } from '../util/escape-html';
+import { t } from '../i18n/messages';
+import { formatDate, weekdayName } from '../i18n/fmt';
 
 export interface CalendarDay {
   /** The day, in the caller's stored format. */
@@ -78,8 +80,6 @@ export interface MonthGridOptions {
   renderDay: (day: CalendarDay) => CalendarDayContent;
 }
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 const DAY_MS = 86_400_000;
 
 function addDays(date: Date, days: number): Date {
@@ -106,7 +106,7 @@ function gridDays(month: Date, weekStart: number): Date[] {
 }
 
 function monthLabel(month: Date): string {
-  return month.toLocaleDateString(undefined, {
+  return formatDate(month, {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
@@ -114,7 +114,7 @@ function monthLabel(month: Date): string {
 }
 
 function dayTitle(day: Date): string {
-  return day.toLocaleDateString(undefined, {
+  return formatDate(day, {
     weekday: 'short',
     day: 'numeric',
     month: 'long',
@@ -137,9 +137,9 @@ export function renderMonthGrid(
   const header = Array.from(
     { length: 7 },
     (_, i) =>
-      `<div class="text-center text-[10px] uppercase tracking-wide opacity-50">${
-        WEEKDAY_LABELS[(options.weekStart + i) % 7]
-      }</div>`
+      `<div class="text-center text-[10px] uppercase tracking-wide opacity-50">${weekdayName(
+        (options.weekStart + i) % 7
+      )}</div>`
   ).join('');
 
   const cells = gridDays(parsed, options.weekStart).map((day) => {
@@ -173,7 +173,7 @@ function renderHeader(
   toolbarHtml: string
 ): string {
   const navOff = active.monthless
-    ? ` disabled title="${escapeHtml(`${active.label} is not by month`)}"`
+    ? ` disabled title="${escapeHtml(t('calendar.notByMonth', { tab: active.label }))}"`
     : '';
   const todayOff = navOff || (onCurrentMonth ? ' disabled' : '');
   const tabButtons = tabs
@@ -187,10 +187,10 @@ function renderHeader(
   return `
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-1">
-        <button type="button" class="btn btn-xs btn-ghost" data-cal-month="-1" aria-label="Previous month"${navOff}>&#8249;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-cal-month="-1" aria-label="${t('calendar.prevMonth')}"${navOff}>&#8249;</button>
         <span class="text-sm font-semibold w-36 text-center${active.monthless ? ' opacity-50' : ''}">${escapeHtml(monthLabel(month))}</span>
-        <button type="button" class="btn btn-xs btn-ghost" data-cal-month="1" aria-label="Next month"${navOff}>&#8250;</button>
-        <button type="button" class="btn btn-xs btn-ghost" data-cal-today${todayOff}>Today</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-cal-month="1" aria-label="${t('calendar.nextMonth')}"${navOff}>&#8250;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-cal-today${todayOff}>${t('common.today')}</button>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         ${toolbarHtml}
@@ -249,7 +249,7 @@ export async function showCalendarModal(
   await showModal({
     title: escapeHtml(options.title),
     body: '<div data-calendar-root></div>',
-    actions: [{ label: 'Close', onClick: () => {} }],
+    actions: [{ label: t('common.close'), onClick: () => {} }],
     enterAction: 0,
     escapeAction: 0,
     boxClassName: 'max-w-5xl w-full',

@@ -2,6 +2,8 @@
  * Feed Progress Indicator
  * Top-bar progress indicator for GTFS feed load operations.
  */
+import { t } from '../i18n/messages';
+
 export interface LoadingOptions {
   /**
    * Renders a Cancel button while this operation is the one on display.
@@ -55,12 +57,12 @@ export class FeedProgressIndicator {
       <div class="flex items-center justify-center space-x-3">
         <span class="loading loading-spinner loading-sm"></span>
         <div class="flex flex-col">
-          <span class="loading-status text-sm font-medium">Processing...</span>
+          <span class="loading-status text-sm font-medium">${t('progress.processing')}</span>
           <div class="loading-progress-container mt-1">
             <progress class="loading-progress progress progress-primary-content w-64 h-1" value="0" max="100"></progress>
           </div>
         </div>
-        <button type="button" class="loading-cancel btn btn-ghost btn-xs hidden">Cancel</button>
+        <button type="button" class="loading-cancel btn btn-ghost btn-xs hidden">${t('common.cancel')}</button>
       </div>
     `;
     return indicator;
@@ -68,7 +70,7 @@ export class FeedProgressIndicator {
 
   startLoading(
     operation: string,
-    status: string = 'Processing...',
+    status: string = t('progress.processing'),
     options: LoadingOptions = {}
   ): void {
     this.loadingStates.set(operation, { status, progress: 0 });
@@ -138,7 +140,7 @@ export class FeedProgressIndicator {
     this.cancellingOperations.add(operation);
     const state = this.loadingStates.get(operation);
     if (state) {
-      state.status = 'Cancelling...';
+      state.status = t('progress.cancelling');
     }
     this.render();
     handler();

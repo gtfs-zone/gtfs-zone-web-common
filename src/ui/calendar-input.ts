@@ -22,12 +22,14 @@
  * out from under a click on a day. The keyboard path is the input itself, which
  * is why the box stays typeable rather than going readonly.
  *
- * Every string it renders is a number or a constant, except the caller's
- * highlight label, which is escaped.
+ * Every string it renders is a number, a catalog string or an `Intl` name,
+ * except the caller's highlight label, which is escaped.
  */
 
 import { escapeHtml } from '../util/escape-html';
 import { moduleState } from '../util/module-state';
+import { t } from '../i18n/messages';
+import { formatDate, weekdayName } from '../i18n/fmt';
 
 /**
  * How the caller's stored date strings become days, and back.
@@ -98,23 +100,6 @@ const shared = moduleState('ui/calendar-input', () => ({
   activeClose: null as (() => void) | null,
 }));
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const WEEKDAY_INITIALS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
 /** Always six rows, so the popover does not resize as the months change. */
 const GRID_CELLS = 42;
 
@@ -152,7 +137,7 @@ function renderPopover(
   const start = gridStart(year, month0, options.weekStart);
 
   const headers = Array.from({ length: 7 }, (_, i) => {
-    const label = WEEKDAY_INITIALS[(options.weekStart + i) % 7];
+    const label = weekdayName((options.weekStart + i) % 7).slice(0, 2);
     return `<div class="text-center text-[0.65rem] font-semibold text-base-content/50 pb-1">${label}</div>`;
   }).join('');
 
@@ -208,31 +193,31 @@ function renderPopover(
   const legend = highlight
     ? `<div class="flex items-center gap-3 pt-1 text-[0.65rem] text-base-content/60">
         <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-primary/15"></span>${escapeHtml(highlight.label)}</span>
-        <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3"><span class="w-1 h-1 rounded-full bg-primary"></span></span>Today</span>
+        <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3"><span class="w-1 h-1 rounded-full bg-primary"></span></span>${t('common.today')}</span>
       </div>`
     : '';
 
   // The feed-edge buttons are always there, and disabled without a range to
   // jump to.
-  const edgeAttrs = (label: string): string =>
-    highlight
-      ? `aria-label="${label}" title="${label}"`
-      : 'disabled aria-label="No feed_info date range" title="No feed_info date range"';
+  const edgeAttrs = (label: string): string => {
+    const text = escapeHtml(highlight ? label : t('calendar.noFeedRange'));
+    return `${highlight ? '' : 'disabled '}aria-label="${text}" title="${text}"`;
+  };
 
   const clearButton = options.allowEmpty
-    ? '<button type="button" class="btn btn-xs btn-ghost" data-nav="clear">Clear</button>'
+    ? `<button type="button" class="btn btn-xs btn-ghost" data-nav="clear">${t('common.clear')}</button>`
     : '';
 
   return `
     <div class="flex items-center justify-between gap-1 mb-1">
       <span class="flex items-center">
-        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-start" ${edgeAttrs('Go to the start of the feed')}>&#171;</button>
-        <button type="button" class="btn btn-xs btn-ghost" data-nav="prev" aria-label="Previous month">&#8249;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-start" ${edgeAttrs(t('calendar.feedStart'))}>&#171;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="prev" aria-label="${t('calendar.prevMonth')}">&#8249;</button>
       </span>
-      <span class="text-sm font-semibold">${MONTH_NAMES[month0]} ${year}</span>
+      <span class="text-sm font-semibold">${formatDate(Date.UTC(year, month0, 1), { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
       <span class="flex items-center">
-        <button type="button" class="btn btn-xs btn-ghost" data-nav="next" aria-label="Next month">&#8250;</button>
-        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-end" ${edgeAttrs('Go to the end of the feed')}>&#187;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="next" aria-label="${t('calendar.nextMonth')}">&#8250;</button>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav="feed-end" ${edgeAttrs(t('calendar.feedEnd'))}>&#187;</button>
       </span>
     </div>
     <div class="grid grid-cols-7 gap-y-0.5">
@@ -241,7 +226,7 @@ function renderPopover(
     </div>
     ${legend}
     <div class="flex items-center justify-between pt-1">
-      <button type="button" class="btn btn-xs btn-ghost text-primary" data-nav="today">Today</button>
+      <button type="button" class="btn btn-xs btn-ghost text-primary" data-nav="today">${t('common.today')}</button>
       ${clearButton}
     </div>
   `;

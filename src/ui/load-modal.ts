@@ -48,10 +48,32 @@ import type { ModalAction } from './modal-utils';
 import { renderUploadIcon, showModal } from './modal-utils';
 import { renderTooltipTrigger } from './field-label';
 import { SELECTED_ROW_CLASS } from './selectable-row';
+import { t } from '../i18n/messages';
+import { formatNumber } from '../i18n/fmt';
 
-/** Heading of the result list, and the catalogs its rows come from. */
-const LIST_HEADING = 'Feed catalogs';
-const LIST_CREDIT = `from <a href="https://github.com/transitland/transitland-atlas" target="_blank" rel="noopener noreferrer" class="link">Transitland Atlas</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" class="link">CC BY 4.0</a>), the <a href="https://mobilitydatabase.org" target="_blank" rel="noopener noreferrer" class="link">Mobility Database</a>, the <a href="https://data.transportation.gov/d/2u7n-ub22" target="_blank" rel="noopener noreferrer" class="link">National Transit Database</a> and <a href="https://rt.gtfs.zone" target="_blank" rel="noopener noreferrer" class="link">rt.gtfs.zone</a>`;
+function creditLink(href: string, label: string): string {
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="link">${label}</a>`;
+}
+
+/** The catalogs the result list's rows come from. */
+function listCredit(): string {
+  return t('load.listCredit', {
+    atlas: creditLink(
+      'https://github.com/transitland/transitland-atlas',
+      'Transitland Atlas'
+    ),
+    license: creditLink(
+      'https://creativecommons.org/licenses/by/4.0/',
+      'CC BY 4.0'
+    ),
+    mobility: creditLink('https://mobilitydatabase.org', 'Mobility Database'),
+    ntd: creditLink(
+      'https://data.transportation.gov/d/2u7n-ub22',
+      'National Transit Database'
+    ),
+    rt: creditLink('https://rt.gtfs.zone', 'rt.gtfs.zone'),
+  });
+}
 
 /** One catalog feed as an offer in the result list. */
 interface FeedRow {
@@ -150,9 +172,14 @@ function reason(err: unknown): string {
 
 function formatBytes(n: number): string {
   if (n < 1024 * 1024) {
-    return `${Math.max(1, Math.round(n / 1024))} KB`;
+    return t('load.kb', { size: Math.max(1, Math.round(n / 1024)) });
   }
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return t('load.mb', {
+    size: formatNumber(n / (1024 * 1024), {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }),
+  });
 }
 
 /**
@@ -176,7 +203,7 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     subtitle: [
       feed.subtitle,
       placeLine(feed),
-      feed.lastModified ? `updated ${feed.lastModified}` : '',
+      feed.lastModified ? t('load.updated', { date: feed.lastModified }) : '',
       feed.staticBytes ? formatBytes(feed.staticBytes) : '',
     ]
       .filter(Boolean)
@@ -217,7 +244,7 @@ async function catalogFeedRows(realtime: boolean): Promise<FeedRow[]> {
 }
 
 function catalogNote(err: unknown): string {
-  return `Feed catalogs unavailable - ${reason(err)}`;
+  return t('load.catalogUnavailable', { reason: reason(err) });
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
@@ -239,13 +266,13 @@ function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
       <div class="flex-1 min-w-0">
         <p class="text-sm font-medium truncate">${escHtml(feed.name)}</p>
         ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${escHtml(row.subtitle)}</p>` : ''}
-        ${urlLine(realtime ? 'scheduled' : '', row.scheduledUrl)}
+        ${urlLine(realtime ? t('load.urlScheduled') : '', row.scheduledUrl)}
         ${realtime ? urlLine('vp', row.vehiclesUrl) : ''}
         ${realtime ? urlLine('tu', row.tripUpdatesUrl) : ''}
         ${realtime ? urlLine('al', row.alertsUrl) : ''}
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
-        ${inUse ? '<span class="text-xs opacity-60">in use</span>' : ''}
+        ${inUse ? `<span class="text-xs opacity-60">${t('load.inUse')}</span>` : ''}
         ${feedStateBadge(feed.state, feed.since)}
         ${realtime ? roleChips(feed) : ''}
       </div>
@@ -261,12 +288,12 @@ function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
  */
 function customUrlRow(realtime: boolean): string {
   const subtitle = realtime
-    ? 'Type or paste your own scheduled and realtime URLs below'
-    : 'Type or paste your own feed URL below';
+    ? t('load.customRealtime')
+    : t('load.customScheduled');
   return `
     <button type="button" data-custom-url class="w-full text-left px-3 py-2 rounded-lg flex items-start gap-2 hover:bg-base-200 border border-dashed border-base-300">
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium truncate">Custom feed URLs</p>
+        <p class="text-sm font-medium truncate">${t('load.customTitle')}</p>
         <p class="text-xs opacity-60 truncate">${subtitle}</p>
       </div>
     </button>`;
@@ -284,29 +311,25 @@ function renderRows(
     return `${custom}<p class="text-sm opacity-40 text-center py-8">${emptyText}</p>`;
   }
   const out = [
-    `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${LIST_HEADING}</p>`,
-    `<p class="text-xs opacity-60 px-3 pb-1">${LIST_CREDIT}</p>`,
+    `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${t('load.listHeading')}</p>`,
+    `<p class="text-xs opacity-60 px-3 pb-1">${listCredit()}</p>`,
     ...rows.map((row) => renderRow(row, inUse.has(row.rowId), realtime)),
   ];
   return custom + out.join('');
 }
 
 function showAllTooltip(realtime: boolean): string {
-  const rule = realtime
-    ? 'a schedule and at least one realtime endpoint'
-    : 'a schedule';
-  return `Catalog feeds are listed when ${rule} answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.`;
+  return realtime
+    ? t('load.showAllTipRealtime')
+    : t('load.showAllTipScheduled');
 }
-
-const CORS_TOOLTIP =
-  "Routes requests through cors.kcfam.us when the feed server doesn't send CORS headers.";
 
 function corsToggle(id: string): string {
   return `
     <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
       <input type="checkbox" id="${id}" class="toggle toggle-xs" checked />
-      CORS proxy
-      ${renderTooltipTrigger(CORS_TOOLTIP, '<span class="opacity-60">?</span>')}
+      ${t('load.corsProxy')}
+      ${renderTooltipTrigger(t('load.corsTip'), '<span class="opacity-60">?</span>')}
     </label>`;
 }
 
@@ -318,21 +341,19 @@ function rtField(id: string, label: string, placeholder: string): string {
     </label>`;
 }
 
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
-}
-
 /** The stored feed, as the first thing on the boot screen. */
 function continueCard(offer: ContinueOffer): string {
   const counts = [
-    plural(offer.routes, 'route'),
-    plural(offer.stops, 'stop'),
-    plural(offer.trips, 'trip'),
-    ...(offer.edits === undefined ? [] : [plural(offer.edits, 'edit')]),
+    t('load.routes', { count: offer.routes }),
+    t('load.stops', { count: offer.stops }),
+    t('load.trips', { count: offer.trips }),
+    ...(offer.edits === undefined
+      ? []
+      : [t('load.edits', { count: offer.edits })]),
   ].join(', ');
   return `
       <button type="button" id="load-continue" class="shrink-0 w-full text-left rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 p-3">
-        <p class="text-sm font-medium truncate">Continue with ${escHtml(offer.name)}</p>
+        <p class="text-sm font-medium truncate">${escHtml(t('load.continueWith', { name: offer.name }))}</p>
         <p class="text-xs opacity-60 truncate">${escHtml(counts)}</p>
       </button>`;
 }
@@ -350,9 +371,9 @@ function linkedCard(offer: LinkedOffer): string {
   return `
       <div class="shrink-0 rounded-lg border border-primary/40 bg-primary/10">
         <button type="button" id="load-linked" class="w-full text-left p-3">
-          <p class="text-sm font-medium truncate">Load the linked feed</p>
+          <p class="text-sm font-medium truncate">${t('load.linked')}</p>
           <p class="text-xs opacity-60 truncate">${escHtml(offer.label)}</p>
-          ${urlLine('scheduled', offer.scheduledUrl)}
+          ${urlLine(t('load.urlScheduled'), offer.scheduledUrl)}
           ${urlLine('vp', offer.vehiclesUrl)}
           ${urlLine('tu', offer.tripUpdatesUrl)}
           ${urlLine('al', offer.alertsUrl)}
@@ -360,7 +381,7 @@ function linkedCard(offer: LinkedOffer): string {
         ${
           offer.canRetryWithCors
             ? `<div class="px-3 pb-3">
-          <button type="button" id="load-linked-retry" class="btn btn-xs btn-primary">Retry with CORS proxy</button>
+          <button type="button" id="load-linked-retry" class="btn btn-xs btn-primary">${t('load.retryCors')}</button>
         </div>`
             : ''
         }
@@ -372,7 +393,7 @@ function linkedCard(offer: LinkedOffer): string {
 /** A URL field, its label, and the proxy checkbox that governs it. */
 const SCHEDULED_FIELD: [id: string, label: string, corsId: string] = [
   'load-scheduled-url',
-  'Scheduled GTFS',
+  t('load.scheduledGtfs'),
   'load-scheduled-cors',
 ];
 
@@ -388,8 +409,8 @@ function input(id: string): HTMLInputElement {
   return document.getElementById(id) as HTMLInputElement;
 }
 
-const CUSTOM_SCHEDULED = 'Custom scheduled feed';
-const CUSTOM_RT = 'Custom realtime feed';
+const CUSTOM_SCHEDULED = t('load.customScheduledLabel');
+const CUSTOM_RT = t('load.customRealtimeLabel');
 
 export async function showLoadModal(
   current: FeedSelection | null,
@@ -445,7 +466,7 @@ export async function showLoadModal(
       <section id="load-rt-section" class="shrink-0 rounded-lg border border-base-300 p-3 space-y-2 transition-colors">
         <div class="flex items-center justify-between gap-2">
           <h4 class="font-medium text-sm truncate">
-            Realtime GTFS-RT <span id="load-rt-label" class="font-normal opacity-60"></span>
+            ${t('load.realtimeGtfs')} <span id="load-rt-label" class="font-normal opacity-60"></span>
           </h4>
           ${corsToggle('load-rt-cors')}
         </div>
@@ -458,20 +479,20 @@ export async function showLoadModal(
       <section id="load-scheduled-section" class="shrink-0 rounded-lg border border-base-300 p-3 space-y-2 transition-colors">
         <div class="flex items-center justify-between gap-2">
           <h4 class="font-medium text-sm truncate">
-            Scheduled GTFS <span id="load-scheduled-label" class="font-normal opacity-60"></span>
+            ${t('load.scheduledGtfs')} <span id="load-scheduled-label" class="font-normal opacity-60"></span>
           </h4>
           ${corsToggle('load-scheduled-cors')}
         </div>
         <div class="flex gap-2">
-          <input type="text" id="load-scheduled-url" class="input input-bordered input-xs flex-1 min-w-0 font-mono" placeholder="https://…/gtfs.zip  (append #inner.zip for a nested feed)" spellcheck="false" autocomplete="off" />
+          <input type="text" id="load-scheduled-url" class="input input-bordered input-xs flex-1 min-w-0 font-mono" placeholder="${escHtml(t('load.scheduledPlaceholder'))}" spellcheck="false" autocomplete="off" />
           <button type="button" id="load-upload-btn" class="btn btn-xs btn-outline gap-1 shrink-0">
-            ${renderUploadIcon('h-3.5 w-3.5')} Upload ZIP
+            ${renderUploadIcon('h-3.5 w-3.5')} ${t('load.uploadZip')}
           </button>
           <input type="file" id="load-file-input" accept=".zip" class="hidden" />
         </div>
         <div id="load-file-row" class="hidden items-center gap-2">
           <p id="load-file-name" class="text-xs opacity-60 truncate"></p>
-          <button type="button" id="load-file-clear" class="btn btn-ghost btn-xs shrink-0">Clear</button>
+          <button type="button" id="load-file-clear" class="btn btn-ghost btn-xs shrink-0">${t('common.clear')}</button>
         </div>
       </section>`;
 
@@ -492,17 +513,17 @@ export async function showLoadModal(
       ${options.continueWith ? continueCard(options.continueWith) : ''}
 
       <div class="flex shrink-0 items-center gap-3">
-        <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="Search by agency, place, or URL..." autofocus />
+        <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="${escHtml(t('load.searchPlaceholder'))}" autofocus />
         <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
           <input type="checkbox" id="load-show-all" class="toggle toggle-xs" />
-          Show all <span id="load-hidden-count" class="opacity-60"></span>
+          ${t('load.showAll')} <span id="load-hidden-count" class="opacity-60"></span>
           ${renderTooltipTrigger(showAllTooltip(realtime), '<span class="opacity-60">?</span>')}
         </label>
       </div>
       <div id="load-results" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden"></div>
 
       <p id="load-status" class="shrink-0 text-xs opacity-60 flex items-center gap-2">
-        <span class="loading loading-spinner loading-xs"></span> Loading feeds…
+        <span class="loading loading-spinner loading-xs"></span> ${t('load.loadingFeeds')}
       </p>
       <div id="load-notes" class="shrink-0 space-y-1"></div>
 
@@ -559,7 +580,9 @@ export async function showLoadModal(
 
   await showModal({
     title:
-      options.continueWith || options.linkedWith ? 'Open a Feed' : 'Load Feed',
+      options.continueWith || options.linkedWith
+        ? t('load.titleOpen')
+        : t('load.titleLoad'),
     body,
     // An explicit height, not just a cap: `h-full` on the body only resolves
     // against a definite one, and that is what lets the result list flex. Width
@@ -574,7 +597,7 @@ export async function showLoadModal(
     // query. Loading is a click.
     actions: [
       {
-        label: 'Load',
+        label: t('common.load'),
         className: 'btn-primary',
         onClick: () => {
           const sel = readForm();
@@ -585,7 +608,7 @@ export async function showLoadModal(
           return;
         },
       },
-      { label: 'Cancel', onClick: () => {} },
+      { label: t('common.cancel'), onClick: () => {} },
       ...(options.extraActions ?? []),
     ],
     onMount: (close) => {
@@ -623,7 +646,7 @@ export async function showLoadModal(
           visible,
           inUse,
           realtime,
-          loading ? 'Loading…' : 'No results.'
+          loading ? t('load.loading') : t('load.noResults')
         );
       };
 

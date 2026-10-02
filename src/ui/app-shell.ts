@@ -14,6 +14,7 @@
  */
 
 import { escapeHtml } from '../util/escape-html';
+import { t } from '../i18n/messages';
 
 /** One mobile dock button. Its icon is filled by `renderDockIcons`. */
 export interface ShellDockButton {
@@ -69,7 +70,7 @@ function renderAppShell(opts: AppShellOptions): string {
         <div class="navbar-start">
           <a href="https://gtfs.zone" class="flex items-center gap-4" target="_blank" rel="noopener noreferrer">
             <div class="avatar">
-              <div class="w-8 rounded-lg"><img src="logo.svg" alt="${escapeHtml(host)} logo" /></div>
+              <div class="w-8 rounded-lg"><img src="logo.svg" alt="${escapeHtml(t('shell.logoAlt', { host }))}" /></div>
             </div>
             <div class="text-xl font-bold hidden md:block">
               <span class="text-primary">${escapeHtml(opts.brandPrefix)}</span>${escapeHtml(opts.brandSuffix)}<sup id="app-version" class="text-xs opacity-50 font-normal ml-1"></sup>
@@ -88,7 +89,7 @@ function renderAppShell(opts: AppShellOptions): string {
         <div id="map" class="w-full h-full"></div>
         <div id="map-controls" class="absolute top-2 left-2 right-2 z-40 flex flex-row items-start gap-2 pointer-events-none">
           <div id="map-search-card" class="relative flex-1 max-w-sm card card-bordered bg-base-100 shadow-lg p-2 pointer-events-auto">
-            <input type="text" id="map-search" placeholder="Search" class="input input-sm w-full" />
+            <input type="text" id="map-search" placeholder="${escapeHtml(t('shell.search'))}" class="input input-sm w-full" />
           </div>
           <div id="auto-zoom-mount" class="pointer-events-auto flex-shrink-0"></div>
           ${opts.mapControlsExtra ?? ''}

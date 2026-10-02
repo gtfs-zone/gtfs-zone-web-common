@@ -17,6 +17,7 @@
  */
 
 import uFuzzy from '@leeoniya/ufuzzy';
+import { t } from '../i18n/messages';
 
 export interface SearchEntry<T> {
   /** Handed back to `onSelect` untouched, the app's own focus descriptor. */
@@ -191,7 +192,7 @@ export class SearchController<T> {
       entries = await this.opts.getEntries();
     } catch (error) {
       console.error('[Search] Failed to build entries:', error);
-      this.renderMessage('Search failed, see the console');
+      this.renderMessage(t('search.failed'));
       return;
     }
     if (id !== this.requestId) {
@@ -250,9 +251,9 @@ export class SearchController<T> {
     this.matches = [...this.localMatches, ...this.remoteMatches];
     if (this.matches.length === 0 && this.remoteState !== 'pending') {
       if (this.remoteState === 'error') {
-        this.renderMessage('No feed results. Place search unavailable');
+        this.renderMessage(t('search.noFeedResults'));
       } else {
-        this.renderMessage(`No results for "${esc(query)}"`);
+        this.renderMessage(t('search.noResults', { query: esc(query) }));
       }
       return;
     }
@@ -293,10 +294,10 @@ export class SearchController<T> {
     }
     const label =
       this.remoteState === 'pending'
-        ? 'Searching places...'
+        ? t('search.searchingPlaces')
         : this.remoteState === 'error'
-          ? 'Place search unavailable'
-          : 'Places';
+          ? t('search.placesUnavailable')
+          : t('search.places');
     const heading = document.createElement('div');
     heading.className =
       'px-3 pt-2 pb-1 text-xs font-semibold opacity-60 border-b border-base-200';

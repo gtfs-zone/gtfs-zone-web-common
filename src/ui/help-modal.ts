@@ -13,6 +13,7 @@
 import { showSidebarModal } from './sidebar-modal';
 import { moduleState } from '../util/module-state';
 import { escapeHtml } from '../util/escape-html';
+import { t } from '../i18n/messages';
 
 /** One help page, as the viewer needs to see it. */
 export interface HelpPageEntry {
@@ -47,6 +48,13 @@ export function setHelpPages(pages: HelpPageEntry[], groups: string[]): void {
 
 function findHelpPage(id: string): HelpPageEntry | undefined {
   return shared.pages.find((page) => page.id === id);
+}
+
+/** The shared groups are translated; an app's own group shows as given. */
+function groupLabel(group: string): string {
+  return group === 'Getting Started' || group === 'Reference'
+    ? t(`help.group.${group}`)
+    : group;
 }
 
 function shownKey(id: string): string {
@@ -95,8 +103,9 @@ export async function showHelpModal(
   shared.open = true;
   try {
     await showSidebarModal({
-      title: 'Guide',
+      title: t('common.guide'),
       groupOrder: shared.groupOrder,
+      groupLabel: groupLabel,
       initialId: pageId && findHelpPage(pageId) ? pageId : undefined,
       boxClassName: 'max-w-4xl w-11/12',
       closeLabel: options?.continueLabel,

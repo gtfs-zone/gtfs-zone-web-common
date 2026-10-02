@@ -16,6 +16,7 @@ import {
   type AboutApp,
 } from './about-links';
 import { moduleState } from '../util/module-state';
+import { t } from '../i18n/messages';
 
 type HelpGroup = 'Getting Started' | 'Reference';
 
@@ -82,7 +83,7 @@ function buildShortcutsTable(shortcuts: ShortcutDescription[]): string {
     .join('');
   return `
     <table class="table table-xs w-full">
-      <thead><tr><th>Key</th><th>Action</th></tr></thead>
+      <thead><tr><th>${t('help.shortcuts.key')}</th><th>${t('help.shortcuts.action')}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
@@ -103,9 +104,9 @@ export function aboutPage(
 ): HelpPage {
   return {
     id: 'about',
-    label: 'About',
+    label: t('help.about.label'),
     group: 'Reference',
-    title: `About ${app.name}`,
+    title: t('help.about.title', { app: app.name }),
     render: () =>
       [
         renderBlurb(app),
@@ -119,8 +120,12 @@ export function aboutPage(
 /** The Keyboard Shortcuts page, listing what `setHelpRuntimeData` was given. */
 export const shortcutsPage: HelpPage = {
   id: 'shortcuts',
-  label: 'Keyboard Shortcuts',
+  get label() {
+    return t('help.shortcuts.label');
+  },
   group: 'Reference',
-  title: 'Using keyboard shortcuts',
+  get title() {
+    return t('help.shortcuts.title');
+  },
   render: () => buildShortcutsTable(shared.shortcuts),
 };

@@ -3,6 +3,8 @@
 // `AboutApp` and keeps its own app-specific middle sections; everything here is
 // shared so a URL cannot drift between the two modals.
 
+import { t } from '../i18n/messages';
+
 const SITE_URL = 'https://gtfs.zone';
 const MANAGER_URL = 'https://manage.rt.gtfs.zone';
 const GITHUB_URL = 'https://github.com/gtfs-zone';
@@ -73,32 +75,34 @@ export function renderBlurb(app: AboutApp): string {
 export function renderVersionAndSource(app: AboutApp, version: string): string {
   const repo = `${GITHUB_URL}/${app.repo}`;
   return (
-    divider('Version &amp; Source') +
+    divider(t('about.versionSource')) +
     list([
-      `Version: <code class="font-mono">${version}</code>`,
-      link(repo, 'Source code'),
-      link(`${repo}/blob/main/CHANGELOG.md`, 'Changelog'),
+      t('about.version', {
+        version: `<code class="font-mono">${version}</code>`,
+      }),
+      link(repo, t('about.sourceCode')),
+      link(`${repo}/blob/main/CHANGELOG.md`, t('about.changelog')),
     ])
   );
 }
 
 export function renderProjectSection(app: AboutApp): string {
   return (
-    divider('Project') +
+    divider(t('about.project')) +
     list([
-      `${link(SITE_URL, 'gtfs.zone')}: the project these tools belong to`,
+      `${link(SITE_URL, 'gtfs.zone')}: ${t('about.siteNote')}`,
       `${link(app.sibling.href, app.sibling.name)}: ${app.sibling.note}`,
-      `${link(MANAGER_URL, 'manage.rt.gtfs.zone')}: run your own realtime feed (needs an account)`,
+      `${link(MANAGER_URL, 'manage.rt.gtfs.zone')}: ${t('about.managerNote')}`,
     ])
   );
 }
 
 export function renderResourcesSection(): string {
   return (
-    divider('Resources') +
+    divider(t('about.resources')) +
     list([
-      `${link('https://gtfs.org/reference/', 'GTFS Spec Reference')}: official file format and field reference`,
-      `${link('https://www.transit.land/', 'Transitland')}: real-world GTFS feeds, one of the catalogs behind Load -&gt; Feed catalogs`,
+      `${link('https://gtfs.org/reference/', t('about.specLabel'))}: ${t('about.specNote')}`,
+      `${link('https://www.transit.land/', 'Transitland')}: ${t('about.transitlandNote')}`,
     ])
   );
 }
@@ -110,13 +114,13 @@ export function renderResourcesSection(): string {
  */
 export function renderDataSourcesSection(): string {
   return (
-    divider('Data Sources') +
+    divider(t('about.dataSources')) +
     list([
-      `${link('https://list.gtfs.zone', 'list.gtfs.zone')}: the checked feed list behind Load -&gt; Feed catalogs`,
-      `${link('https://github.com/transitland/transitland-atlas', 'Transitland Atlas')}: feed catalog, ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}`,
-      `${link('https://mobilitydatabase.org', 'Mobility Database')}: feed catalog by MobilityData, ${link('https://creativecommons.org/publicdomain/zero/1.0/', 'CC0')}`,
-      `${link('https://data.transportation.gov/d/2u7n-ub22', 'National Transit Database')}: GTFS weblinks reported to the FTA, public domain`,
-      "A feed you load belongs to its publisher and stays under the publisher's license.",
+      `${link('https://list.gtfs.zone', 'list.gtfs.zone')}: ${t('about.feedListNote')}`,
+      `${link('https://github.com/transitland/transitland-atlas', 'Transitland Atlas')}: ${t('about.atlasNote', { license: link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0') })}`,
+      `${link('https://mobilitydatabase.org', 'Mobility Database')}: ${t('about.mobilityNote', { license: link('https://creativecommons.org/publicdomain/zero/1.0/', 'CC0') })}`,
+      `${link('https://data.transportation.gov/d/2u7n-ub22', 'National Transit Database')}: ${t('about.ntdNote')}`,
+      t('about.publisherLicense'),
     ])
   );
 }
@@ -125,10 +129,10 @@ export function renderFeedbackSection(app: AboutApp): string {
   // The mailto is first: it works without a GitHub account.
   const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(app.contactSubject)}`;
   return (
-    divider('Feedback') +
+    divider(t('about.feedback')) +
     list([
-      `${link(mailto, CONTACT_EMAIL)}: questions, feed requests, anything else`,
-      `${link(`${GITHUB_URL}/${app.repo}/issues/new`, 'File an issue on GitHub')}: bug reports and feature requests`,
+      `${link(mailto, CONTACT_EMAIL)}: ${t('about.contactNote')}`,
+      `${link(`${GITHUB_URL}/${app.repo}/issues/new`, t('about.issueLabel'))}: ${t('about.issueNote')}`,
     ])
   );
 }

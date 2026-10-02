@@ -16,6 +16,7 @@
  */
 
 import { escapeHtml } from '../util/escape-html';
+import { t } from '../i18n/messages';
 
 export interface IssueItem {
   /** Plain text shown for this item. Escaped here, so pass raw text. */
@@ -113,7 +114,7 @@ function renderRow(row: IssueRow): string {
 
   const total = row.items.length + (row.moreCount ?? 0);
   const more = row.moreCount
-    ? `<li class="list-none mt-1"><button type="button" class="btn btn-xs btn-ghost" data-issue-show-all${keyAttr(row)}>Show all ${total}</button></li>`
+    ? `<li class="list-none mt-1"><button type="button" class="btn btn-xs btn-ghost" data-issue-show-all${keyAttr(row)}>${t('issue.showAll', { count: total })}</button></li>`
     : '';
 
   return `

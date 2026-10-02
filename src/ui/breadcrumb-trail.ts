@@ -7,6 +7,8 @@
  * variant sets and the data sources genuinely differ.
  */
 
+import { t } from '../i18n/messages';
+
 /**
  * One crumb: a dim uppercase type over a name, pointing at a page state.
  *
@@ -23,16 +25,16 @@ export interface BreadcrumbItem<S> {
 
 /** GTFS `location_type` to the word a crumb or a header calls it. */
 export const STOP_TYPE_LABELS: Record<number, string> = {
-  0: 'Stop',
-  1: 'Station',
-  2: 'Entrance',
-  3: 'Node',
-  4: 'Boarding area',
+  0: t('stopType.stop'),
+  1: t('stopType.station'),
+  2: t('stopType.entrance'),
+  3: t('stopType.node'),
+  4: t('stopType.boardingArea'),
 };
 
 /** The label for a stop's `location_type`, defaulting to a plain stop. */
 export function stopTypeLabel(locationType: number | undefined): string {
-  return STOP_TYPE_LABELS[locationType ?? 0] ?? 'Stop';
+  return STOP_TYPE_LABELS[locationType ?? 0] ?? STOP_TYPE_LABELS[0];
 }
 
 /** Local escaping, so this module pulls in no dependency of its own. */
@@ -95,7 +97,7 @@ export function renderBreadcrumbTrail<S>(
   });
 
   return `
-    <nav aria-label="Breadcrumb" class="text-sm">
+    <nav aria-label="${t('breadcrumb.label')}" class="text-sm">
       <ol class="flex flex-wrap items-start gap-x-2 gap-y-2">${crumbs.join('')}</ol>
     </nav>`;
 }
