@@ -1,3 +1,9 @@
+## v5.9.0 (2026-10-03)
+
+### Feat
+
+- **gtfs**: add shared route, stop and alert pages and entity rows
+
 ## v5.8.0 (2026-10-03)
 
 ### Feat
