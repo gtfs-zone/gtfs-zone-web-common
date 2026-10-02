@@ -45,6 +45,24 @@ Read from the consumer's Vite env at its build time:
 | --- | --- | --- |
 | `VITE_CORS_PROXY` | `https://cors.kcfam.us/` | prefix put in front of a feed URL fetched through the CORS proxy (`gtfs/feed-selection.ts`) |
 
+## Localization
+
+`i18n/index.ts` holds a typed `t()` with no dependency. `defineCatalog(en, { fr })`
+takes an English catalog declared `as const` and returns a translator that only
+accepts its keys; a `Translation<typeof en>` for another locale may leave keys
+out, and those fall back to English. Strings use `{var}` placeholders, and a
+plural is a `name_one` / `name_other` pair called as `t('name', { count })`.
+
+`getLocale()` reads the `locale` cookie (on `Domain=.gtfs.zone`, so it carries
+across the apps), then localStorage (localhost), then the browser's languages,
+then `en`, and sets `<html lang>`. `setLocale()` stores the choice. The
+`locale` navbar action renders the toggle; a click stores the other locale and
+reloads. `i18n/fmt.ts` formats dates and numbers in the active locale.
+
+Each app keeps its own catalogs; this package's own strings are in
+`i18n/catalog.en.ts` and `i18n/catalog.fr.ts`. GTFS field names, file names and
+enum values are never translated.
+
 ## What it is
 
 A browser-side library for GTFS and GTFS-RT frontends: the UI chrome (navbar,
@@ -60,15 +78,16 @@ between the apps and the layout this package is moving to.
 
 ## Checks
 
-`pnpm run check` runs all four, and a pre-commit hook runs them on every
+`pnpm run check` runs all five, and a pre-commit hook runs them on every
 commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 | script | what it does |
 | --- | --- |
 | `typecheck` | `tsc --noEmit` over `src/` and `scripts/` |
-| `lint` | `eslint src/ scripts/ --max-warnings 0` |
+| `lint` | `eslint src/ scripts/ tests/ --max-warnings 0` |
 | `knip` | reports unused files and dependencies |
 | `check:exports` | reports exports no consumer imports |
+| `test` | unit tests under `tests/`, on Node's built-in runner |
 
 `format` runs prettier over the same directories.
 

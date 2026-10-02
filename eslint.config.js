@@ -45,8 +45,8 @@ export default tseslint.config(
     },
   },
   {
-    // Node tooling, not browser code: no DOM globals, console is the output.
-    files: ['scripts/**/*.ts'],
+    // Node tooling and tests, not browser code: no DOM globals, console is the output.
+    files: ['scripts/**/*.ts', 'tests/**/*.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

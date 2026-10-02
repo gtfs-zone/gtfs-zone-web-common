@@ -13,13 +13,13 @@ repos:
         name: eslint
         entry: pnpm exec eslint --fix
         language: system
-        files: ^(src|scripts)/.*\.(js|ts|jsx|tsx)$
+        files: ^(src|scripts|tests)/.*\.(js|ts|jsx|tsx)$
         stages: [pre-commit]
       - id: prettier
         name: prettier
         entry: pnpm exec prettier --write
         language: system
-        files: ^(src|scripts)/.*\.(js|ts|jsx|tsx|css|scss|html)$
+        files: ^(src|scripts|tests)/.*\.(js|ts|jsx|tsx|css|scss|html)$
         stages: [pre-commit]
       - id: check
         name: check
