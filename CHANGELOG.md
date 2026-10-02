@@ -1,3 +1,15 @@
+## v5.10.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add a language toggle navbar action
+- **ui**: extract web-common UI strings into en and fr catalogs
+- **i18n**: add typed t(), locale resolution and fmt helpers
+
+### Refactor
+
+- **gtfs**: format display times through the i18n fmt helpers
+
 ## v5.9.0 (2026-10-03)
 
 ### Feat
