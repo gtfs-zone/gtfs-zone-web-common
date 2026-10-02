@@ -1,3 +1,9 @@
+## v5.4.0 (2026-10-03)
+
+### Feat
+
+- **map**: add layer manager for the realtime map
+
 ## v5.3.0 (2026-10-02)
 
 ### Feat
