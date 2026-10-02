@@ -26,6 +26,7 @@ import type { GTFSScheduled } from '../gtfs/scheduled';
 import type { VehiclePosition } from '../gtfs/rt-types';
 import { routeSortKey } from '../gtfs/route-sort';
 import { casingColor } from '../gtfs/route-colors';
+import { vehicleRouteId } from '../gtfs/entity-render';
 import { clearThemeColorCache, resolveThemeColor } from '../util/theme-color';
 import { ensureMapIcons } from './icons';
 import {
@@ -1333,9 +1334,7 @@ export class LayerManager<
     let duplicateKeys = 0;
 
     const features = positions.map((v) => {
-      const routeId =
-        v.routeId ||
-        (v.tripId ? feed?.trips.get(v.tripId)?.route_id : undefined);
+      const routeId = vehicleRouteId(feed, v);
       const route = routeId ? feed?.routes.get(routeId) : undefined;
       if (!route) {
         unmatched++;
