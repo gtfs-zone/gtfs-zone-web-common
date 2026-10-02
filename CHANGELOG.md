@@ -1,3 +1,33 @@
+## v5.9.0 (2026-10-03)
+
+### Feat
+
+- **gtfs**: add shared route, stop and alert pages and entity rows
+
+## v5.8.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add focusStopId to the modal transient
+
+### Refactor
+
+- **ui**: drop the feedData nav icon
+
+## v5.7.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add transfers, translations and attributions nav icons
+
+## v5.6.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add ValidatedFocusController with pending link focus
+- **gtfs**: add RtPanel for the realtime apps' right panel
+- **gtfs**: add schedule search entries, breadcrumb helpers and vehicleRouteId
+
 ## v5.5.0 (2026-10-03)
 
 ### Feat

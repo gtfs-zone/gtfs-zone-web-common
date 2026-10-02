@@ -672,6 +672,19 @@ export function stopSequenceMark(
 }
 
 /**
+ * The route a vehicle is drawn in: the `route_id` the feed asserted, else its
+ * trip's route in the schedule.
+ */
+export function vehicleRouteId(
+  feed: GTFSScheduled | null | undefined,
+  v: VehiclePosition
+): string | undefined {
+  return (
+    v.routeId || (v.tripId ? feed?.trips.get(v.tripId)?.route_id : undefined)
+  );
+}
+
+/**
  * The name to *display* for a vehicle. Prefers the scheduled trip's
  * `trip_short_name` — for Amtrak this is the train number — then the trip
  * headsign, then the feed's `vehicle.label`, then the id. This is display-layer
