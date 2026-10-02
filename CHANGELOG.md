@@ -1,3 +1,11 @@
+## v5.6.0 (2026-10-03)
+
+### Feat
+
+- **ui**: add ValidatedFocusController with pending link focus
+- **gtfs**: add RtPanel for the realtime apps' right panel
+- **gtfs**: add schedule search entries, breadcrumb helpers and vehicleRouteId
+
 ## v5.5.0 (2026-10-03)
 
 ### Feat
