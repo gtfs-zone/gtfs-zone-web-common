@@ -1,3 +1,13 @@
+## v5.11.0 (2026-10-03)
+
+### Feat
+
+- **map**: add shared RtMapController for the realtime maps
+
+### Fix
+
+- **scripts**: count abstract classes in check:exports
+
 ## v5.10.0 (2026-10-03)
 
 ### Feat
