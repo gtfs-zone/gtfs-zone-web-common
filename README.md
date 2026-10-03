@@ -1,5 +1,7 @@
 # gtfs-zone-web-common
 
+[![CI](https://img.shields.io/github/actions/workflow/status/gtfs-zone/gtfs-zone-web-common/check.yml?branch=main&label=CI)](https://github.com/gtfs-zone/gtfs-zone-web-common/actions/workflows/check.yml?query=branch%3Amain) [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE.txt) [![Latest tag](https://img.shields.io/github/v/tag/gtfs-zone/gtfs-zone-web-common?sort=semver)](https://github.com/gtfs-zone/gtfs-zone-web-common/tags)
+
 Shared browser-side modules for the gtfs.zone apps: **gtfs-zone-editor**
 (edit.gtfs.zone), **gtfs-zone-rt-viewer** (viz.rt.gtfs.zone) and
 **gtfs-zone-rt-manager** (manage.rt.gtfs.zone).
