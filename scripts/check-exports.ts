@@ -56,7 +56,7 @@ function specifierFor(file: string): string {
 }
 
 const EXPORT_DECL =
-  /^export\s+(?:declare\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/gm;
+  /^export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:const|let|var|function|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/gm;
 
 function exportedNames(source: string): string[] {
   return [...source.matchAll(EXPORT_DECL)].map((m) => m[1]);
