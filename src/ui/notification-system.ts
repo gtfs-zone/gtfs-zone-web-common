@@ -50,7 +50,7 @@ export class NotificationSystem {
     }
     const container = document.createElement('div');
     container.id = 'notification-container';
-    container.className = 'fixed top-32 left-2 z-[100] space-y-2 max-w-xs';
+    container.className = 'fixed top-32 left-2 z-[1000] space-y-2 max-w-xs';
     document.body.appendChild(container);
     shared.container = container;
     return container;
