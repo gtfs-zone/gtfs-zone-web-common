@@ -63,20 +63,21 @@ function matchLanguage(tags: readonly string[]): Locale | null {
 
 /**
  * The locale for a set of inputs, in priority order: the `locale` cookie, the
- * localStorage value, the browser's languages, then English.
+ * localStorage value, the browser's languages, then English. Each is matched by
+ * primary subtag, so a regional preference stored by the homepage (`fr-CA`)
+ * resolves to its language.
  */
 export function resolveLocale(inputs: {
   cookie?: string | null;
   stored?: string | null;
   languages?: readonly string[];
 }): Locale {
-  if (isLocale(inputs.cookie)) {
-    return inputs.cookie;
-  }
-  if (isLocale(inputs.stored)) {
-    return inputs.stored;
-  }
-  return matchLanguage(inputs.languages ?? []) ?? DEFAULT_LOCALE;
+  return (
+    matchLanguage(inputs.cookie ? [inputs.cookie] : []) ??
+    matchLanguage(inputs.stored ? [inputs.stored] : []) ??
+    matchLanguage(inputs.languages ?? []) ??
+    DEFAULT_LOCALE
+  );
 }
 
 function readCookie(name: string): string | null {

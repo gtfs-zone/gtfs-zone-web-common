@@ -93,6 +93,21 @@ describe('resolveLocale', () => {
     assert.equal(resolveLocale({ languages: ['fr-CA', 'en'] }), 'fr');
   });
 
+  it('matches a regional cookie or stored value by its language', () => {
+    assert.equal(
+      resolveLocale({ cookie: 'fr-CA', languages: ['en-US'] }),
+      'fr'
+    );
+    assert.equal(
+      resolveLocale({ stored: 'fr-CA', languages: ['en-US'] }),
+      'fr'
+    );
+    assert.equal(
+      resolveLocale({ cookie: 'de-CH', languages: ['fr-CH'] }),
+      'fr'
+    );
+  });
+
   it('skips unsupported values', () => {
     assert.equal(
       resolveLocale({ cookie: 'de', stored: 'xx', languages: ['de-DE', 'fr'] }),
