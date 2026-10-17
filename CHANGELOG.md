@@ -1,3 +1,21 @@
+## v5.12.0 (2026-10-17)
+
+### Feat
+
+- **load**: show a large feed's size in red and label the picked row selected
+- **route-colors**: treat a route_color shared by every route as no color
+
+### Fix
+
+- **search**: truncate a long secondary so the name stays visible
+
+## v5.11.1 (2026-10-04)
+
+### Fix
+
+- **notifications**: show notifications above modals
+- **i18n**: match a regional locale cookie by its language
+
 ## v5.11.0 (2026-10-03)
 
 ### Feat
