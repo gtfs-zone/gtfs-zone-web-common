@@ -71,7 +71,7 @@ function listCredit(): string {
       'https://data.transportation.gov/d/2u7n-ub22',
       'National Transit Database'
     ),
-    rt: creditLink('https://rt.gtfs.zone', 'rt.gtfs.zone'),
+    rt: creditLink('https://gtfs.zone', 'gtfs.zone'),
   });
 }
 
