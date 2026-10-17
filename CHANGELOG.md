@@ -1,3 +1,9 @@
+## v5.12.1 (2026-10-17)
+
+### Fix
+
+- **load**: credit gtfs.zone instead of the bare rt.gtfs.zone host
+
 ## v5.12.0 (2026-10-17)
 
 ### Feat
