@@ -270,7 +270,7 @@ export class SearchController<T> {
       row.innerHTML = `
         ${entry.icon}
         <span class="min-w-0 flex-1 truncate text-sm">${esc(entry.primary)}</span>
-        ${entry.secondary ? `<span class="shrink-0 text-xs opacity-60">${esc(entry.secondary)}</span>` : ''}
+        ${entry.secondary ? `<span class="min-w-0 max-w-[50%] truncate text-right text-xs opacity-60" title="${esc(entry.secondary)}">${esc(entry.secondary)}</span>` : ''}
       `;
       row.addEventListener('mouseenter', () => this.setActive(i));
       row.addEventListener('click', () => this.select(i));
