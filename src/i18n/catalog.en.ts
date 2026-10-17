@@ -96,7 +96,7 @@ export const en = {
   'load.mb': '{size} MB',
   'load.catalogUnavailable': 'Feed catalogs unavailable - {reason}',
   'load.urlScheduled': 'scheduled',
-  'load.inUse': 'in use',
+  'load.selected': 'selected',
   'load.customTitle': 'Custom feed URLs',
   'load.customRealtime':
     'Type or paste your own scheduled and realtime URLs below',

@@ -81,6 +81,7 @@ interface FeedRow {
   feed: CatalogFeed;
   /** Which slots a click fills. */
   provides: 'pair' | 'scheduled' | 'rt';
+  /** Escaped HTML. */
   subtitle: string;
   scheduledUrl?: string;
   vehiclesUrl?: string;
@@ -156,6 +157,9 @@ export interface LoadModalOptions {
 /** The unfiltered list is thousands of rows; cap what is painted. */
 const DISPLAY_CAP = 200;
 
+/** A schedule at least this large is flagged as a heavy download. */
+const LARGE_FEED_BYTES = 50 * 1024 * 1024;
+
 function escHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -169,6 +173,14 @@ function reason(err: unknown): string {
 }
 
 // ─── Sources ──────────────────────────────────────────────────────────────────
+
+/** The schedule's size, in red when it is a large download. */
+function sizeHtml(n: number): string {
+  const size = escHtml(formatBytes(n));
+  return n >= LARGE_FEED_BYTES
+    ? `<span class="text-error font-semibold">${size}</span>`
+    : size;
+}
 
 function formatBytes(n: number): string {
   if (n < 1024 * 1024) {
@@ -201,10 +213,12 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     provides:
       scheduledUrl && hasRt ? 'pair' : scheduledUrl ? 'scheduled' : 'rt',
     subtitle: [
-      feed.subtitle,
-      placeLine(feed),
-      feed.lastModified ? t('load.updated', { date: feed.lastModified }) : '',
-      feed.staticBytes ? formatBytes(feed.staticBytes) : '',
+      ...[
+        feed.subtitle,
+        placeLine(feed),
+        feed.lastModified ? t('load.updated', { date: feed.lastModified }) : '',
+      ].map((part) => (part ? escHtml(part) : '')),
+      feed.staticBytes ? sizeHtml(feed.staticBytes) : '',
     ]
       .filter(Boolean)
       .join(' - '),
@@ -258,21 +272,21 @@ function urlLine(label: string, url: string | undefined): string {
   </p>`;
 }
 
-function renderRow(row: FeedRow, inUse: boolean, realtime: boolean): string {
-  const classes = inUse ? SELECTED_ROW_CLASS : 'hover:bg-base-200';
+function renderRow(row: FeedRow, selected: boolean, realtime: boolean): string {
+  const classes = selected ? SELECTED_ROW_CLASS : 'hover:bg-base-200';
   const { feed } = row;
   return `
     <button type="button" class="w-full text-left px-3 py-2 rounded-lg flex items-start gap-2 ${classes}" data-row-id="${escHtml(row.rowId)}">
       <div class="flex-1 min-w-0">
         <p class="text-sm font-medium truncate">${escHtml(feed.name)}</p>
-        ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${escHtml(row.subtitle)}</p>` : ''}
+        ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${row.subtitle}</p>` : ''}
         ${urlLine(realtime ? t('load.urlScheduled') : '', row.scheduledUrl)}
         ${realtime ? urlLine('vp', row.vehiclesUrl) : ''}
         ${realtime ? urlLine('tu', row.tripUpdatesUrl) : ''}
         ${realtime ? urlLine('al', row.alertsUrl) : ''}
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
-        ${inUse ? `<span class="text-xs opacity-60">${t('load.inUse')}</span>` : ''}
+        ${selected ? `<span class="text-xs opacity-60">${t('load.selected')}</span>` : ''}
         ${feedStateBadge(feed.state, feed.since)}
         ${realtime ? roleChips(feed) : ''}
       </div>
@@ -302,7 +316,7 @@ function customUrlRow(realtime: boolean): string {
 /** The visible rows under the catalogs' heading and credit. */
 function renderRows(
   rows: FeedRow[],
-  inUse: Set<string>,
+  selected: Set<string>,
   realtime: boolean,
   emptyText: string
 ): string {
@@ -313,7 +327,7 @@ function renderRows(
   const out = [
     `<p class="text-xs uppercase tracking-wide opacity-50 px-3 pt-3 pb-1">${t('load.listHeading')}</p>`,
     `<p class="text-xs opacity-60 px-3 pb-1">${listCredit()}</p>`,
-    ...rows.map((row) => renderRow(row, inUse.has(row.rowId), realtime)),
+    ...rows.map((row) => renderRow(row, selected.has(row.rowId), realtime)),
   ];
   return custom + out.join('');
 }
@@ -639,12 +653,12 @@ export async function showLoadModal(
         .querySelector<HTMLButtonElement>('button[data-idx="0"]')!;
 
       const renderResults = () => {
-        const inUse = new Set(
+        const selected = new Set(
           [scheduledRowId, rtRowId].filter(Boolean) as string[]
         );
         resultsEl.innerHTML = renderRows(
           visible,
-          inUse,
+          selected,
           realtime,
           loading ? t('load.loading') : t('load.noResults')
         );

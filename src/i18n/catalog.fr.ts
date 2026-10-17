@@ -98,7 +98,7 @@ export const fr: Translation<typeof en> = {
   'load.mb': '{size} Mo',
   'load.catalogUnavailable': 'Catalogues de flux indisponibles - {reason}',
   'load.urlScheduled': 'théorique',
-  'load.inUse': 'utilisé',
+  'load.selected': 'sélectionné',
   'load.customTitle': 'URL de flux personnalisées',
   'load.customRealtime':
     'Saisissez ou collez vos propres URL théoriques et temps réel ci-dessous',
