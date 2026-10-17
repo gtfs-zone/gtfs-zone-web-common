@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import Papa from 'papaparse';
 import { splitInnerZipPath } from './feed-url-resolve';
 import { downloadWithProgress } from './feed-download';
-import { routeColor, routeTextColor } from './route-colors';
+import { routeColor, routeTextColor, setFeedRouteColors } from './route-colors';
 
 /** Verbatim CSV rows, kept so object pages can dump every column. */
 export type RawRow = Record<string, string>;
@@ -454,6 +454,7 @@ export class GTFSScheduled {
   }
 
   private ingestRoutes(rows: RawRow[]): void {
+    setFeedRouteColors(rows.map((row) => row.route_color));
     for (const row of rows) {
       // A feed that omits route_color gets a hue hashed from its route_id, so
       // colorless routes are still told apart on the map instead of all

@@ -20,6 +20,8 @@
  * a single branch.
  */
 
+import { moduleState } from '../util/module-state';
+
 /** Perceptual lightness of a hashed route color, 0–1. Higher is paler. */
 const HASH_LIGHTNESS = 0.62;
 
@@ -94,11 +96,47 @@ function isGtfsColor(value: string | undefined): value is string {
 }
 
 /**
+ * The one `route_color` every colored route of the current feed shares, when
+ * there are two or more routes. A color that tells no route apart is treated
+ * as no color at all.
+ */
+const feedColors = moduleState('route-colors', () => ({
+  suppressed: null as string | null,
+}));
+
+/**
+ * Record the current feed's `route_color` values, one per route, so a color
+ * shared by every route falls back to hashed hues.
+ */
+export function setFeedRouteColors(colors: Iterable<string | undefined>): void {
+  let routes = 0;
+  const distinct = new Set<string>();
+  for (const color of colors) {
+    routes++;
+    if (isGtfsColor(color)) {
+      distinct.add(color.toUpperCase());
+    }
+  }
+  const suppressed =
+    routes >= 2 && distinct.size === 1 ? [...distinct][0] : null;
+  if (suppressed && suppressed !== feedColors.suppressed) {
+    console.log(
+      `[route-colors] All ${routes} routes share #${suppressed}; using hashed colors instead`
+    );
+  }
+  feedColors.suppressed = suppressed;
+}
+
+/**
  * The fill color for a route: the feed's `route_color` when it supplies a
- * usable one, otherwise a hue hashed from `route_id`.
+ * usable one that is not shared by every route, otherwise a hue hashed from
+ * `route_id`.
  */
 export function routeColor(route_id: string, gtfsRouteColor?: string): string {
-  if (isGtfsColor(gtfsRouteColor)) {
+  if (
+    isGtfsColor(gtfsRouteColor) &&
+    gtfsRouteColor.toUpperCase() !== feedColors.suppressed
+  ) {
     return `#${gtfsRouteColor}`;
   }
   const hue = (hashString(route_id) * HUE_STEP) % 360;
@@ -144,12 +182,13 @@ function luminance(hex: string): number {
 
 /**
  * Legible text over `fill`. Honors the feed's `route_text_color` when present,
- * an agency's own pairing is authoritative even when it's a poor one, and
- * otherwise picks black or white by luminance. Blindly defaulting to white is
+ * an agency's own pairing is authoritative even when it's a poor one, unless
+ * the feed's shared route color was dropped, and otherwise picks black or white by luminance. Blindly defaulting to white is
  * what makes a badge on a pale feed color unreadable.
  */
 export function routeTextColor(fill: string, gtfsTextColor?: string): string {
-  if (isGtfsColor(gtfsTextColor)) {
+  // The feed's text color was paired with the fill that is being dropped.
+  if (isGtfsColor(gtfsTextColor) && !feedColors.suppressed) {
     return `#${gtfsTextColor}`;
   }
   if (!/^#[0-9A-Fa-f]{6}$/.test(fill)) {
