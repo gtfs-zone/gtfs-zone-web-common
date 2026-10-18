@@ -93,6 +93,20 @@ export function branchPath(from: number, lane: number): string {
     : `M ${x0},50 C ${x0},80 ${x1},70 ${x1},100`;
 }
 
+/** From the return lane at the bottom of the row, over the top into `lane`'s dot. */
+export function loopTopPath(lane: number): string {
+  const x0 = laneX(0);
+  const x1 = laneX(lane);
+  return `M ${x0},100 L ${x0},50 C ${x0},0 ${x1},0 ${x1},50`;
+}
+
+/** From `lane`'s dot, under and up into the return lane at the top of the row. */
+export function loopBottomPath(lane: number): string {
+  const x0 = laneX(0);
+  const x1 = laneX(lane);
+  return `M ${x1},50 C ${x1},100 ${x0},100 ${x0},50 L ${x0},0`;
+}
+
 /** Minimal attribute escaping, so this module stays app-independent. */
 function escAttrValue(value: string): string {
   return value
@@ -178,6 +192,9 @@ export type RowPathsOptions =
  * strip there is nothing live, only the neighbouring stop's own lane; `last`
  * says this is the outermost row of a run, so it gets the half-length capped
  * segment instead of a full-height vertical.
+ *
+ * On a loop (`graph.loop`), lane 0 carries the return line: up from the last
+ * stop's dot, through every row between, and over into the first stop's dot.
  */
 export function rowPaths(
   graph: RouteGraph,
@@ -185,6 +202,7 @@ export function rowPaths(
   opts: RowPathsOptions
 ): string[] {
   const row = graph.rows[index];
+  const last = graph.rows.length - 1;
 
   if (opts.kind === 'stop') {
     const paths = [
@@ -198,11 +216,24 @@ export function rowPaths(
     if (opts.leadOut && row.branches.length === 0) {
       paths.push(branchPath(row.lane, row.lane));
     }
+    if (graph.loop) {
+      if (index === 0) {
+        paths.push(loopTopPath(row.lane));
+      } else if (index === last) {
+        paths.push(loopBottomPath(row.lane));
+      } else {
+        paths.push(verticalPath(0));
+      }
+    }
     return paths;
   }
 
   const live =
-    opts.side === 'above' ? [...row.merges, ...row.through] : row.exiting;
+    opts.side === 'above' ? [...row.merges, ...row.through] : [...row.exiting];
+  // The return lane runs through every gap between the first and last stop.
+  if (graph.loop && (opts.side === 'above' ? index > 0 : index < last)) {
+    live.push(0);
+  }
   if (live.length > 0) {
     return live.map(verticalPath);
   }

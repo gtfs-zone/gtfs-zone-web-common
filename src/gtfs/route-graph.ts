@@ -51,6 +51,12 @@ export interface RouteGraph {
   /** Parallel to `sequence.stops`. */
   rows: RailRow[];
   laneCount: number;
+  /**
+   * The strip ends at the stop it starts at. Lane 0 is then the return lane,
+   * drawn from the last row back up into the first, and every other lane sits
+   * one to the right of where the sweep put it.
+   */
+  loop: boolean;
 }
 
 const cache = new WeakMap<RouteSequence, RouteGraph>();
@@ -61,7 +67,7 @@ export function routeGraph(sequence: RouteSequence): RouteGraph {
   if (hit) {
     return hit;
   }
-  const graph = build(sequence);
+  const graph = withLoopLane(sequence, build(sequence));
   cache.set(sequence, graph);
   return graph;
 }
@@ -167,7 +173,7 @@ function structuralEdges(
  * passing through — which is what keeps an ordinary line looking exactly as it
  * did before any of this existed.
  */
-function build(sequence: RouteSequence): RouteGraph {
+function build(sequence: RouteSequence): Omit<RouteGraph, 'loop'> {
   const kept = structuralEdges(edgesOf(sequence));
   const rows: RailRow[] = [];
   /** Reserved position per lane, or null when the lane is free. */
@@ -266,4 +272,37 @@ function build(sequence: RouteSequence): RouteGraph {
   }
 
   return { rows, laneCount: Math.max(1, laneCount) };
+}
+
+/** Whether the strip's last row is the same stop as its first. */
+function isFullLoop(sequence: RouteSequence): boolean {
+  const { stops } = sequence;
+  if (stops.length < 2) {
+    return false;
+  }
+  const first = stops[0].ref;
+  const last = stops[stops.length - 1].ref;
+  return first.kind === last.kind && first.id === last.id;
+}
+
+/** On a full loop, frees lane 0 for the return lane by shifting every lane right. */
+function withLoopLane(
+  sequence: RouteSequence,
+  graph: Omit<RouteGraph, 'loop'>
+): RouteGraph {
+  if (!isFullLoop(sequence)) {
+    return { ...graph, loop: false };
+  }
+  const shift = (lanes: number[]) => lanes.map((l) => l + 1);
+  return {
+    rows: graph.rows.map((row) => ({
+      lane: row.lane + 1,
+      through: shift(row.through),
+      merges: shift(row.merges),
+      branches: shift(row.branches),
+      exiting: shift(row.exiting),
+    })),
+    laneCount: graph.laneCount + 1,
+    loop: true,
+  };
 }
