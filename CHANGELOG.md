@@ -1,3 +1,9 @@
+## v5.14.0 (2026-10-18)
+
+### Feat
+
+- **gtfs**: draw a return lane on routes that loop back to their first stop
+
 ## v5.13.0 (2026-10-18)
 
 ### Feat
