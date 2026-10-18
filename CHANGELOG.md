@@ -1,3 +1,9 @@
+## v5.13.0 (2026-10-18)
+
+### Feat
+
+- **gtfs**: say never seen up for a down feed no check has seen up
+
 ## v5.12.1 (2026-10-17)
 
 ### Fix
