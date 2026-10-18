@@ -287,7 +287,7 @@ function renderRow(row: FeedRow, selected: boolean, realtime: boolean): string {
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
         ${selected ? `<span class="text-xs opacity-60">${t('load.selected')}</span>` : ''}
-        ${feedStateBadge(feed.state, feed.since)}
+        ${feedStateBadge(feed.state, feed.since, 'xs', feed.neverUp)}
         ${realtime ? roleChips(feed) : ''}
       </div>
     </button>`;

@@ -39,18 +39,26 @@ const ROLE_STATE_TEXT: Record<RoleState, string> = {
   unknown: 'not checked',
 };
 
-/** "Down since 2026-09-23", or just "Down" without a date. */
-export function feedStateText(state: FeedState, since?: string): string {
+/** "Down since 2026-09-23", "Down, never seen up", or just "Down" without a date. */
+export function feedStateText(
+  state: FeedState,
+  since?: string,
+  neverUp?: boolean
+): string {
   const label = FEED_STATE_LABELS[state];
+  if (neverUp && state === 'down') {
+    return `${label}, never seen up`;
+  }
   return since && state !== 'unknown' ? `${label} since ${since}` : label;
 }
 
 export function feedStateBadge(
   state: FeedState,
   since?: string,
-  size: BadgeSize = 'xs'
+  size: BadgeSize = 'xs',
+  neverUp?: boolean
 ): string {
-  return `<span class="badge ${SIZE_CLASS[size]} ${FEED_STATE_CLASS[state]}" title="${feedStateText(state, since)}">${FEED_STATE_LABELS[state]}</span>`;
+  return `<span class="badge ${SIZE_CLASS[size]} ${FEED_STATE_CLASS[state]}" title="${feedStateText(state, since, neverUp)}">${FEED_STATE_LABELS[state]}</span>`;
 }
 
 export function roleChip(
