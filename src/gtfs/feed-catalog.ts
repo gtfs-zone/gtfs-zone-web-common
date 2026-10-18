@@ -81,6 +81,8 @@ export interface CatalogFeed {
   lastModified?: string;
   /** The date the feed's state was reached, YYYY-MM-DD. */
   since?: string;
+  /** Down, and no check has ever seen it up. */
+  neverUp?: boolean;
 }
 
 /** One search.json entry, as published. */
@@ -99,6 +101,7 @@ interface SearchEntry {
   b?: number;
   m?: string;
   since?: string;
+  nu?: boolean;
 }
 
 /** One feeds.json entry: only the fields read by the fallback. */
@@ -113,6 +116,7 @@ interface FeedsEntry {
   staticBytes?: number;
   lastModified?: string;
   since?: string;
+  neverUp?: boolean;
   municipality?: string;
   subdivision?: string;
   country?: string;
@@ -138,6 +142,7 @@ function fromSearchEntry(e: SearchEntry): CatalogFeed {
     staticBytes: e.b,
     lastModified: e.m,
     since: e.since,
+    neverUp: e.nu,
   };
 }
 
@@ -160,6 +165,7 @@ function fromFeedsEntry(e: FeedsEntry): CatalogFeed {
     staticBytes: e.staticBytes,
     lastModified: e.lastModified?.slice(0, 10),
     since: e.since?.slice(0, 10),
+    neverUp: e.neverUp,
   };
 }
 
