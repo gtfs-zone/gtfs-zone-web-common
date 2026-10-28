@@ -1,3 +1,13 @@
+## v5.15.0 (2026-10-28)
+
+### Feat
+
+- **ui**: add a GitHub link navbar action
+
+### Fix
+
+- **deps**: upgrade packages with published security advisories
+
 ## v5.14.0 (2026-10-18)
 
 ### Feat
