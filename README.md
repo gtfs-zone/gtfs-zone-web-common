@@ -59,7 +59,8 @@ plural is a `name_one` / `name_other` pair called as `t('name', { count })`.
 across the apps), then localStorage (localhost), then the browser's languages,
 then `en`, and sets `<html lang>`. `setLocale()` stores the choice. The
 `locale` navbar action renders the toggle; a click stores the other locale and
-reloads. `i18n/fmt.ts` formats dates and numbers in the active locale.
+reloads. `githubAction(repo)` from `ui/navbar-actions` is the navbar link to
+the app's repo under the gtfs-zone org. `i18n/fmt.ts` formats dates and numbers in the active locale.
 
 Each app keeps its own catalogs; this package's own strings are in
 `i18n/catalog.en.ts` and `i18n/catalog.fr.ts`. GTFS field names, file names and

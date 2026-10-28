@@ -7,7 +7,8 @@ import { t } from '../i18n/messages';
 
 const SITE_URL = 'https://gtfs.zone';
 const MANAGER_URL = 'https://manage.rt.gtfs.zone';
-const GITHUB_URL = 'https://github.com/gtfs-zone';
+/** The gtfs-zone GitHub org; repos sit under it by name. */
+export const GITHUB_URL = 'https://github.com/gtfs-zone';
 const CONTACT_EMAIL = 'inquiry@gtfs.zone';
 
 export interface AboutApp {

@@ -8,6 +8,7 @@ export const en = {
   'common.guide': 'Guide',
 
   'locale.switchTo': 'Français',
+  'nav.github': 'Source code on GitHub',
 
   'shell.search': 'Search',
   'shell.logoAlt': '{host} logo',

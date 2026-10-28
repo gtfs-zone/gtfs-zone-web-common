@@ -11,6 +11,7 @@ export const fr: Translation<typeof en> = {
   'common.guide': 'Guide',
 
   'locale.switchTo': 'English',
+  'nav.github': 'Code source sur GitHub',
 
   'shell.search': 'Rechercher',
   'shell.logoAlt': 'Logo {host}',

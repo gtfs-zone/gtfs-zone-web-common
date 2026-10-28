@@ -1,5 +1,6 @@
 import { escapeHtml } from '../util/escape-html';
-import { renderNavIcon, type NavIconName } from './nav-icons';
+import { renderGithubIcon, renderNavIcon, type NavIconName } from './nav-icons';
+import { GITHUB_URL } from './about-links';
 import { getLocale, setLocale, type Locale } from '../i18n/index';
 import { t } from '../i18n/messages';
 
@@ -82,6 +83,18 @@ export interface LocaleAction extends Omit<TooltippedAction, 'label'> {
 
 export type NavbarAction =
   IconAction | LinkAction | ToggleAction | LabeledAction | LocaleAction;
+
+/** The app's source repo on GitHub, opened in a new tab. */
+export function githubAction(repo: string): LinkAction {
+  return {
+    kind: 'link',
+    id: 'github-link',
+    label: t('nav.github'),
+    icon: renderGithubIcon(),
+    href: `${GITHUB_URL}/${repo}`,
+    external: true,
+  };
+}
 
 const ICON_BTN_CLASS = 'btn btn-ghost btn-sm btn-square';
 
