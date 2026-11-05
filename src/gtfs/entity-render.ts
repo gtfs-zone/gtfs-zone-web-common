@@ -21,7 +21,9 @@ import {
   zoneLabel,
 } from './feed-time';
 import { escapeHtml } from '../util/escape-html';
+import { routeTypeInfo } from 'gtfs-zone-vocab/route-types';
 import { formatDate } from '../i18n/fmt';
+import { getLocale } from '../i18n/index';
 import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 
 /**
@@ -530,18 +532,10 @@ export const STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS: Record<number, string> = {
   3: 'UNSCHEDULED',
 };
 
-export const ROUTE_TYPE_LABELS: Record<number, string> = {
-  0: 'Tram / light rail',
-  1: 'Subway / metro',
-  2: 'Rail',
-  3: 'Bus',
-  4: 'Ferry',
-  5: 'Cable tram',
-  6: 'Aerial lift',
-  7: 'Funicular',
-  11: 'Trolleybus',
-  12: 'Monorail',
-};
+/** The label for a route_type code in the active locale, or undefined when the code is unknown. */
+export function routeTypeLabel(code: number): string | undefined {
+  return routeTypeInfo(code)?.label[getLocale()];
+}
 
 /**
  * The header every entity page opens with: the name, then the feed's own id

@@ -6,43 +6,28 @@
  * two things: the route's mode, which always wins, and its trip count, which
  * breaks ties within a mode so a trunk service sits above an hourly one.
  *
- * Pure and dependency-free.
+ * Pure; modes come from gtfs-zone-vocab.
  */
+
+import { routeTypeFamily } from 'gtfs-zone-vocab/route-types';
 
 /** Rank for an unknown or unparseable route_type, below every real mode. */
 const RANK_UNKNOWN = 10;
 
-/** Base GTFS route_type to paint rank. Higher paints on top. */
-const RANK_BY_TYPE: Record<number, number> = {
-  1: 90, // subway / metro
-  12: 85, // monorail
-  0: 80, // tram / streetcar / light rail
-  7: 75, // funicular
-  6: 75, // aerial lift
-  5: 75, // cable tram
-  2: 70, // rail
-  4: 60, // ferry
-  11: 50, // trolleybus
-  3: 40, // bus
-};
-
-/**
- * Extended route types (100–1799) collapse onto a base type by their hundreds
- * bucket. 1100 (air) and 1700 (misc) have no sensible base equivalent and fall
- * through to RANK_UNKNOWN.
- */
-const BASE_TYPE_BY_HUNDREDS: Record<number, number> = {
-  1: 2, // railway service
-  2: 3, // coach service
-  4: 1, // urban railway service
-  7: 3, // bus service
-  8: 11, // trolleybus service
-  9: 0, // tram service
-  10: 4, // water transport service
-  12: 4, // ferry service
-  13: 6, // aerial lift service
-  14: 7, // funicular service
-  15: 3, // taxi service
+/** Route type family (gtfs-zone-vocab) to paint rank. Higher paints on top. */
+const RANK_BY_FAMILY: Record<string, number> = {
+  metro: 90,
+  tram: 80,
+  cable: 75,
+  funicular: 75,
+  rail: 70,
+  ferry: 60,
+  trolleybus: 50,
+  coach: 40,
+  bus: 40,
+  taxi: 40,
+  air: 20,
+  misc: 20,
 };
 
 /**
@@ -59,16 +44,15 @@ export function routeTypeRank(rawRouteType: unknown): number {
     return RANK_UNKNOWN;
   }
 
-  const direct = RANK_BY_TYPE[routeType];
-  if (direct !== undefined) {
-    return direct;
-  }
-
-  if (routeType >= 100 && routeType < 1800) {
-    const baseType = BASE_TYPE_BY_HUNDREDS[Math.floor(routeType / 100)];
-    if (baseType !== undefined) {
-      return RANK_BY_TYPE[baseType];
+  const family = routeTypeFamily(routeType);
+  if (family !== undefined) {
+    const rank = RANK_BY_FAMILY[family];
+    if (rank === undefined) {
+      throw new Error(
+        `[routeSort] No paint rank for route type family ${family}`
+      );
     }
+    return rank;
   }
 
   console.warn(

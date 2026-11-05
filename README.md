@@ -20,13 +20,22 @@ an optional peer: `gtfs/rt-types.ts` imports its namespace as a type and
 nothing here pulls protobufjs into a bundle, so only the apps that read GTFS-RT
 need it installed.
 
+`gtfs-zone-vocab` (route type labels and families) is a peer too: pnpm blocks
+git-hosted subdependencies, so each consumer pins it by tag itself:
+
+```
+pnpm add "gtfs-zone-vocab@github:gtfs-zone/gtfs-zone-vocab#vX.Y.Z"
+```
+
 ## Consumer wiring
 
-Adding this library to an app takes four separate edits, and missing any one
+Adding this library to an app takes five separate edits, and missing any one
 of them fails in a different place:
 
-1. `tsconfig.json` path, so `tsc` resolves the import:
-   `"gtfs-zone-web-common/*": ["node_modules/gtfs-zone-web-common/src/*"]`
+1. `tsconfig.json` paths, so `tsc` resolves the imports. The vocab entry is
+   needed because `"moduleResolution": "Node"` ignores its `exports` map:
+   `"gtfs-zone-web-common/*": ["node_modules/gtfs-zone-web-common/src/*"]`,
+   `"gtfs-zone-vocab/*": ["node_modules/gtfs-zone-vocab/ts/*"]`
 2. `vite.config.js` alias, so the bundler resolves the same specifier, plus
    `optimizeDeps.exclude: ['gtfs-zone-web-common']` because the package ships raw `.ts`
    and must be transformed as source:
@@ -38,6 +47,8 @@ of them fails in a different place:
    (postcss rejects an `@import` placed after any other statement), so the
    grid, the mobile drawer and the map controls are styled:
    `@import '../../node_modules/gtfs-zone-web-common/src/ui/app-shell.css';`
+5. A direct `gtfs-zone-vocab` dependency pinned by tag (see above). Vite
+   resolves it through its `exports` map with no alias.
 
 ## Configuration
 

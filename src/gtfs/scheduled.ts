@@ -460,13 +460,19 @@ export class GTFSScheduled {
       // colorless routes are still told apart on the map instead of all
       // rendering in one flat house color. See utils/route-colors.ts.
       const color = routeColor(row.route_id, row.route_color);
+      const type = parseInt(row.route_type ?? '3');
+      if (Number.isNaN(type)) {
+        console.warn(
+          `[GTFSScheduled] Route ${row.route_id} has a non-numeric route_type ${JSON.stringify(row.route_type)}`
+        );
+      }
       this.routes.set(row.route_id, {
         id: row.route_id,
         short_name: row.route_short_name ?? '',
         long_name: row.route_long_name ?? '',
         color,
         text_color: routeTextColor(color, row.route_text_color),
-        type: parseInt(row.route_type ?? '3'),
+        type,
         agency_id: row.agency_id ?? '',
         raw: row,
       });

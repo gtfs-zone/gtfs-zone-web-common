@@ -32,6 +32,9 @@ importers:
       gtfs-realtime-bindings:
         specifier: ^2.2.0
         version: 2.2.0
+      gtfs-zone-vocab:
+        specifier: github:gtfs-zone/gtfs-zone-vocab#v0.1.0
+        version: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/52bc8ee4eb2f7059e1b5050ee73dbb55858e3599
       jszip:
         specifier: ^3.10.2
         version: 3.10.2
@@ -887,6 +890,10 @@ packages:
   gtfs-realtime-bindings@2.2.0:
     resolution: {integrity: sha512-JX6aADdPWtKMXA3Z/G2TK2kgR/gXZFFpfL7cdlR2fYvnJK5JDiyfEGC4+/65dF591d8nooUjhM387OSdesAIDQ==}
     engines: {node: '>=22'}
+
+  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/52bc8ee4eb2f7059e1b5050ee73dbb55858e3599:
+    resolution: {gitHosted: true, integrity: sha512-t578hv8vQqW7HOKz9LqO3TU7FBYl+yeBgSpYomsMbqytuZc8qila+TrBmVfJztF/2C/8G47m6UnDZjJsSzzAIg==, tarball: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/52bc8ee4eb2f7059e1b5050ee73dbb55858e3599}
+    version: 0.1.0
 
   hashery@1.5.1:
     resolution: {integrity: sha512-iZyKG96/JwPz1N55vj2Ie2vXbhu440zfUfJvSwEqEbeLluk7NnapfGqa7LH0mOsnDxTF85Mx8/dyR6HfqcbmbQ==}
@@ -1992,6 +1999,8 @@ snapshots:
     dependencies:
       protobufjs: 8.8.0
       protobufjs-cli: 2.7.0(protobufjs@8.8.0)
+
+  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/52bc8ee4eb2f7059e1b5050ee73dbb55858e3599: {}
 
   hashery@1.5.1:
     dependencies:

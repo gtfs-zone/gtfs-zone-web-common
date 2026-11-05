@@ -24,6 +24,7 @@
   "peerDependencies": {
     "@leeoniya/ufuzzy": "*",
     "gtfs-realtime-bindings": "*",
+    "gtfs-zone-vocab": "*",
     "jszip": "*",
     "maplibre-gl": ">=6.4.1 <7",
     "papaparse": "*"
@@ -42,6 +43,7 @@
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "gtfs-realtime-bindings": "^2.2.0",
+    "gtfs-zone-vocab": "github:gtfs-zone/gtfs-zone-vocab#v0.1.0",
     "jszip": "^3.10.2",
     "knip": "^6.39.0",
     "maplibre-gl": "^6.11",

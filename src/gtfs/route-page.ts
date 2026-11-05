@@ -37,7 +37,6 @@ import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 import type { PageRef, RenderContext } from './entity-render';
 import {
   OCCUPANCY_LABELS,
-  ROUTE_TYPE_LABELS,
   TRIP_SCHEDULE_RELATIONSHIP_LABELS,
   VEHICLE_STATUS_LABELS,
   derivedClass,
@@ -54,6 +53,7 @@ import {
   propList,
   renderRawFields,
   routeBadge,
+  routeTypeLabel,
   section,
   stopSequenceMark,
   tripRelationshipMark,
@@ -463,6 +463,18 @@ function renderUnplaced<S extends PageRef, V extends VehiclePosition>(
 
 // --- Page ---------------------------------------------------------------------
 
+/** The Mode row value: the vocab label, or the raw route_type when the code is unknown. */
+function modeLabel(routeType: number): string {
+  const label = routeTypeLabel(routeType);
+  if (label === undefined) {
+    console.warn(
+      `[RoutePage] Unknown route_type ${routeType}, showing the raw code`
+    );
+    return `route_type ${routeType}`;
+  }
+  return label;
+}
+
 export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
   ctx: RenderContext<S | RtPageRef>,
   rt: RtIndex<V>,
@@ -512,10 +524,7 @@ export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
       ${section(
         'Route',
         propList([
-          prop(
-            'Mode',
-            escHtml(ROUTE_TYPE_LABELS[route.type] ?? `route_type ${route.type}`)
-          ),
+          prop('Mode', escHtml(modeLabel(route.type))),
           agency?.name ? prop('Agency', escHtml(agency.name)) : '',
           prop('Trips', String((feed.tripsByRoute.get(route.id) ?? []).length)),
           prop(
