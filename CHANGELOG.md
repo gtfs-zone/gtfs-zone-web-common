@@ -1,3 +1,9 @@
+## v5.16.0 (2026-11-05)
+
+### Feat
+
+- **gtfs**: read route type labels and paint ranks from gtfs-zone-vocab
+
 ## v5.15.0 (2026-10-28)
 
 ### Feat
