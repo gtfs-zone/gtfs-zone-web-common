@@ -82,14 +82,24 @@ function markSeen(id: string): void {
   }
 }
 
-/**
- * Shown when the guide is opened as a gate before another modal (the shapes
- * and fares buttons). The action button reads this label instead of "Close"
- * so it is clear that dismissing the guide continues to the thing that was
- * gated, rather than merely closing a dialog.
- */
 export interface HelpModalOptions {
+  /**
+   * Shown when the guide is opened as a gate before another modal (the shapes
+   * and fares buttons). The action button reads this label instead of "Close"
+   * so it is clear that dismissing the guide continues to the thing that was
+   * gated, rather than merely closing a dialog.
+   */
   continueLabel?: string;
+  /**
+   * Called on a sidebar click instead of switching, for an app that keeps the
+   * open page in its URL. The app switches through `selectRef`.
+   */
+  onSelect?: (pageId: string) => void;
+  /**
+   * Filled in with a callback that switches to a page. No page switches back
+   * to the one the guide opened on.
+   */
+  selectRef?: { select: (pageId?: string) => Promise<void> };
 }
 
 export async function showHelpModal(
@@ -100,15 +110,24 @@ export async function showHelpModal(
     return;
   }
 
+  const initialId =
+    pageId && findHelpPage(pageId) ? pageId : shared.pages[0].id;
+  const sidebarSelect = { select: async (_id: string): Promise<void> => {} };
+  if (options?.selectRef) {
+    options.selectRef.select = (id) => sidebarSelect.select(id ?? initialId);
+  }
+
   shared.open = true;
   try {
     await showSidebarModal({
       title: t('common.guide'),
       groupOrder: shared.groupOrder,
       groupLabel: groupLabel,
-      initialId: pageId && findHelpPage(pageId) ? pageId : undefined,
+      initialId,
       boxClassName: 'max-w-4xl w-11/12',
       closeLabel: options?.continueLabel,
+      onSelect: options?.onSelect,
+      selectRef: sidebarSelect,
       entries: shared.pages.map((page) => ({
         id: page.id,
         label: page.label,
