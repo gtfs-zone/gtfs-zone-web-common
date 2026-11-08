@@ -1,3 +1,9 @@
+## v5.19.0 (2026-11-08)
+
+### Feat
+
+- **ui**: let the app drive the guide's open page
+
 ## v5.18.0 (2026-11-08)
 
 ### Feat
