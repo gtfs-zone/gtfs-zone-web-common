@@ -57,6 +57,14 @@ export interface SidebarModalConfig {
   onPaneRendered?: (paneEl: HTMLElement, close: () => void) => void;
   /** Filled in with a re-render callback, so a pane can refresh the modal. */
   refreshRef?: { refresh: () => Promise<void> };
+  /**
+   * Called on a sidebar click instead of switching, for an app that keeps the
+   * active entry in its URL. The app switches through `selectRef` once its
+   * navigation lands.
+   */
+  onSelect?: (id: string) => void;
+  /** Filled in with a callback that switches to an entry and re-renders. */
+  selectRef?: { select: (id: string) => Promise<void> };
 }
 
 // Nested sidebar modals would otherwise collide on the element ids.
@@ -196,6 +204,22 @@ export async function showSidebarModal(
     config.refreshRef.refresh = refresh;
   }
 
+  const select = async (id: string): Promise<void> => {
+    if (id === activeEntry.id) {
+      return;
+    }
+    const entry = config.entries.find((candidate) => candidate.id === id);
+    if (!entry) {
+      console.warn(`[SidebarModal] no entry for ${id}`);
+      return;
+    }
+    activeEntry = entry;
+    await refresh();
+  };
+  if (config.selectRef) {
+    config.selectRef.select = select;
+  }
+
   const body = `
     ${config.intro ? `<p class="text-xs text-base-content/60 mb-3">${config.intro}</p>` : ''}
     <div class="flex flex-col gap-4 md:flex-row md:items-start">
@@ -228,13 +252,11 @@ export async function showSidebarModal(
         if (!id || id === activeEntry.id) {
           return;
         }
-        const entry = config.entries.find((candidate) => candidate.id === id);
-        if (!entry) {
-          console.warn(`[SidebarModal] no entry for ${id}`);
-          return;
+        if (config.onSelect) {
+          config.onSelect(id);
+        } else {
+          void select(id);
         }
-        activeEntry = entry;
-        void refresh();
       });
     },
   });
