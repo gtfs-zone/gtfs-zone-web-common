@@ -1,3 +1,9 @@
+## v5.17.0 (2026-11-08)
+
+### Feat
+
+- **ui**: close routed modals via history.back() and drop the in-memory history
+
 ## v5.16.0 (2026-11-05)
 
 ### Feat
