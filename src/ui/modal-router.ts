@@ -7,6 +7,9 @@
  * way the modal was closed: its Close button, Escape, the X, the backdrop, or
  * a back/forward step in the browser.
  *
+ * Modals the URL does not name (pickers, forms, help) are transient: a
+ * Back/Forward step closes them, see `closeTransientModals`.
+ *
  * Modal modules are unchanged: they still call `showModal` themselves and know
  * nothing about the hash. The router opens one by calling the opener registered
  * for its type, and closes one by taking the modal stack back down to the depth
@@ -108,6 +111,20 @@ class ModalRouter<M extends AnyModalState> {
     }
   }
 
+  /**
+   * Close every modal above the routed one, or every modal when none is
+   * routed. Assumes a routed opener shows a single modal of its own.
+   */
+  closeTransient(): void {
+    const depth = this.session ? this.session.depth + 1 : 0;
+    if (modalStackDepth() > depth) {
+      console.log(
+        `[ModalRouter] closing ${modalStackDepth() - depth} transient modal(s)`
+      );
+      closeModalsAbove(depth);
+    }
+  }
+
   private closeSession(): void {
     const session = this.session;
     if (!session) {
@@ -166,6 +183,19 @@ export function createModalRouter<M extends AnyModalState>(
   const router = new ModalRouter<M>(host);
   shared.instance = router;
   return router;
+}
+
+/**
+ * Close the modals that are not part of the URL, for a Back/Forward step that
+ * moves the page beneath them. Every modal closes when no router was built.
+ */
+export function closeTransientModals(): void {
+  if (shared.instance) {
+    (shared.instance as ModalRouter<AnyModalState>).closeTransient();
+  } else if (modalStackDepth() > 0) {
+    console.log('[ModalRouter] closing all modals on history step');
+    closeModalsAbove(0);
+  }
 }
 
 /**

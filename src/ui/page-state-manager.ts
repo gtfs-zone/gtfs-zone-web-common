@@ -1,6 +1,6 @@
 /**
- * Page state manager: the single owner of what the app is looking at, its
- * navigation history, and the URL hash.
+ * Page state manager: the single owner of what the app is looking at and the
+ * URL hash. Browser history is the only navigation history.
  *
  * Generic over the app's page-state union. Every union is discriminated by
  * `type`, has a `home` variant naming no object, and may carry a `modal` that
@@ -8,9 +8,12 @@
  * codec and the validator, both injected.
  *
  * The hash has two halves: the page (and modal) params the codec writes, and
- * the feed params the app sets with `setFeedParams`. Only this class writes the
- * hash, which is what keeps its `suppressHashUpdate` guard honest.
+ * the feed params the app sets with `setFeedParams`. Writes go through
+ * `history.pushState`/`replaceState`, which fire no `hashchange`, so every
+ * `hashchange` the class sees is Back/Forward or a hand-edited address bar.
  */
+
+import { closeTransientModals } from './modal-router';
 
 /** A modal over a page: anything discriminated by `type`. */
 export type AnyModalState = { type: string };
@@ -49,14 +52,32 @@ export interface PageStateCodec<S> {
 
 export interface PageStateManagerConfig<S> {
   codec: PageStateCodec<S>;
-  enableHistory?: boolean;
-  maxHistoryLength?: number;
   enableUrlSync?: boolean;
 }
 
 type NavigationEventHandler<S> = (event: NavigationEvent<S>) => void;
 
-const DEFAULT_MAX_HISTORY = 50;
+/**
+ * `history.state` of an entry `writeHash` pushed: the instance that pushed it
+ * and the hash of the entry it was pushed over.
+ */
+interface PushedEntry {
+  pushedBy: string;
+  below: string;
+}
+
+/** How long `clearModal` waits for the `hashchange` of its `history.back()`. */
+const BACK_TIMEOUT_MS = 1000;
+
+function currentHash(): string {
+  return window.location.hash.slice(1);
+}
+
+function hashUrl(hash: string): string {
+  return hash === ''
+    ? window.location.pathname + window.location.search
+    : `#${hash}`;
+}
 
 function withoutModal(state: AnyPageState): Omit<AnyPageState, 'modal'> {
   const location = { ...state };
@@ -88,21 +109,20 @@ export function homeWithModal<S extends AnyPageState>(state: S): S {
 
 export class PageStateManager<S extends AnyPageState, C = unknown> {
   private currentState: S = { type: 'home' } as S;
-  private navigationHistory: NavigationEvent<S>[] = [];
   private eventHandlers: NavigationEventHandler<S>[] = [];
   private codec: PageStateCodec<S>;
-  private enableHistory: boolean;
-  private maxHistoryLength: number;
   private enableUrlSync: boolean;
   private breadcrumbBuilder: BreadcrumbBuilder<S, C> | null = null;
   private stateValidator: StateValidator<S> | null = null;
   private feedParams: Record<string, string> = {};
-  private suppressHashUpdate = false;
+  /** Marks the entries this instance pushed, so a reload never claims them. */
+  private readonly instanceId = Math.random().toString(36).slice(2);
+  /** Set while `clearModal` waits for its `history.back()` to land. */
+  private pendingBack: { hash: string; state: S; done: () => void } | null =
+    null;
 
   constructor(config: PageStateManagerConfig<S>) {
     this.codec = config.codec;
-    this.enableHistory = config.enableHistory ?? true;
-    this.maxHistoryLength = config.maxHistoryLength ?? DEFAULT_MAX_HISTORY;
     this.enableUrlSync = config.enableUrlSync ?? false;
 
     if (this.enableUrlSync && typeof window !== 'undefined') {
@@ -141,22 +161,13 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     return { ...this.currentState };
   }
 
-  /** Update the current state, recording history and syncing the hash. */
+  /** Update the current state, pushing its hash. */
   setPageState(newState: S): void {
     if (!this.codec.isPageState(newState)) {
       throw new Error('Invalid page state provided');
     }
-
-    const event: NavigationEvent<S> = {
-      from: this.currentState,
-      to: newState,
-      timestamp: Date.now(),
-    };
-    this.currentState = { ...newState };
-
-    this.recordHistory(event);
     this.writeHash(newState);
-    this.notify(event);
+    this.apply(newState);
   }
 
   /** The trail for the current state, or none when no builder is set. */
@@ -172,23 +183,6 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     }
   }
 
-  canNavigateBack(): boolean {
-    return this.navigationHistory.length > 0;
-  }
-
-  /** Step back to the most recent state that differs from the current one. */
-  navigateBack(): boolean {
-    const current = JSON.stringify(this.currentState);
-    for (let i = this.navigationHistory.length - 1; i >= 0; i--) {
-      const from = this.navigationHistory[i].from;
-      if (JSON.stringify(from) !== current) {
-        this.setPageState(from);
-        return true;
-      }
-    }
-    return false;
-  }
-
   addNavigationHandler(handler: NavigationEventHandler<S>): void {
     this.eventHandlers.push(handler);
   }
@@ -200,14 +194,6 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     }
   }
 
-  getNavigationHistory(): NavigationEvent<S>[] {
-    return [...this.navigationHistory];
-  }
-
-  clearNavigationHistory(): void {
-    this.navigationHistory = [];
-  }
-
   /** The state the hash names, unvalidated: boot reads it before data loads. */
   pendingStateFromURL(): S {
     if (typeof window === 'undefined') {
@@ -217,7 +203,7 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
   }
 
   /**
-   * Take a state without recording history or notifying handlers. Used at
+   * Take a state without touching the hash or notifying handlers. Used at
    * boot, once the caller has validated it against the loaded data.
    */
   adoptState(state: S): void {
@@ -230,39 +216,20 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
   }
 
   /**
-   * Re-point the current state and the history in place, for an object that
-   * changed identity under the reader (a renamed id). Not a navigation: no
-   * history entry, no handlers, and the hash is replaced rather than pushed.
-   * `fn` returns null for a state it leaves alone.
+   * Re-point the current state in place, for an object that changed identity
+   * under the reader (a renamed id). Not a navigation: no handlers, and the
+   * hash is replaced rather than pushed. `fn` returns null for a state it
+   * leaves alone.
    *
    * Returns true when the current state moved.
    */
   rewrite(fn: (state: S) => S | null): boolean {
-    this.navigationHistory = this.navigationHistory.map((event) => ({
-      ...event,
-      from: fn(event.from) ?? event.from,
-      to: fn(event.to) ?? event.to,
-    }));
-
     const next = fn(this.currentState);
     if (!next) {
       return false;
     }
     this.currentState = { ...next };
-
-    if (this.enableUrlSync && typeof window !== 'undefined') {
-      const hash = this.buildHash(next);
-      if (hash !== window.location.hash.slice(1)) {
-        // replaceState fires no hashchange, so the suppress flag stays clear.
-        window.history.replaceState(
-          null,
-          '',
-          hash === ''
-            ? window.location.pathname + window.location.search
-            : `#${hash}`
-        );
-      }
-    }
+    this.replaceHash(next);
     return true;
   }
 
@@ -279,8 +246,11 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
   /**
    * Drop the modal from the current state, leaving the page beneath it. A
    * no-op when no modal is open, so a modal that navigated away before closing
-   * does not bounce the page. Async so the class satisfies `modal-router.ts`'s
-   * `ModalHost`.
+   * does not bounce the page.
+   *
+   * Never pushes, so Back after a close does not reopen the modal. When the
+   * entry under this one is the same page without the modal, steps back onto
+   * it; otherwise replaces this entry with the modal-less hash.
    */
   async clearModal(): Promise<void> {
     const current = this.getPageState();
@@ -289,7 +259,41 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     }
     const rest = { ...current };
     delete rest.modal;
-    this.setPageState(rest);
+
+    if (!this.enableUrlSync || typeof window === 'undefined') {
+      this.apply(rest);
+      return;
+    }
+
+    const hash = this.buildHash(rest);
+    const entry = window.history.state as Partial<PushedEntry> | null;
+    if (entry?.pushedBy === this.instanceId && entry.below === hash) {
+      console.log('[PageStateManager] close via back');
+      await new Promise<void>((resolve) => {
+        const timer = window.setTimeout(() => {
+          if (this.pendingBack?.done === done) {
+            console.warn(
+              '[PageStateManager] history.back() did not land, closing via replace'
+            );
+            this.pendingBack = null;
+            this.replaceHash(rest);
+            this.apply(rest);
+          }
+          resolve();
+        }, BACK_TIMEOUT_MS);
+        const done = () => {
+          window.clearTimeout(timer);
+          resolve();
+        };
+        this.pendingBack = { hash, state: rest, done };
+        window.history.back();
+      });
+      return;
+    }
+
+    console.log('[PageStateManager] close via replace');
+    this.replaceHash(rest);
+    this.apply(rest);
   }
 
   /** The full hash for a state, feed params first so links read consistently. */
@@ -301,74 +305,112 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     return params.toString();
   }
 
+  /** Push the hash for a state, marking the entry as this instance's. */
   private writeHash(state: S): void {
     if (!this.enableUrlSync || typeof window === 'undefined') {
       return;
     }
 
     const hash = this.buildHash(state);
-    if (hash === window.location.hash.slice(1)) {
+    const below = currentHash();
+    if (hash === below) {
       return;
     }
+    if (this.pendingBack) {
+      console.warn(
+        '[PageStateManager] pushing while a close via back is pending'
+      );
+    }
+    const entry: PushedEntry = { pushedBy: this.instanceId, below };
+    window.history.pushState(entry, '', hashUrl(hash));
+  }
 
-    // Guarded by the equality check above, so the flag can never be left set
-    // by a write that produces no hashchange event.
-    this.suppressHashUpdate = true;
-    window.location.hash = hash;
+  /** Replace the current entry's hash, keeping its `history.state` mark. */
+  private replaceHash(state: S): void {
+    if (!this.enableUrlSync || typeof window === 'undefined') {
+      return;
+    }
+    const hash = this.buildHash(state);
+    if (hash !== currentHash()) {
+      window.history.replaceState(window.history.state, '', hashUrl(hash));
+    }
   }
 
   /** Back/forward, or a hand-edited address bar. */
   private handleHashChange(): void {
-    if (this.suppressHashUpdate) {
-      this.suppressHashUpdate = false;
+    const hash = currentHash();
+
+    const pending = this.pendingBack;
+    if (pending) {
+      this.pendingBack = null;
+      if (hash === pending.hash) {
+        this.apply(pending.state);
+        pending.done();
+        return;
+      }
+      console.warn(
+        '[PageStateManager] close via back landed on an unexpected hash'
+      );
+      pending.done();
+    }
+
+    // A write from outside this class (e.g. a boot command stripping itself
+    // from the hash) that leaves the hash naming the current state.
+    if (hash === this.buildHash(this.currentState)) {
       return;
     }
 
-    const candidate = this.urlToPageState(window.location.hash.slice(1));
+    const candidate = this.urlToPageState(hash);
     if (candidate.type === 'home' || !this.stateValidator) {
-      this.applyHashState(candidate);
+      this.applyFromHistory(candidate);
       return;
     }
 
     const valid = this.stateValidator(candidate);
     if (typeof valid === 'boolean') {
-      this.applyHashState(valid ? candidate : this.fallback(candidate));
-    } else {
-      void valid.then((ok) =>
-        this.applyHashState(ok ? candidate : this.fallback(candidate))
-      );
+      this.applyValidated(candidate, valid);
+      return;
     }
+    void valid.then((ok) => {
+      // A later Back/Forward moved on while this one was validating.
+      if (currentHash() !== hash) {
+        console.log('[PageStateManager] dropping stale hashchange validation');
+        return;
+      }
+      this.applyValidated(candidate, ok);
+    });
   }
 
-  private fallback(state: S): S {
+  private applyValidated(candidate: S, valid: boolean): void {
+    if (valid) {
+      this.applyFromHistory(candidate);
+      return;
+    }
     console.warn(
       '[PageStateManager] hashchange: object not found, falling back to home'
     );
-    return homeWithModal(state);
+    const home = homeWithModal(candidate);
+    this.replaceHash(home);
+    this.applyFromHistory(home);
   }
 
-  private applyHashState(state: S): void {
+  /**
+   * Apply a state the browser moved to. Transient modals belong to the page
+   * they were opened on, so they close first.
+   */
+  private applyFromHistory(state: S): void {
+    closeTransientModals();
+    this.apply(state);
+  }
+
+  private apply(state: S): void {
     const event: NavigationEvent<S> = {
       from: this.currentState,
       to: state,
       timestamp: Date.now(),
     };
     this.currentState = { ...state };
-
-    this.recordHistory(event);
     this.notify(event);
-  }
-
-  private recordHistory(event: NavigationEvent<S>): void {
-    if (!this.enableHistory) {
-      return;
-    }
-    this.navigationHistory.push(event);
-    if (this.navigationHistory.length > this.maxHistoryLength) {
-      this.navigationHistory = this.navigationHistory.slice(
-        -this.maxHistoryLength
-      );
-    }
   }
 
   private notify(event: NavigationEvent<S>): void {
