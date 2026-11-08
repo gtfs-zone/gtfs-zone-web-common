@@ -10,7 +10,7 @@ export const fr: Translation<typeof en> = {
   'common.today': "Aujourd'hui",
   'common.guide': 'Guide',
 
-  'locale.switchTo': 'English',
+  'locale.label': 'Langue',
   'nav.github': 'Code source sur GitHub',
 
   'shell.search': 'Rechercher',

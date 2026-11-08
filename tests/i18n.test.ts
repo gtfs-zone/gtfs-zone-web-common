@@ -25,6 +25,11 @@ function translator(locale: Locale) {
         stops_one: '{count} arrêt',
         stops_other: '{count} arrêts',
       },
+      de: {
+        greeting: 'Hallo, {name}',
+        stops_one: '{count} Haltestelle',
+        stops_other: '{count} Haltestellen',
+      },
     },
     () => locale
   );
@@ -52,10 +57,12 @@ describe('defineCatalog', () => {
   it('translates and interpolates', () => {
     assert.equal(translator('en')('greeting', { name: 'Max' }), 'Hello, Max');
     assert.equal(translator('fr')('greeting', { name: 'Max' }), 'Bonjour, Max');
+    assert.equal(translator('de')('greeting', { name: 'Max' }), 'Hallo, Max');
   });
 
   it('falls back to English for a missing key', () => {
     assert.equal(translator('fr')('onlyEnglish'), 'Only in English');
+    assert.equal(translator('de')('onlyEnglish'), 'Only in English');
   });
 
   it('picks the plural form for the locale', () => {
@@ -69,6 +76,12 @@ describe('defineCatalog', () => {
     assert.equal(tFr('stops', { count: 0 }), '0 arrêt');
     assert.equal(tFr('stops', { count: 1 }), '1 arrêt');
     assert.equal(tFr('stops', { count: 2 }), '2 arrêts');
+
+    // German treats only 1 as singular.
+    const tDe = translator('de');
+    assert.equal(tDe('stops', { count: 0 }), '0 Haltestellen');
+    assert.equal(tDe('stops', { count: 1 }), '1 Haltestelle');
+    assert.equal(tDe('stops', { count: 1000 }), '1.000 Haltestellen');
   });
 
   it('falls back to _other for a plural category with no key', () => {
@@ -104,13 +117,14 @@ describe('resolveLocale', () => {
     );
     assert.equal(
       resolveLocale({ cookie: 'de-CH', languages: ['fr-CH'] }),
-      'fr'
+      'de'
     );
+    assert.equal(resolveLocale({ languages: ['de-AT', 'en'] }), 'de');
   });
 
   it('skips unsupported values', () => {
     assert.equal(
-      resolveLocale({ cookie: 'de', stored: 'xx', languages: ['de-DE', 'fr'] }),
+      resolveLocale({ cookie: 'it', stored: 'xx', languages: ['es-ES', 'fr'] }),
       'fr'
     );
   });
@@ -138,5 +152,6 @@ describe('fmt', () => {
   it('names weekdays from Sunday', () => {
     assert.equal(weekdayName(0, 'long', 'en'), 'Sunday');
     assert.equal(weekdayName(1, 'long', 'fr'), 'lundi');
+    assert.equal(weekdayName(1, 'long', 'de'), 'Montag');
   });
 });

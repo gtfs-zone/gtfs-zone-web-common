@@ -1,7 +1,7 @@
 import { escapeHtml } from '../util/escape-html';
 import { renderGithubIcon, renderNavIcon, type NavIconName } from './nav-icons';
 import { GITHUB_URL } from './about-links';
-import { getLocale, setLocale, type Locale } from '../i18n/index';
+import { getLocale, LOCALES, setLocale, type Locale } from '../i18n/index';
 import { t } from '../i18n/messages';
 
 /**
@@ -74,8 +74,9 @@ export interface LabeledAction extends CommonAction {
 }
 
 /**
- * The language toggle. Shows the other locale's code; a click stores it and
- * reloads. The label comes from the catalog, so the entry carries none.
+ * The language menu. Shows the active locale's code and lists the others by
+ * their own names; picking one stores it and reloads. The label comes from the
+ * catalog, so the entry carries none.
  */
 export interface LocaleAction extends Omit<TooltippedAction, 'label'> {
   kind: 'locale';
@@ -98,14 +99,33 @@ export function githubAction(repo: string): LinkAction {
 
 const ICON_BTN_CLASS = 'btn btn-ghost btn-sm btn-square';
 
-/** The locale the toggle switches to. */
-function otherLocale(): Locale {
-  return getLocale() === 'fr' ? 'en' : 'fr';
+/** Each locale's name in its own language. */
+const LOCALE_NAMES: Record<Locale, string> = {
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+};
+
+/** A focus-driven daisyUI dropdown; a div trigger keeps it working in Safari. */
+function renderLocaleMenu(id: string, label: string): string {
+  const current = getLocale();
+  const options = LOCALES.filter((locale) => locale !== current)
+    .map(
+      (locale) =>
+        `<li><button type="button" lang="${locale}" data-locale-option="${locale}">${LOCALE_NAMES[locale]}</button></li>`
+    )
+    .join('');
+  return (
+    `<div class="dropdown dropdown-end">` +
+    `<div id="${id}" tabindex="0" role="button" class="${ICON_BTN_CLASS} text-xs font-semibold" aria-label="${label}" aria-haspopup="menu">${current.toUpperCase()}</div>` +
+    `<ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 mt-1 w-36 p-2 shadow-sm">${options}</ul>` +
+    `</div>`
+  );
 }
 
 function renderAction(action: NavbarAction): string {
   const label = escapeHtml(
-    action.kind === 'locale' ? t('locale.switchTo') : action.label
+    action.kind === 'locale' ? t('locale.label') : action.label
   );
 
   if (action.kind === 'labeled') {
@@ -121,8 +141,7 @@ function renderAction(action: NavbarAction): string {
       `<input type="checkbox" class="${action.inputClass}"${action.value ? ` value="${action.value}"` : ''} />` +
       `${action.iconOn}${action.iconOff}</label>`;
   } else if (action.kind === 'locale') {
-    const target = otherLocale();
-    control = `<button id="${action.id}" class="${ICON_BTN_CLASS} text-xs font-semibold" aria-label="${label}" lang="${target}" data-locale-toggle="${target}">${target.toUpperCase()}</button>`;
+    control = renderLocaleMenu(action.id, label);
   } else if (action.kind === 'link') {
     const target = action.external
       ? ' target="_blank" rel="noopener noreferrer"'
@@ -188,12 +207,12 @@ export function renderNavbarActions(
   container.innerHTML = parts.join('');
 
   container
-    .querySelector<HTMLElement>('[data-locale-toggle]')
-    ?.addEventListener('click', (e) => {
-      setLocale(
-        (e.currentTarget as HTMLElement).dataset.localeToggle as Locale
-      );
-      window.location.reload();
+    .querySelectorAll<HTMLElement>('[data-locale-option]')
+    .forEach((option) => {
+      option.addEventListener('click', () => {
+        setLocale(option.dataset.localeOption as Locale);
+        window.location.reload();
+      });
     });
 }
 

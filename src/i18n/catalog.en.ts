@@ -7,7 +7,7 @@ export const en = {
   'common.today': 'Today',
   'common.guide': 'Guide',
 
-  'locale.switchTo': 'Français',
+  'locale.label': 'Language',
   'nav.github': 'Source code on GitHub',
 
   'shell.search': 'Search',

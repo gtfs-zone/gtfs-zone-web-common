@@ -60,7 +60,7 @@ Read from the consumer's Vite env at its build time:
 
 ## Localization
 
-`i18n/index.ts` holds a typed `t()` with no dependency. `defineCatalog(en, { fr })`
+`i18n/index.ts` holds a typed `t()` with no dependency. `defineCatalog(en, { fr, de })`
 takes an English catalog declared `as const` and returns a translator that only
 accepts its keys; a `Translation<typeof en>` for another locale may leave keys
 out, and those fall back to English. Strings use `{var}` placeholders, and a
@@ -69,12 +69,12 @@ plural is a `name_one` / `name_other` pair called as `t('name', { count })`.
 `getLocale()` reads the `locale` cookie (on `Domain=.gtfs.zone`, so it carries
 across the apps), then localStorage (localhost), then the browser's languages,
 then `en`, and sets `<html lang>`. `setLocale()` stores the choice. The
-`locale` navbar action renders the toggle; a click stores the other locale and
-reloads. `githubAction(repo)` from `ui/navbar-actions` is the navbar link to
+`locale` navbar action renders a menu of the other locales; picking one stores
+it and reloads. `githubAction(repo)` from `ui/navbar-actions` is the navbar link to
 the app's repo under the gtfs-zone org. `i18n/fmt.ts` formats dates and numbers in the active locale.
 
 Each app keeps its own catalogs; this package's own strings are in
-`i18n/catalog.en.ts` and `i18n/catalog.fr.ts`. GTFS field names, file names and
+`i18n/catalog.en.ts`, `i18n/catalog.fr.ts` and `i18n/catalog.de.ts`. GTFS field names, file names and
 enum values are never translated.
 
 ## What it is

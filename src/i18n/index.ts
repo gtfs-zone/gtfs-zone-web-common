@@ -13,7 +13,7 @@
 
 import { moduleState } from '../util/module-state';
 
-export const LOCALES = ['en', 'fr'] as const;
+export const LOCALES = ['en', 'fr', 'de'] as const;
 export type Locale = (typeof LOCALES)[number];
 
 const DEFAULT_LOCALE: Locale = 'en';
@@ -186,6 +186,7 @@ export function defineCatalog<const C extends Catalog>(
   const catalogs: Record<Locale, Partial<Record<string, string>>> = {
     en,
     fr: translations.fr ?? {},
+    de: translations.de ?? {},
   };
   const lookup = (active: Locale, key: string): string | undefined =>
     catalogs[active][key] ?? en[key];
