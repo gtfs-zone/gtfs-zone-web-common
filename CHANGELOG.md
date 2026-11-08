@@ -1,3 +1,9 @@
+## v5.18.0 (2026-11-08)
+
+### Feat
+
+- **ui**: let the app drive the sidebar modal's active entry
+
 ## v5.17.0 (2026-11-08)
 
 ### Feat
