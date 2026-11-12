@@ -60,6 +60,12 @@ export const ISO_DATE_CODEC: DateCodec = {
     ).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`,
 };
 
+export interface CalendarDayInfo {
+  disabled?: boolean;
+  className?: string;
+  title?: string;
+}
+
 export interface CalendarOptions {
   /** The currently stored value. Opens on its month; empty opens on today. */
   value: string;
@@ -81,6 +87,13 @@ export interface CalendarOptions {
    * with `label`.
    */
   highlight?: { start: string; end: string; label: string };
+  /**
+   * Per-day state, given the day in the stored format. `disabled` blocks the
+   * pick, `className` tints the cell, `title` is its tooltip.
+   */
+  dayInfo?: (value: string) => CalendarDayInfo | null;
+  /** Extra legend swatches, shown under the grid next to the band's. */
+  legend?: { className: string; label: string }[];
   /** Offer a Clear button, for a field that is allowed to be empty. */
   allowEmpty?: boolean;
   /** A day was picked. Given the stored string, or '' from Clear. */
@@ -146,9 +159,11 @@ function renderPopover(
     const day = addDays(start, i);
     const time = day.getTime();
     const outside = day.getUTCMonth() !== month0;
+    const info = options.dayInfo?.(options.codec.format(day)) ?? null;
     const disabled =
       (min !== null && time < min.getTime()) ||
-      (max !== null && time > max.getTime());
+      (max !== null && time > max.getTime()) ||
+      info?.disabled === true;
 
     // The band sits on a wrapper so the button's own states draw over it.
     // Rounded only where the range or the week row ends.
@@ -170,6 +185,9 @@ function renderPopover(
     const isSelected = selected !== null && time === selected.getTime();
     const classes = ['btn', 'btn-xs', 'w-full', 'px-0', 'relative'];
     classes.push(isSelected ? 'btn-primary font-bold' : 'btn-ghost');
+    if (info?.className && !isSelected) {
+      classes.push(info.className);
+    }
     if (outside) {
       classes.push('opacity-40');
     }
@@ -185,17 +203,25 @@ function renderPopover(
 
     cells.push(
       `<div class="${bandClasses.join(' ')}"><button type="button" class="${classes.join(' ')}" data-day="${i}"${
-        disabled ? ' disabled' : ''
-      }>${day.getUTCDate()}${todayDot}</button></div>`
+        info?.title ? ` title="${escapeHtml(info.title)}"` : ''
+      }${disabled ? ' disabled' : ''}>${day.getUTCDate()}${todayDot}</button></div>`
     );
   }
 
-  const legend = highlight
-    ? `<div class="flex items-center gap-3 pt-1 text-[0.65rem] text-base-content/60">
-        <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-primary/15"></span>${escapeHtml(highlight.label)}</span>
+  const extraLegend = (options.legend ?? [])
+    .map(
+      (entry) =>
+        `<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm ${escapeHtml(entry.className)}"></span>${escapeHtml(entry.label)}</span>`
+    )
+    .join('');
+  const legend =
+    highlight || extraLegend
+      ? `<div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[0.65rem] text-base-content/60">
+        ${highlight ? `<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm bg-primary/15"></span>${escapeHtml(highlight.label)}</span>` : ''}
+        ${extraLegend}
         <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3"><span class="w-1 h-1 rounded-full bg-primary"></span></span>${t('common.today')}</span>
       </div>`
-    : '';
+      : '';
 
   // The feed-edge buttons are always there, and disabled without a range to
   // jump to.
