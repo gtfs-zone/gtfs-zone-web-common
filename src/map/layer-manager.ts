@@ -30,6 +30,14 @@ import { vehicleRouteId } from '../gtfs/entity-render';
 import { clearThemeColorCache, resolveThemeColor } from '../util/theme-color';
 import { ensureMapIcons } from './icons';
 import {
+  ROUTE_LABELS_LAYER,
+  clearRouteLabelImages,
+  installRouteLabelImages,
+  routeLabelFilter,
+  routeLabelLayerSpec,
+  routeLabelText,
+} from './route-labels';
+import {
   NO_ROUTE_FILTER,
   ROUTES_CASING_LAYER,
   ROUTES_CLICKAREA_LAYER,
@@ -110,6 +118,7 @@ const LAYER_ORDER = [
   STOP_FOCUS_TOP_LAYER,
   STOPS_STATION_DOT_LAYER,
   STOPS_CLICKAREA_LAYER,
+  ROUTE_LABELS_LAYER,
   VEHICLES_HALO_LAYER,
   VEHICLES_CASING_LAYER,
   VEHICLES_DOT_LAYER,
@@ -278,6 +287,10 @@ export class LayerManager<
   constructor(map: MapLibreMap, vehicleExtra?: VehicleExtra<V, X>) {
     this.map = map;
     this.vehicleExtra = vehicleExtra ?? null;
+    installRouteLabelImages(map, (routeId) => {
+      const route = this.feed?.routes.get(routeId);
+      return route ? { text: routeLabelText(route), color: route.color } : null;
+    });
   }
 
   /**
@@ -323,6 +336,9 @@ export class LayerManager<
     this.routesData = feed ? this.buildRoutes(feed) : EMPTY;
     this.pushData(STOPS_SOURCE, this.stopsData);
     this.pushData(ROUTES_SOURCE, this.routesData);
+    if (this.map.style) {
+      clearRouteLabelImages(this.map);
+    }
     this.refreshStopFade(this.stopsData.features.length);
     // A new feed almost never contains the old focus; AppState clears it
     // separately, but the map's own spotlight and feature state have to go now
@@ -341,6 +357,8 @@ export class LayerManager<
     // The focused vehicle may have just appeared or changed trips.
     if (this.focus?.kind === 'vehicle') {
       this.applySpotlight(this.spotlightRouteIds());
+    } else {
+      this.applyRouteLabels(this.spotlightRouteIds());
     }
     this.syncFeatureState();
   }
@@ -634,7 +652,23 @@ export class LayerManager<
     }
   }
 
+  /** Label the routes that have a vehicle on the map, plus `spotlit`. */
+  private applyRouteLabels(spotlit: string[] | null): void {
+    if (!this.map.getLayer(ROUTE_LABELS_LAYER)) {
+      return;
+    }
+    const ids = this.vehiclesData.features.flatMap((f) => {
+      const id = f.properties?.route_id;
+      return id ? [String(id)] : [];
+    });
+    this.map.setFilter(
+      ROUTE_LABELS_LAYER,
+      routeLabelFilter([...ids, ...(spotlit ?? [])])
+    );
+  }
+
   private applySpotlight(routeIds: string[] | null): void {
+    this.applyRouteLabels(routeIds);
     if (!this.map.getLayer(ROUTES_LINE_LAYER)) {
       return;
     }
@@ -805,6 +839,11 @@ export class LayerManager<
   private addLayers(): void {
     this.addRouteLayers();
     this.addStopLayers();
+    // Above the stops so a label is not hidden under a station, below the
+    // vehicles so it never covers one.
+    if (!this.map.getLayer(ROUTE_LABELS_LAYER)) {
+      this.map.addLayer(routeLabelLayerSpec(ROUTES_SOURCE));
+    }
     this.addVehicleLayers();
   }
 
