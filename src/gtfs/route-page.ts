@@ -488,6 +488,25 @@ export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
   }
   const page: Page<S, V> = { ctx, rt, hooks };
 
+  // The page re-renders on the feed's `dataloaded` once the route arrives.
+  if (!feed.routeLoaded(route.id)) {
+    feed.loadRoute(route.id).catch((err) => {
+      console.error(`[RoutePage] loading route ${route.id} failed`, err);
+    });
+    return `
+    <div class="space-y-4">
+      ${pageHeader(
+        route.long_name || route.short_name || route.id,
+        route.id,
+        routeBadge(ctx, route)
+      )}
+      <div class="flex items-center gap-2 opacity-70">
+        <span class="loading loading-spinner loading-sm"></span>
+        Loading trips…
+      </div>
+    </div>`;
+  }
+
   const source = new GTFSScheduledRouteSource(feed);
   const directions = directionsForRoute(source, route.id);
 
@@ -526,7 +545,7 @@ export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
         propList([
           prop('Mode', escHtml(modeLabel(route.type))),
           agency?.name ? prop('Agency', escHtml(agency.name)) : '',
-          prop('Trips', String((feed.tripsByRoute.get(route.id) ?? []).length)),
+          prop('Trips', String(feed.tripCountByRoute.get(route.id) ?? 0)),
           prop(
             hooks.vehicleCountLabel ??
               `${vehiclesTitle(hooks.vehicleNoun)} in feed`,

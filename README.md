@@ -13,8 +13,8 @@ compiles it as source. Consumed as a pinned git dependency:
 pnpm add "gtfs-zone-web-common@github:gtfs-zone/gtfs-zone-web-common#vX.Y.Z"
 ```
 
-`maplibre-gl`, `@leeoniya/ufuzzy`, `jszip` and `papaparse` are peer
-dependencies. Every consumer already carries all four, and a second copy of
+`maplibre-gl`, `@leeoniya/ufuzzy`, `fflate` and `papaparse` are peer
+dependencies. Every consumer carries all four, and a second copy of
 maplibre is a broken map rather than a duplicate. `gtfs-realtime-bindings` is
 an optional peer: `gtfs/rt-types.ts` imports its namespace as a type and
 nothing here pulls protobufjs into a bundle, so only the apps that read GTFS-RT
@@ -146,6 +146,31 @@ The layout every app shares, in four parts that go together:
 - `ui/focus-controller.ts` (`setFocus`, `onFocusChange` / `onStateChange`) and
   `ui/panel-host.ts` (the `data-nav` dispatch, the breadcrumb header, and the
   scroll and `<details>` restore) sit on top of it. The app supplies the pages.
+
+## Feed store
+
+`gtfs/store/` loads a GTFS zip in a worker and keeps it there, columnar:
+
+- `csv-stream.ts` streams the zip (fflate) into chunked CSV parsing
+  (PapaParse). It never holds a whole file as text, and it pipes a nested
+  archive (`a.zip#inner.zip`) straight into a second unzip.
+- `feed-store.ts` holds every table as typed-array columns over an interned
+  string pool. stop_times is folded into trip patterns and shapes into runs,
+  and every value reads back exactly as it was in the file. An edit overlay
+  sits on top: row-level edits for ordinary tables, per-trip stop_times and
+  per-shape points. Reads return copies.
+- `store.worker.ts` / `store-client.ts`: one worker per loaded feed.
+  `FeedStoreClient.load` spawns it, `release()` terminates it (the only thing
+  that frees the memory), and `call()` runs a store method or a view query
+  (`feed-queries.ts`) in it. Tables named in `mirror` are also kept on the
+  main thread for synchronous reads.
+
+`gtfs/scheduled.ts` (`GTFSScheduled`) is the realtime apps' view of a store:
+it mirrors stops, routes, agency, calendar and feed_info, plus per-feed
+aggregates (trips per route and per stop, routes per stop, route geometry).
+Trips and stop_times are fetched on demand (`loadTrips`, `loadRoute`), unless
+the `mirror` level keeps every trip (`trips`) or everything (`all`, small feeds
+only) on the main thread.
 
 ## Published data
 

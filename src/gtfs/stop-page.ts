@@ -433,10 +433,7 @@ export function renderStopPage<S extends PageRef, V extends VehiclePosition>(
             'Coordinates',
             escHtml(`${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}`)
           ),
-          prop(
-            'Trips calling',
-            String((feed.stopTrips.get(stop.id) ?? []).length)
-          ),
+          prop('Trips calling', String(feed.tripCountByStop.get(stop.id) ?? 0)),
         ])
       )}
       ${renderRawFields('stops.txt', stop.raw)}

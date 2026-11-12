@@ -1293,61 +1293,29 @@ export class LayerManager<
   }
 
   /**
-   * One feature per route, merging its trips' distinct geometries into a
-   * MultiLineString. Deduplicating by shape_id first matters: a high-frequency
-   * route has thousands of trips sharing a handful of shapes, and merging them
-   * all would produce enormous geometries with heavy overdraw.
+   * One feature per route, merging its distinct geometries into a
+   * MultiLineString. The worker dedupes them (each shape once, each stop-line
+   * fallback once): a high-frequency route has thousands of trips sharing a
+   * handful of shapes, and merging them all would mean heavy overdraw.
    */
   private buildRoutes(feed: GTFSScheduled): GeoJSON.FeatureCollection {
     const features: GeoJSON.Feature[] = [];
 
     for (const route of feed.routes.values()) {
-      const trips = feed.tripsByRoute.get(route.id) ?? [];
-      const lines: [number, number][][] = [];
-      const seen = new Set<string>();
-
-      for (const trip of trips) {
-        if (trip.shape_id) {
-          if (seen.has(`shape:${trip.shape_id}`)) {
-            continue;
-          }
-          const coords = feed.shapes.get(trip.shape_id);
-          if (coords && coords.length >= 2) {
-            seen.add(`shape:${trip.shape_id}`);
-            lines.push(coords);
-            continue;
-          }
-        }
-
-        // Straight-line fallback: stop_times for this trip are already sorted
-        // by stop_sequence, so the order here is the service order.
-        const stopIds = (feed.stopTimesByTrip.get(trip.trip_id) ?? [])
-          .map((st) => st.stop_id)
-          .filter((id) => {
-            const stop = feed.stops.get(id);
-            return (
-              stop && Number.isFinite(stop.lat) && Number.isFinite(stop.lon)
-            );
-          });
-        if (stopIds.length < 2) {
-          continue;
-        }
-
-        const key = `stops:${stopIds.join('|')}`;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        lines.push(
-          stopIds.map((id) => [
-            feed.stops.get(id)!.lon,
-            feed.stops.get(id)!.lat,
-          ])
-        );
-      }
-
-      if (lines.length === 0) {
+      const geo = feed.routeGeometry.get(route.id);
+      if (!geo || geo.lineStarts.length === 0) {
         continue;
+      }
+      const lines: [number, number][][] = [];
+      const points = geo.coords.length / 2;
+      for (let l = 0; l < geo.lineStarts.length; l++) {
+        const end =
+          l + 1 < geo.lineStarts.length ? geo.lineStarts[l + 1] : points;
+        const line: [number, number][] = [];
+        for (let i = geo.lineStarts[l]; i < end; i++) {
+          line.push([geo.coords[2 * i], geo.coords[2 * i + 1]]);
+        }
+        lines.push(line);
       }
 
       features.push({
@@ -1358,7 +1326,10 @@ export class LayerManager<
           color: route.color,
           colorDark: casingColor(route.color),
           // Paint order: mode rank blended with trip count. See route-sort.ts.
-          sortKey: routeSortKey(route.type, trips.length),
+          sortKey: routeSortKey(
+            route.type,
+            feed.tripCountByRoute.get(route.id) ?? 0
+          ),
         },
       });
     }
@@ -1416,10 +1387,8 @@ export class LayerManager<
       return [];
     }
     const ids = new Set<string>();
-    for (const trip of feed.tripsByRoute.get(routeId) ?? []) {
-      for (const st of feed.stopTimesByTrip.get(trip.trip_id) ?? []) {
-        ids.add(this.drawnAncestor(st.stop_id));
-      }
+    for (const stopId of feed.stopsForRoute(routeId)) {
+      ids.add(this.drawnAncestor(stopId));
     }
     return [...ids];
   }

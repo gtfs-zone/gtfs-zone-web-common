@@ -65,7 +65,8 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
   }
 
   initialize(): void {
-    for (const event of this.events) {
+    // `scheduledata`: the feed fetched data a page was waiting for.
+    for (const event of [...this.events, 'scheduledata']) {
       this.session.addEventListener(event, () => {
         this.index = null;
         this.panel.queueRender();

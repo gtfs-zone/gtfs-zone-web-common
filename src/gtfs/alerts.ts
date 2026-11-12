@@ -60,6 +60,19 @@ function selectors(record: AlertRecord): EntitySelector[] {
   return record.alert.informedEntity ?? [];
 }
 
+/** Every trip_id the alerts name, for fetching their scheduled trips. */
+export function alertTripIds(records: Iterable<AlertRecord>): string[] {
+  const out: string[] = [];
+  for (const r of records) {
+    for (const e of selectors(r)) {
+      if (e.trip?.tripId) {
+        out.push(e.trip.tripId);
+      }
+    }
+  }
+  return out;
+}
+
 /** The broadest level any of an alert's selectors names. */
 export function alertLevel(record: AlertRecord): AlertLevel {
   const order: AlertLevel[] = [

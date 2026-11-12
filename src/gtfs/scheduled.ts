@@ -1,8 +1,13 @@
-import JSZip from 'jszip';
-import Papa from 'papaparse';
-import { splitInnerZipPath } from './feed-url-resolve';
-import { downloadWithProgress } from './feed-download';
 import { routeColor, routeTextColor, setFeedRouteColors } from './route-colors';
+import {
+  FeedStoreClient,
+  type FeedSummary,
+  type LoadProgress,
+  type RouteGeometry,
+  type Row,
+  type StopTimesMode,
+  type StoreInput,
+} from './store/store-client';
 
 /** Verbatim CSV rows, kept so object pages can dump every column. */
 export type RawRow = Record<string, string>;
@@ -10,11 +15,7 @@ export type RawRow = Record<string, string>;
 /**
  * Every entity keeps its parsed convenience fields *and* the original CSV row,
  * so an object page can show a typed summary above a verbatim column table.
- *
- * `StopTime` is the one exception: it has no object page, and stop_times.txt is
- * by far the largest file (hundreds of thousands of rows for a mid-size
- * agency), so keeping a `raw` copy of each row would roughly double the memory
- * cost of a feed for nothing.
+ * `StopTime` is the exception: it has no object page.
  */
 export interface Stop {
   id: string;
@@ -55,6 +56,12 @@ export interface StopTime {
   departure_time: string;
 }
 
+/** A trip's stop without times: what route sequences and geometry need. */
+export interface StopRef {
+  stop_id: string;
+  stop_sequence: number;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -89,11 +96,26 @@ export interface FeedInfo {
 }
 
 export interface LoadHooks {
-  /** `total` is null when the server sends no Content-Length. */
-  onDownload?: (loaded: number, total: number | null) => void;
-  onParse?: (fileName: string, done: number, total: number) => void;
-  /** Aborts the download only; a parse always runs to completion. */
+  onProgress?: (progress: LoadProgress) => void;
+  /** Aborts the whole load: download and parse. */
   signal?: AbortSignal;
+}
+
+/**
+ * What is kept on the main thread besides the small tables:
+ * - `small`: nothing more; `trips`, `tripsByRoute` and `stopTimesByTrip` hold
+ *   only what `loadTrips` / `loadRoute` fetched.
+ * - `trips`: every trip, so `trips` and `tripsByRoute` are complete.
+ * - `all`: also every stop_time, shape and calendar date. For apps that only
+ *   ever load small feeds.
+ */
+export type MirrorLevel = 'small' | 'trips' | 'all';
+
+export interface ScheduledOptions {
+  mirror?: MirrorLevel;
+  stopTimes?: StopTimesMode;
+  /** Tables not to load, by name without `.txt`. */
+  skipTables?: string[];
 }
 
 export interface ScheduledCounts {
@@ -114,48 +136,20 @@ export interface PaddedColumn {
 }
 
 /**
- * Every value trimmed, and a note of which columns needed it.
- *
- * The GTFS reference forbids leading and trailing spaces in field values, but
- * producers that right-align numeric columns are common — RIPTA stores stop_id
- * as "      5" in stops.txt and "  29570" in stop_times.txt. The padding is
- * self-consistent within the scheduled feed, so schedule-internal joins work and the
- * damage is invisible until a realtime id is looked up against it: the realtime
- * feed sends "29570" and nothing matches.
- *
- * Trimming here — the one choke point every scheduled file passes through — covers
- * present and future id columns without each ingest site having to remember.
- * Headers are trimmed too, so a padded header cannot produce a column name no
- * ingest function recognises. Only leading/trailing whitespace is stripped:
- * interior spaces ("Westerly Town Hall") and empty strings ('' is meaningful
- * here) are preserved. `padded` counts rows, not distinct values.
+ * Tables kept on the main thread in every mode. The GTFS reference forbids
+ * leading and trailing spaces in values, but producers that right-align
+ * numeric columns are common (RIPTA stores stop_id as "      5"), so every
+ * value is trimmed at parse time and the padding reported in `paddedColumns`.
  */
-function parseCSV(text: string): {
-  rows: RawRow[];
-  padded: Map<string, number>;
-} {
-  const rows = Papa.parse<RawRow>(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
-  }).data;
+const SMALL_TABLES = ['agency', 'feed_info', 'calendar', 'stops', 'routes'];
+const MIRRORED: Record<MirrorLevel, string[]> = {
+  small: SMALL_TABLES,
+  trips: [...SMALL_TABLES, 'trips'],
+  all: [...SMALL_TABLES, 'trips', 'calendar_dates'],
+};
 
-  const padded = new Map<string, number>();
-  for (const row of rows) {
-    for (const key in row) {
-      const value = row[key];
-      if (typeof value !== 'string') {
-        continue;
-      }
-      const trimmed = value.trim();
-      if (trimmed !== value) {
-        row[key] = trimmed;
-        padded.set(key, (padded.get(key) ?? 0) + 1);
-      }
-    }
-  }
-  return { rows, padded };
-}
+/** Trips whose stop_times `loadTrips` keeps before the oldest are dropped. */
+const TRIP_CACHE_LIMIT = 20_000;
 
 const DAY_FIELDS = [
   'monday',
@@ -167,36 +161,38 @@ const DAY_FIELDS = [
   'sunday',
 ] as const;
 
-/** Files parsed in order, for per-file progress reporting. */
-const PARSE_ORDER = [
-  'agency.txt',
-  'feed_info.txt',
-  'calendar.txt',
-  'calendar_dates.txt',
-  'stops.txt',
-  'routes.txt',
-  'shapes.txt',
-  'trips.txt',
-  'stop_times.txt',
-] as const;
-
-export class GTFSScheduled {
+/**
+ * A scheduled feed held by a store worker, with the small tables and the
+ * per-feed aggregates kept here for synchronous reads. Fires `dataloaded`
+ * when `loadRoute` brings in data a page may be waiting for.
+ *
+ * Big tables are complete on the main thread as far as the `MirrorLevel`
+ * says. Beyond that, `trips` and `stopTimesByTrip` hold the trips fetched by
+ * `loadTrips` (the realtime-referenced ones, refreshed per poll), and
+ * `tripsByRoute` / `stopRefs` the routes fetched by `loadRoute`.
+ */
+export class GTFSScheduled extends EventTarget {
   stops = new Map<string, Stop>();
   routes = new Map<string, Route>();
-  shapes = new Map<string, [number, number][]>();
-  trips = new Map<string, Trip>();
   agencies: Agency[] = [];
   feedInfo: FeedInfo[] = [];
   calendar: Calendar[] = [];
   calendarDates: CalendarDate[] = [];
 
-  /** Trip stop_times, sorted by `stop_sequence`. Drives the route strip. */
+  trips = new Map<string, Trip>();
+  /** Trip stop_times, sorted by `stop_sequence`. */
   stopTimesByTrip = new Map<string, StopTime[]>();
   tripsByRoute = new Map<string, Trip[]>();
-  /** Derived from stop_times to trips: which routes serve a stop. */
-  routesByStop = new Map<string, Set<string>>();
-  /** Trip ids serving a stop, in first-seen order. */
+  shapes = new Map<string, [number, number][]>();
+
+  /** Trip ids serving a stop, in first-seen order. Filled only when `stopTimesComplete`. */
   stopTrips = new Map<string, string[]>();
+  /** Which routes serve a stop (stop_times -> trips), for every stop. */
+  routesByStop = new Map<string, Set<string>>();
+  tripCountByRoute = new Map<string, number>();
+  tripCountByStop = new Map<string, number>();
+  /** Each route's distinct lines, shapes or stop-to-stop fallbacks. */
+  routeGeometry = new Map<string, RouteGeometry>();
 
   /** Direct children of each stop, keyed by parent `stop_id`. */
   childrenByParent = new Map<string, string[]>();
@@ -206,86 +202,265 @@ export class GTFSScheduled {
    * mis-wires the hierarchy is worth reporting.
    */
   stationIssues = { danglingParent: 0, nonStationParent: 0, cyclicStops: 0 };
-
-  /**
-   * CSV columns that arrived with leading/trailing whitespace and were trimmed
-   * at parse time. Surfaced on the status page rather than absorbed silently:
-   * without the trim, no realtime id would match a padded scheduled column (see
-   * `parseCSV`).
-   */
+  /** CSV columns that arrived padded with whitespace and were trimmed. */
   paddedColumns: PaddedColumn[] = [];
 
-  private stopTimeCount = 0;
+  /** Every trip is in `trips` and `tripsByRoute`. */
+  readonly tripsComplete: boolean;
+  /** Every trip's stop_times is in `stopTimesByTrip`. */
+  readonly stopTimesComplete: boolean;
 
-  async loadFromFile(file: File, hooks: LoadHooks = {}): Promise<void> {
-    const zip = await JSZip.loadAsync(file);
-    await this.parse(zip, hooks);
+  /** Stop lists of routes fetched by `loadRoute`, per trip. */
+  private routeStops = new Map<string, Map<string, StopRef[]>>();
+  /** Trips fetched by `loadTrips`, oldest first. */
+  private fetched = new Set<string>();
+  private summary: FeedSummary;
+
+  private constructor(
+    readonly store: FeedStoreClient,
+    readonly mirror: MirrorLevel
+  ) {
+    super();
+    this.summary = store.loaded.summary;
+    this.tripsComplete = mirror !== 'small';
+    this.stopTimesComplete =
+      mirror === 'all' && store.loaded.stopTimesMode === 'full';
   }
 
-  /**
-   * A URL may name an archive inside the archive — `…/outer.zip#inner.zip` —
-   * for the agencies that publish several datasets in one download. The
-   * fragment is split off here rather than anywhere upstream, so the CORS proxy
-   * concatenation in `maybeProxy` never has to know about it and `fetch` never
-   * sees it.
-   */
-  async loadFromUrl(url: string, hooks: LoadHooks = {}): Promise<void> {
-    const { url: fetchUrl, innerPaths } = splitInnerZipPath(url);
-    const blob = await downloadWithProgress(fetchUrl, {
-      onProgress: hooks.onDownload,
-      signal: hooks.signal,
-    });
-    let zip = await JSZip.loadAsync(blob);
-    for (const inner of innerPaths) {
-      zip = await openInnerZip(zip, inner);
+  static async load(
+    input: StoreInput,
+    options: ScheduledOptions = {},
+    hooks: LoadHooks = {}
+  ): Promise<GTFSScheduled> {
+    const mirror = options.mirror ?? 'small';
+    const store = await FeedStoreClient.load(
+      input,
+      {
+        stopTimes: options.stopTimes,
+        skipTables: options.skipTables,
+        mirror: MIRRORED[mirror],
+      },
+      hooks
+    );
+    try {
+      const feed = new GTFSScheduled(store, mirror);
+      await feed.ingest();
+      return feed;
+    } catch (err) {
+      store.release();
+      throw err;
     }
-    await this.parse(zip, hooks);
+  }
+
+  /** Terminate the worker. Every async read fails after this. */
+  release(): void {
+    this.store.release();
+  }
+
+  private mirrorRows(table: string): Row[] {
+    return [...(this.store.mirror.get(table)?.values() ?? [])];
+  }
+
+  private async ingest(): Promise<void> {
+    const { stream } = this.store.loaded;
+    for (const [key, rows] of Object.entries(stream.padded)) {
+      const dot = key.indexOf('.');
+      this.paddedColumns.push({
+        file: `${key.slice(0, dot)}.txt`,
+        column: key.slice(dot + 1),
+        rows,
+      });
+    }
+    this.ingestAgencies(this.mirrorRows('agency'));
+    this.ingestFeedInfo(this.mirrorRows('feed_info'));
+    this.ingestCalendar(this.mirrorRows('calendar'));
+    this.ingestStops(this.mirrorRows('stops'));
+    this.ingestRoutes(this.mirrorRows('routes'));
+    this.buildStationIndex();
+
+    const s = this.summary;
+    for (const [stop, routes] of Object.entries(s.routesPerStop)) {
+      this.routesByStop.set(stop, new Set(routes));
+    }
+    this.tripCountByRoute = new Map(Object.entries(s.tripsPerRoute));
+    this.tripCountByStop = new Map(Object.entries(s.tripsPerStop));
+    for (const g of await this.store.call('routeGeometries')) {
+      this.routeGeometry.set(g.routeId, g);
+    }
+
+    if (this.tripsComplete) {
+      for (const row of this.mirrorRows('trips')) {
+        const trip = toTrip(row);
+        this.trips.set(trip.trip_id, trip);
+        let forRoute = this.tripsByRoute.get(trip.route_id);
+        if (!forRoute) {
+          this.tripsByRoute.set(trip.route_id, (forRoute = []));
+        }
+        forRoute.push(trip);
+      }
+      this.store.mirror.delete('trips');
+    }
+    if (this.mirror === 'all') {
+      this.ingestCalendarDates(this.mirrorRows('calendar_dates'));
+      this.store.mirror.delete('calendar_dates');
+      if (this.stopTimesComplete) {
+        const all = await this.store.call('allStopTimes');
+        for (const [tripId, rows] of Object.entries(all)) {
+          const times = rows.map(toStopTime);
+          this.stopTimesByTrip.set(tripId, times);
+          for (const st of times) {
+            let trips = this.stopTrips.get(st.stop_id);
+            if (!trips) {
+              this.stopTrips.set(st.stop_id, (trips = []));
+            }
+            if (trips[trips.length - 1] !== tripId) {
+              trips.push(tripId);
+            }
+          }
+        }
+      }
+      for (const [id, coords] of Object.entries(
+        await this.store.call('allShapes')
+      )) {
+        const pts: [number, number][] = [];
+        for (let i = 0; i < coords.length; i += 2) {
+          pts.push([coords[i], coords[i + 1]]);
+        }
+        this.shapes.set(id, pts);
+      }
+    }
+    console.log(
+      `[GTFSScheduled] ready: ${this.stops.size} stops, ${this.routes.size} routes, ${s.counts.trips ?? 0} trips (mirror: ${this.mirror})`
+    );
   }
 
   counts(): ScheduledCounts {
+    const c = this.summary.counts;
     return {
       stops: this.stops.size,
       routes: this.routes.size,
-      trips: this.trips.size,
-      shapes: this.shapes.size,
+      trips: c.trips ?? 0,
+      shapes: this.summary.shapeCount,
       agencies: this.agencies.length,
       services: this.calendar.length,
-      stopTimes: this.stopTimeCount,
+      stopTimes: c.stop_times ?? 0,
     };
   }
 
-  private async parse(zip: JSZip, hooks: LoadHooks): Promise<void> {
-    const handlers: Record<string, (rows: RawRow[]) => void> = {
-      'agency.txt': (rows) => this.ingestAgencies(rows),
-      'feed_info.txt': (rows) => this.ingestFeedInfo(rows),
-      'calendar.txt': (rows) => this.ingestCalendar(rows),
-      'calendar_dates.txt': (rows) => this.ingestCalendarDates(rows),
-      'stops.txt': (rows) => this.ingestStops(rows),
-      'routes.txt': (rows) => this.ingestRoutes(rows),
-      'shapes.txt': (rows) => this.ingestShapes(rows),
-      'trips.txt': (rows) => this.ingestTrips(rows),
-      'stop_times.txt': (rows) => this.ingestStopTimes(rows),
-    };
-
-    // Sequential rather than Promise.all: parsing is CPU-bound anyway, and
-    // serial order is what makes per-file progress meaningful. It also lets
-    // stop_times.txt rely on trips.txt already being indexed.
-    let done = 0;
-    for (const name of PARSE_ORDER) {
-      hooks.onParse?.(name, done, PARSE_ORDER.length);
-      const file = zip.file(name);
-      if (file) {
-        const { rows, padded } = parseCSV(await file.async('text'));
-        for (const [column, count] of padded) {
-          this.paddedColumns.push({ file: name, column, rows: count });
-        }
-        handlers[name](rows);
-      }
-      done++;
-      hooks.onParse?.(name, done, PARSE_ORDER.length);
+  /**
+   * Fetch trips and their stop_times into `trips` / `stopTimesByTrip`. A no-op
+   * when both are already complete. The most recently requested trips are
+   * kept; older ones are dropped (from `trips` too, unless it is complete).
+   */
+  async loadTrips(tripIds: Iterable<string>): Promise<void> {
+    if (this.stopTimesComplete) {
+      return;
     }
+    const want: string[] = [];
+    for (const id of new Set(tripIds)) {
+      if (this.fetched.has(id)) {
+        // Refresh its place in the eviction order.
+        this.fetched.delete(id);
+        this.fetched.add(id);
+      } else {
+        want.push(id);
+      }
+    }
+    if (want.length) {
+      const info = await this.store.call('tripsInfo', want);
+      for (const id of want) {
+        const row = info.trips[id];
+        if (row && !this.tripsComplete) {
+          this.trips.set(id, toTrip(row));
+        }
+        const st = info.stopTimes[id];
+        if (st?.length) {
+          this.stopTimesByTrip.set(id, st.map(toStopTime));
+        }
+        this.fetched.add(id);
+      }
+    }
+    for (const id of this.fetched) {
+      if (this.fetched.size <= TRIP_CACHE_LIMIT) {
+        break;
+      }
+      this.fetched.delete(id);
+      this.stopTimesByTrip.delete(id);
+      if (!this.tripsComplete) {
+        this.trips.delete(id);
+      }
+    }
+  }
 
-    this.buildStationIndex();
+  /** Whether `tripsByRoute` and `stopRefs` are complete for a route. */
+  routeLoaded(routeId: string): boolean {
+    return this.stopTimesComplete || this.routeStops.has(routeId);
+  }
+
+  /**
+   * Fetch a route's trips and their stop lists, for `tripsByRoute` and
+   * `stopRefs`, then fire `dataloaded`. A no-op when they are already here.
+   */
+  async loadRoute(routeId: string): Promise<void> {
+    if (this.routeLoaded(routeId)) {
+      return;
+    }
+    const r = await this.store.call('routeTrips', routeId);
+    const lists = r.stopLists.map((l) =>
+      l.map((s) => ({
+        stop_id: s.stop_id,
+        stop_sequence: parseInt(s.stop_sequence),
+      }))
+    );
+    const trips: Trip[] = [];
+    const stops = new Map<string, StopRef[]>();
+    r.trips.forEach((row, i) => {
+      const trip = toTrip(row);
+      trips.push(trip);
+      if (r.tripList[i] >= 0) {
+        stops.set(trip.trip_id, lists[r.tripList[i]]);
+      }
+    });
+    if (!this.tripsComplete) {
+      this.tripsByRoute.set(routeId, trips);
+    }
+    this.routeStops.set(routeId, stops);
+    console.log(
+      `[GTFSScheduled] route ${routeId}: ${trips.length} trips loaded`
+    );
+    this.dispatchEvent(new Event('dataloaded'));
+  }
+
+  /**
+   * A trip's stops in order: from `stopTimesByTrip`, else from a route
+   * fetched by `loadRoute`. Undefined when neither has the trip.
+   */
+  stopRefs(tripId: string, routeId?: string): StopRef[] | undefined {
+    const times = this.stopTimesByTrip.get(tripId);
+    if (times) {
+      return times;
+    }
+    if (routeId !== undefined) {
+      return this.routeStops.get(routeId)?.get(tripId);
+    }
+    for (const stops of this.routeStops.values()) {
+      const hit = stops.get(tripId);
+      if (hit) {
+        return hit;
+      }
+    }
+    return undefined;
+  }
+
+  /** Every stop a route serves, by stop_times. */
+  stopsForRoute(routeId: string): string[] {
+    const out: string[] = [];
+    for (const [stop, routes] of this.routesByStop) {
+      if (routes.has(routeId)) {
+        out.push(stop);
+      }
+    }
+    return out;
   }
 
   /**
@@ -293,7 +468,7 @@ export class GTFSScheduled {
    *
    * Spec: a platform / entrance / generic node (`location_type` 0 / 2 / 3) has a
    * station (type 1) parent; a boarding area (type 4) has a platform (type 0)
-   * parent. Anything else is a feed defect — counted, not thrown.
+   * parent. Anything else is a feed defect: counted, not thrown.
    */
   private buildStationIndex(): void {
     const expectedParentType: Record<number, number> = {
@@ -375,7 +550,7 @@ export class GTFSScheduled {
     return out;
   }
 
-  /** Boardable descendants only (`location_type` 0) — the service-bearing ones. */
+  /** Boardable descendants only (`location_type` 0): the service-bearing ones. */
   boardableDescendants(stopId: string): string[] {
     return this.descendants(stopId).filter(
       (id) => this.stops.get(id)?.location_type === 0
@@ -478,115 +653,28 @@ export class GTFSScheduled {
       });
     }
   }
-
-  private ingestShapes(rows: RawRow[]): void {
-    const temp = new Map<string, { seq: number; lon: number; lat: number }[]>();
-    for (const row of rows) {
-      const id = row.shape_id;
-      if (!temp.has(id)) {
-        temp.set(id, []);
-      }
-      temp.get(id)!.push({
-        seq: parseInt(row.shape_pt_sequence),
-        lat: parseFloat(row.shape_pt_lat),
-        lon: parseFloat(row.shape_pt_lon),
-      });
-    }
-    for (const [id, pts] of temp) {
-      pts.sort((a, b) => a.seq - b.seq);
-      this.shapes.set(
-        id,
-        pts.map((p) => [p.lon, p.lat])
-      );
-    }
-  }
-
-  private ingestTrips(rows: RawRow[]): void {
-    for (const row of rows) {
-      const trip: Trip = {
-        trip_id: row.trip_id,
-        route_id: row.route_id,
-        service_id: row.service_id ?? '',
-        shape_id: row.shape_id ?? '',
-        headsign: row.trip_headsign ?? '',
-        direction_id: row.direction_id ?? '',
-        raw: row,
-      };
-      this.trips.set(trip.trip_id, trip);
-
-      let forRoute = this.tripsByRoute.get(trip.route_id);
-      if (!forRoute) {
-        this.tripsByRoute.set(trip.route_id, (forRoute = []));
-      }
-      forRoute.push(trip);
-    }
-  }
-
-  private ingestStopTimes(rows: RawRow[]): void {
-    for (const row of rows) {
-      const { stop_id, trip_id } = row;
-
-      // `stop_sequence` is a string in the CSV and must be compared
-      // numerically — '10' < '9' lexically, which would scramble every trip.
-      const stopTime: StopTime = {
-        trip_id,
-        stop_id,
-        stop_sequence: parseInt(row.stop_sequence ?? '0'),
-        arrival_time: row.arrival_time ?? '',
-        departure_time: row.departure_time ?? '',
-      };
-
-      let forTrip = this.stopTimesByTrip.get(trip_id);
-      if (!forTrip) {
-        this.stopTimesByTrip.set(trip_id, (forTrip = []));
-      }
-      forTrip.push(stopTime);
-
-      let trips = this.stopTrips.get(stop_id);
-      if (!trips) {
-        this.stopTrips.set(stop_id, (trips = []));
-      }
-      // Rows for one trip arrive contiguously in every feed worth reading, so
-      // checking the tail is enough to dedupe without an O(n) scan per row.
-      if (trips[trips.length - 1] !== trip_id) {
-        trips.push(trip_id);
-      }
-
-      const routeId = this.trips.get(trip_id)?.route_id;
-      if (routeId) {
-        let routes = this.routesByStop.get(stop_id);
-        if (!routes) {
-          this.routesByStop.set(stop_id, (routes = new Set()));
-        }
-        routes.add(routeId);
-      }
-    }
-
-    this.stopTimeCount = rows.length;
-    for (const times of this.stopTimesByTrip.values()) {
-      times.sort((a, b) => a.stop_sequence - b.stop_sequence);
-    }
-  }
 }
 
-/**
- * Open one archive nested inside another.
- *
- * Reports rather than absorbs: a mistyped inner name would otherwise surface
- * much later as an empty feed ("0 stops, 0 routes"), which reads as the
- * agency's fault. Naming what the outer archive actually holds turns that into
- * a one-line fix.
- */
-async function openInnerZip(zip: JSZip, innerPath: string): Promise<JSZip> {
-  const entry = zip.file(innerPath);
-  if (!entry) {
-    const zips = Object.keys(zip.files).filter((n) =>
-      n.toLowerCase().endsWith('.zip')
-    );
-    const found = zips.length ? zips.join(', ') : 'no nested archives at all';
-    throw new Error(
-      `The archive has no entry "${innerPath}" — it contains ${found}.`
-    );
-  }
-  return JSZip.loadAsync(await entry.async('arraybuffer'));
+function toTrip(row: RawRow): Trip {
+  return {
+    trip_id: row.trip_id,
+    route_id: row.route_id,
+    service_id: row.service_id ?? '',
+    shape_id: row.shape_id ?? '',
+    headsign: row.trip_headsign ?? '',
+    direction_id: row.direction_id ?? '',
+    raw: row,
+  };
+}
+
+// `stop_sequence` is a string in the CSV and must be compared numerically:
+// '10' < '9' lexically, which would scramble every trip.
+function toStopTime(row: RawRow): StopTime {
+  return {
+    trip_id: row.trip_id,
+    stop_id: row.stop_id ?? '',
+    stop_sequence: parseInt(row.stop_sequence ?? '0'),
+    arrival_time: row.arrival_time ?? '',
+    departure_time: row.departure_time ?? '',
+  };
 }

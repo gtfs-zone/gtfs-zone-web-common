@@ -1,6 +1,7 @@
 /**
  * `RouteSource` over `GTFSScheduled`. The scheduled feed is loaded once and never
- * mutated, so this needs no invalidation and no adapter-side caching.
+ * mutated, so this needs no invalidation and no adapter-side caching. A route
+ * reads as empty until `GTFSScheduled.loadRoute` has fetched it.
  */
 import type { GTFSScheduled } from './scheduled';
 import type { StopTimeRef } from './types';
@@ -19,7 +20,7 @@ export class GTFSScheduledRouteSource implements RouteSource {
 
   // `scheduled.ts` ingests no flex tables, so every stop_time is a plain stop ref.
   stopTimesForTrip(trip_id: string): RouteSourceStopTime[] {
-    const times = this.feed.stopTimesByTrip.get(trip_id);
+    const times = this.feed.stopRefs(trip_id);
     if (!times) {
       return [];
     }
