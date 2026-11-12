@@ -1,3 +1,10 @@
+## v5.21.0 (2026-11-12)
+
+### Feat
+
+- **calendar**: per-day state and extra legend entries
+- **map**: label routes with a vehicle or in the spotlight
+
 ## v5.20.0 (2026-11-09)
 
 ### Feat
