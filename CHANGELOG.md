@@ -1,3 +1,9 @@
+## v5.22.0 (2026-11-13)
+
+### Feat
+
+- **store**: columnar feed store in a worker, GTFSScheduled on top
+
 ## v5.21.0 (2026-11-12)
 
 ### Feat
