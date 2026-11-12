@@ -164,6 +164,11 @@ The layout every app shares, in four parts that go together:
   that frees the memory), and `call()` runs a store method or a view query
   (`feed-queries.ts`) in it. Tables named in `mirror` are also kept on the
   main thread for synchronous reads.
+- `base-file.ts` / `opfs-base.ts`: an unedited store's base as one binary
+  file (header, meta JSON, aligned typed arrays) in the OPFS `feed-bases`
+  directory. `call('saveBase', name)` writes a new file and
+  `FeedStoreClient.load({ base: name })` restores it without parsing. Files
+  are never overwritten; list, delete, sweep and clear work on any thread.
 
 `gtfs/scheduled.ts` (`GTFSScheduled`) is the realtime apps' view of a store:
 it mirrors stops, routes, agency, calendar and feed_info, plus per-feed

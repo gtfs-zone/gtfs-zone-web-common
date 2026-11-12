@@ -30,6 +30,17 @@ export interface StoreOptions {
   skipTables?: string[];
 }
 
+/** The immutable base of a finished store, as `base-file.ts` writes it. */
+export interface BaseParts {
+  pool: Interner;
+  tables: ColTable[];
+  patterns: Patterns | null;
+  shapes: ShapeTable | null;
+  stopTimesMode: StopTimesMode;
+  stopTimesCols: string[];
+  shapeCols: string[];
+}
+
 export interface TripStop {
   stop_id: string;
   stop_sequence: string;
@@ -182,7 +193,7 @@ class Table {
 }
 
 export class FeedStore {
-  readonly pool = new Interner();
+  readonly pool: Interner;
   private tables = new Map<string, Table>();
   /** Base tables while loading, wrapped into `tables` by `finish()`. */
   private loading = new Map<string, ColTable>();
@@ -198,7 +209,8 @@ export class FeedStore {
   private shapeOverrides = new Map<string, Row[]>();
   private finished = false;
 
-  constructor(options: StoreOptions = {}) {
+  constructor(options: StoreOptions = {}, pool = new Interner()) {
+    this.pool = pool;
     this.stopTimesMode = options.stopTimes ?? 'full';
     this.skip = new Set(options.skipTables ?? []);
     if (this.stopTimesMode === 'skip') {
@@ -285,6 +297,57 @@ export class FeedStore {
     console.log(
       `[FeedStore] ready: ${this.tables.size} tables, ${this.pool.strs.length} strings, stop_times ${this.stopTimesMode}`
     );
+  }
+
+  /** A finished store over a restored base, with no edits. */
+  static fromBase(parts: BaseParts): FeedStore {
+    const s = new FeedStore({ stopTimes: parts.stopTimesMode }, parts.pool);
+    for (const t of parts.tables) {
+      s.tables.set(t.name, new Table(t));
+    }
+    s.patterns = parts.patterns;
+    s.shapes = parts.shapes;
+    s.stopTimesCols = [...parts.stopTimesCols];
+    s.shapeCols = [...parts.shapeCols];
+    s.finished = true;
+    console.log(
+      `[FeedStore] restored: ${s.tables.size} tables, ${s.pool.strs.length} strings, stop_times ${s.stopTimesMode}`
+    );
+    return s;
+  }
+
+  /** True once anything differs from the parsed base. */
+  hasEdits(): boolean {
+    for (const t of this.tables.values()) {
+      if (
+        t.updated.size ||
+        t.deleted.size ||
+        t.inserted.length ||
+        t.cols.length !== t.base.cols.length
+      ) {
+        return true;
+      }
+    }
+    return this.tripOverrides.size > 0 || this.shapeOverrides.size > 0;
+  }
+
+  /** The base, for writing. Throws when the store has edits. */
+  baseParts(): BaseParts {
+    this.ready();
+    if (this.hasEdits()) {
+      throw new Error(
+        '[FeedStore] only an unedited store can be written as a base'
+      );
+    }
+    return {
+      pool: this.pool,
+      tables: [...this.tables.values()].map((t) => t.base),
+      patterns: this.patterns,
+      shapes: this.shapes,
+      stopTimesMode: this.stopTimesMode,
+      stopTimesCols: [...this.stopTimesCols],
+      shapeCols: [...this.shapeCols],
+    };
   }
 
   private ready(): void {

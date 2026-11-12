@@ -45,7 +45,9 @@ const MIRROR_EDITS = new Set<keyof StoreApi>([
 ]);
 
 type Unwrap<T> = T extends { value: infer V; change: unknown } ? V : T;
-type Result<K extends keyof StoreApi> = Unwrap<ReturnType<StoreApi[K]>>;
+type Result<K extends keyof StoreApi> = Unwrap<
+  Awaited<ReturnType<StoreApi[K]>>
+>;
 
 export interface LoadHooks {
   onProgress?: (p: LoadProgress) => void;

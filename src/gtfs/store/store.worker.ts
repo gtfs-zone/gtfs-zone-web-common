@@ -14,6 +14,7 @@ import {
   type StoreOptions,
 } from './feed-store';
 import { streamGtfsZip, type StreamResult } from './csv-stream';
+import { loadBaseFile, saveBaseFile } from './opfs-base';
 import {
   allShapes,
   allStopTimes,
@@ -26,8 +27,11 @@ import {
 import { splitInnerZipPath } from '../feed-url-resolve';
 import { describeHttpError, describeNetworkError } from '../feed-selection';
 
-/** Where the feed comes from. A URL may name a nested zip (`a.zip#b.zip`). */
-export type StoreInput = { url: string } | { file: File };
+/**
+ * Where the feed comes from. A URL may name a nested zip (`a.zip#b.zip`);
+ * `base` names a base file saved earlier with `saveBase`.
+ */
+export type StoreInput = { url: string } | { file: File } | { base: string };
 
 export interface LoadOptions extends StoreOptions {
   /** Trim leading/trailing whitespace from values (default true). */
@@ -37,7 +41,7 @@ export interface LoadOptions extends StoreOptions {
 }
 
 export interface LoadProgress {
-  stage: 'read' | 'index';
+  stage: 'read' | 'restore' | 'index';
   /** Compressed bytes read, and the total when known. */
   bytes: number;
   total: number | null;
@@ -63,6 +67,7 @@ export interface MirrorChange {
 }
 
 let store: FeedStore | null = null;
+let streamResult: StreamResult | null = null;
 let mirrored = new Set<string>();
 
 function requireStore(): FeedStore {
@@ -112,6 +117,9 @@ const api = {
     requireStore().setTripStopTimes(tripId, rows),
   setShape: (shapeId: string, rows: Row[]) =>
     requireStore().setShape(shapeId, rows),
+  hasEdits: () => requireStore().hasEdits(),
+  /** Write the unedited base to a new OPFS file. Resolves to its size. */
+  saveBase: (name: string) => saveBaseFile(requireStore(), streamResult!, name),
 };
 
 export type StoreApi = typeof api;
@@ -138,7 +146,7 @@ const post = (msg: WorkerReply, transfer: Transferable[] = []): void =>
 
 const PROGRESS_INTERVAL_MS = 100;
 
-async function openSource(input: StoreInput): Promise<{
+async function openSource(input: { url: string } | { file: File }): Promise<{
   stream: ReadableStream<Uint8Array>;
   total: number | null;
   innerPaths: string[];
@@ -170,7 +178,60 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
     throw new Error('[StoreWorker] a feed is already loaded; use a new worker');
   }
   const t0 = performance.now();
-  const s = new FeedStore(options);
+  let s: FeedStore;
+  let result: StreamResult;
+  if ('base' in input) {
+    post({
+      type: 'progress',
+      progress: { stage: 'restore', bytes: 0, total: null },
+    });
+    ({ store: s, stream: result } = await loadBaseFile(input.base));
+  } else {
+    s = new FeedStore(options);
+    result = await parseInto(s, input, options);
+    console.log(
+      `[StoreWorker] parsed in ${Math.round(performance.now() - t0)}ms`
+    );
+    post({
+      type: 'progress',
+      progress: { stage: 'index', bytes: 0, total: null },
+    });
+    s.finish();
+  }
+  store = s;
+  streamResult = result;
+  mirrored = new Set(options.mirror ?? []);
+  const mirror: Record<string, IdRow[]> = {};
+  const columns: Record<string, string[]> = {};
+  for (const table of s.tableNames()) {
+    columns[table] = s.columns(table);
+    if (mirrored.has(table)) {
+      mirror[table] = s.rows(table);
+    }
+  }
+  const summary = feedSummary(s);
+  console.log(
+    `[StoreWorker] ready in ${Math.round(performance.now() - t0)}ms`,
+    s.stats()
+  );
+  post({
+    type: 'loaded',
+    loaded: {
+      stream: result,
+      summary,
+      columns,
+      mirror,
+      stopTimesMode: s.stopTimesMode,
+    },
+  });
+}
+
+/** Stream a zip into `s`, posting read progress. */
+async function parseInto(
+  s: FeedStore,
+  input: { url: string } | { file: File },
+  options: LoadOptions
+): Promise<StreamResult> {
   const { stream, total, innerPaths } = await openSource(input);
   console.log(
     `[StoreWorker] reading ${'file' in input ? input.file.name : input.url}`
@@ -200,39 +261,7 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
       emit();
     },
   });
-  console.log(
-    `[StoreWorker] parsed in ${Math.round(performance.now() - t0)}ms`
-  );
-
-  progress.stage = 'index';
-  progress.table = undefined;
-  emit(true);
-  s.finish();
-  store = s;
-  mirrored = new Set(options.mirror ?? []);
-  const mirror: Record<string, IdRow[]> = {};
-  const columns: Record<string, string[]> = {};
-  for (const table of s.tableNames()) {
-    columns[table] = s.columns(table);
-    if (mirrored.has(table)) {
-      mirror[table] = s.rows(table);
-    }
-  }
-  const summary = feedSummary(s);
-  console.log(
-    `[StoreWorker] ready in ${Math.round(performance.now() - t0)}ms`,
-    s.stats()
-  );
-  post({
-    type: 'loaded',
-    loaded: {
-      stream: result,
-      summary,
-      columns,
-      mirror,
-      stopTimesMode: s.stopTimesMode,
-    },
-  });
+  return result;
 }
 
 /**
@@ -280,7 +309,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     if (!fn) {
       throw new Error(`[StoreWorker] unknown method ${String(msg.method)}`);
     }
-    const value = fn(...msg.args);
+    const value = await fn(...msg.args);
     post({ type: 'result', id: msg.id, value }, transferables(value));
   } catch (err) {
     console.error(`[StoreWorker] ${String(msg.method)} failed`, err);

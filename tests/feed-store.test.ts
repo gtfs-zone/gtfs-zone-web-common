@@ -7,6 +7,11 @@ import { streamGtfsZip } from '../src/gtfs/store/csv-stream';
 import { FeedStore, type StoreOptions } from '../src/gtfs/store/feed-store';
 import { LoadCancelledError } from '../src/gtfs/feed-download';
 import {
+  readBase,
+  writeBase,
+  type ByteSource,
+} from '../src/gtfs/store/base-file';
+import {
   feedSummary,
   routeGeometries,
   routeTrips,
@@ -425,5 +430,119 @@ describe('feed queries', () => {
     assert.equal(info.trips.nope, undefined);
     assert.equal(info.stopTimes.T4.length, 2);
     assert.deepEqual(info.stopTimes.nope, []);
+  });
+});
+
+/** Write the store's base into memory and return it as a source. */
+function saveToMemory(
+  store: FeedStore,
+  result: Awaited<ReturnType<typeof load>>['result']
+): { bytes: Uint8Array; src: ByteSource } {
+  let bytes = new Uint8Array(0);
+  const size = writeBase(store, result, {
+    write(chunk, at) {
+      if (at + chunk.length > bytes.length) {
+        const grown = new Uint8Array(at + chunk.length);
+        grown.set(bytes);
+        bytes = grown;
+      }
+      bytes.set(chunk, at);
+    },
+  });
+  assert.equal(size, bytes.length);
+  return { bytes, src: memorySource(bytes) };
+}
+
+function memorySource(bytes: Uint8Array): ByteSource {
+  return {
+    size: bytes.length,
+    read(into, at) {
+      into.set(bytes.subarray(at, at + into.length));
+    },
+  };
+}
+
+describe('base file', () => {
+  it('restores every table, count, summary and lookup exactly', async () => {
+    const { store, result } = await load(BASE);
+    const { src } = saveToMemory(store, result);
+    const back = readBase(src);
+    assertMatches(back.store, BASE);
+    assert.deepEqual(back.stream, result);
+    assert.deepEqual(back.store.counts(), store.counts());
+    assert.deepEqual(back.store.stats(), store.stats());
+    assert.deepEqual(feedSummary(back.store), feedSummary(store));
+    assert.deepEqual(routeGeometries(back.store), routeGeometries(store));
+    assert.deepEqual(
+      back.store.tripsAtStop('S2').sort(),
+      store.tripsAtStop('S2').sort()
+    );
+    assert.deepEqual(
+      back.store.find('trips', 'route_id', 'R1'),
+      store.find('trips', 'route_id', 'R1')
+    );
+    assert.equal(back.store.hasEdits(), false);
+  });
+
+  it('keeps split trips, regrouped shapes and unusual strings', async () => {
+    const files = {
+      ...BASE,
+      'stops.txt':
+        'stop_id,stop_name,stop_lat,stop_lon\nS1,Zürich HB \u{1F686},47.37,8.54\nS2,"a\u0000b",1,2\nS3,,3,4\n',
+      'stop_times.txt': [
+        'trip_id,arrival_time,departure_time,stop_id,stop_sequence',
+        'T1,08:00:00,08:00:00,S1,1',
+        'T2,09:00:00,09:00:00,S1,1',
+        'T1,08:05:00,08:05:00,S2,2',
+      ].join('\n'),
+      'shapes.txt': [
+        'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence',
+        'SH1,52.5,13.4,1',
+        'SH2,52.51,13.41,1',
+        'SH1,52.52,13.42,2',
+      ].join('\n'),
+    };
+    const { store, result } = await load(files);
+    const back = readBase(saveToMemory(store, result).src).store;
+    assertMatches(back, files);
+  });
+
+  it('restores patterns mode without times', async () => {
+    const { store, result } = await load(BASE, { stopTimes: 'patterns' });
+    const back = readBase(saveToMemory(store, result).src).store;
+    assert.equal(back.stopTimesMode, 'patterns');
+    assert.deepEqual(back.tripStops('T1'), store.tripStops('T1'));
+    assert.throws(() => back.stopTimesForTrip('T1'));
+  });
+
+  it('accepts edits after a restore', async () => {
+    const { store, result } = await load(BASE);
+    const back = readBase(saveToMemory(store, result).src).store;
+    const id = back.insertRow('routes', { route_id: 'R3', route_type: '0' });
+    assert.equal(back.row('routes', id)!.route_id, 'R3');
+    back.setTripStopTimes('T1', []);
+    assert.deepEqual(back.stopTimesForTrip('T1'), []);
+    assert.equal(back.hasEdits(), true);
+  });
+
+  it('refuses to write a store with edits', async () => {
+    const { store, result } = await load(BASE);
+    store.updateRow('routes', 0, {
+      ...store.row('routes', 0)!,
+      route_type: '0',
+    });
+    assert.throws(() => saveToMemory(store, result), /unedited/);
+  });
+
+  it('rejects a truncated or foreign file', async () => {
+    const { store, result } = await load(BASE);
+    const { bytes } = saveToMemory(store, result);
+    assert.throws(
+      () => readBase(memorySource(bytes.subarray(0, bytes.length - 8))),
+      /incomplete/
+    );
+    const foreign = bytes.slice();
+    foreign[0] = 0;
+    assert.throws(() => readBase(memorySource(foreign)), /not a feed base/);
   });
 });

@@ -42,6 +42,34 @@ export class ShapeTable {
 
   constructor(private pool: Interner) {}
 
+  /** A finished table from restored arrays (see `base-file.ts`). */
+  static restore(
+    pool: Interner,
+    parts: {
+      cols: string[];
+      n: number;
+      data: Map<string, Col>;
+      seq: Col | null;
+      runKey: Uint32Array<ArrayBuffer>;
+      runStart: Uint32Array<ArrayBuffer>;
+      runSeq0: Int32Array<ArrayBuffer>;
+      sortedKeys: Uint32Array;
+      sortedRuns: Uint32Array;
+    }
+  ): ShapeTable {
+    const s = new ShapeTable(pool);
+    s.cols = parts.cols;
+    s.n = parts.n;
+    s.data = parts.data;
+    s.seq = parts.seq;
+    s.runKey = Grow.from(Uint32Array, parts.runKey);
+    s.runStart = Grow.from(Uint32Array, parts.runStart);
+    s.runSeq0 = Grow.from(Int32Array, parts.runSeq0);
+    s.sortedKeys = parts.sortedKeys;
+    s.sortedRuns = parts.sortedRuns;
+    return s;
+  }
+
   setHeader(cols: string[]): void {
     this.cols = cols;
     this.idI = cols.indexOf('shape_id');
