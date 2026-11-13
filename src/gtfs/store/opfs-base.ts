@@ -82,6 +82,14 @@ export async function saveBaseFile(
     size = writeBase(store, stream, {
       write(bytes, at) {
         const n = h.write(bytes, { at });
+        // Chromium reports a full quota as a count above the request (a
+        // negative file error read as unsigned) instead of throwing.
+        if (n > bytes.length) {
+          throw new DOMException(
+            `[OpfsBase] no space left to write ${name}`,
+            'QuotaExceededError'
+          );
+        }
         if (n !== bytes.length) {
           throw new Error(
             `[OpfsBase] short write: ${n} of ${bytes.length} bytes at ${at}`
