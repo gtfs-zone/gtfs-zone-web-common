@@ -39,6 +39,8 @@ export interface BaseParts {
   stopTimesMode: StopTimesMode;
   stopTimesCols: string[];
   shapeCols: string[];
+  /** Non-table archive entries (e.g. `locations.geojson`), by path. */
+  files: Map<string, Uint8Array>;
 }
 
 export interface TripStop {
@@ -207,6 +209,10 @@ export class FeedStore {
   private tripOverrides = new Map<string, Row[]>();
   /** shape_id -> its whole point list; [] removes the shape. */
   private shapeOverrides = new Map<string, Row[]>();
+  /** Non-table archive entries of the base, by path. */
+  private baseFiles = new Map<string, Uint8Array>();
+  /** path -> edited contents; null removes the entry. */
+  private fileOverrides = new Map<string, Uint8Array | null>();
   private finished = false;
   /** Called after every row insert, update or delete of an ordinary table. */
   onRowChange: ((table: string, id: number) => void) | null = null;
@@ -288,6 +294,17 @@ export class FeedStore {
     };
   };
 
+  /** The parse sink for a non-table archive entry. */
+  addFile = (name: string, bytes: Uint8Array): void => {
+    if (this.finished) {
+      throw new Error('[FeedStore] addFile after finish(); use setFile');
+    }
+    if (this.baseFiles.has(name)) {
+      throw new Error(`The archive contains ${name} more than once`);
+    }
+    this.baseFiles.set(name, bytes);
+  };
+
   /** Close loading: freeze the string pool and wrap the base tables. */
   finish(): void {
     for (const [name, t] of this.loading) {
@@ -311,6 +328,7 @@ export class FeedStore {
     s.shapes = parts.shapes;
     s.stopTimesCols = [...parts.stopTimesCols];
     s.shapeCols = [...parts.shapeCols];
+    s.baseFiles = new Map(parts.files);
     s.finished = true;
     console.log(
       `[FeedStore] restored: ${s.tables.size} tables, ${s.pool.strs.length} strings, stop_times ${s.stopTimesMode}`
@@ -330,7 +348,11 @@ export class FeedStore {
         return true;
       }
     }
-    return this.tripOverrides.size > 0 || this.shapeOverrides.size > 0;
+    return (
+      this.tripOverrides.size > 0 ||
+      this.shapeOverrides.size > 0 ||
+      this.fileOverrides.size > 0
+    );
   }
 
   /** The base, for writing. Throws when the store has edits. */
@@ -349,6 +371,7 @@ export class FeedStore {
       stopTimesMode: this.stopTimesMode,
       stopTimesCols: [...this.stopTimesCols],
       shapeCols: [...this.shapeCols],
+      files: new Map(this.baseFiles),
     };
   }
 
@@ -767,6 +790,41 @@ export class FeedStore {
     return n;
   }
 
+  // ---------- non-table files ----------
+
+  /** Paths of the non-table entries, edits included. */
+  fileNames(): string[] {
+    this.ready();
+    const out = [...this.baseFiles.keys()].filter(
+      (n) => !this.fileOverrides.has(n)
+    );
+    for (const [name, bytes] of this.fileOverrides) {
+      if (bytes) {
+        out.push(name);
+      }
+    }
+    return out;
+  }
+
+  /** A non-table entry's contents (not a copy), or null when absent. */
+  file(name: string): Uint8Array | null {
+    this.ready();
+    const o = this.fileOverrides.get(name);
+    if (o !== undefined) {
+      return o;
+    }
+    return this.baseFiles.get(name) ?? null;
+  }
+
+  /** Replace or add a non-table entry; null removes it. */
+  setFile(name: string, bytes: Uint8Array | null): void {
+    this.ready();
+    this.fileOverrides.set(name, bytes ? bytes.slice() : null);
+    console.log(
+      `[FeedStore] file ${name}: ${bytes ? `${bytes.length} bytes` : 'removed'}`
+    );
+  }
+
   // ---------- fold ----------
 
   /**
@@ -825,6 +883,9 @@ export class FeedStore {
           }
         }
       });
+    }
+    for (const name of this.fileNames()) {
+      out.addFile(name, this.file(name)!);
     }
     out.finish();
     console.log('[FeedStore] folded edits into a new base');

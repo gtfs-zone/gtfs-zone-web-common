@@ -19,7 +19,7 @@ import type { StreamResult } from './csv-stream';
 
 const MAGIC = 'GTFSZB01';
 /** Bump on any layout change; an older file is refused, not migrated. */
-const FORMAT = 1;
+const FORMAT = 2;
 const HEADER = 16;
 /** Strings per encoded chunk, so no single string is built from millions. */
 const STR_CHUNK = 200_000;
@@ -72,6 +72,7 @@ interface Meta {
   stopTimesMode: StopTimesMode;
   stopTimesCols: string[];
   shapeCols: string[];
+  files: { name: string; data: BufRef }[];
   strChunks: { text: BufRef; lens: BufRef }[];
   sorted: BufRef;
   tables: TableMeta[];
@@ -186,6 +187,10 @@ export function writeBase(
     stopTimesMode: parts.stopTimesMode,
     stopTimesCols: parts.stopTimesCols,
     shapeCols: parts.shapeCols,
+    files: [...parts.files].map(([name, bytes]) => ({
+      name,
+      data: L.add(bytes),
+    })),
     strChunks,
     sorted: L.add(parts.pool.sorted!),
     tables: parts.tables.map((t) => L.table(t)),
@@ -371,6 +376,12 @@ export function readBase(src: ByteSource): {
     stopTimesMode: meta.stopTimesMode,
     stopTimesCols: meta.stopTimesCols,
     shapeCols: meta.shapeCols,
+    files: new Map(
+      meta.files.map((f) => [
+        f.name,
+        arr(f.data as BufRef & { t: 'u8' }) as Uint8Array,
+      ])
+    ),
   };
   console.log(
     `[BaseFile] read ${meta.size} bytes, ${strs.length} strings, ${parts.tables.length} tables`

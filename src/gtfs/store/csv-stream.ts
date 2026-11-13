@@ -29,6 +29,11 @@ export interface StreamOptions {
   onBytes?: (read: number) => void;
   /** Inflated bytes of `table` so far; `size` is 0 when the zip omits it. */
   onTableBytes?: (table: string, read: number, size: number) => void;
+  /**
+   * Receives each non-`.txt` entry's whole contents, by archive path. When
+   * unset, those entries are only listed in `otherFiles`, never inflated.
+   */
+  onOtherFile?: (name: string, bytes: Uint8Array) => void;
 }
 
 export interface StreamResult {
@@ -62,6 +67,20 @@ class PushStream {
       f(x);
     }
   }
+}
+
+function concat(chunks: Uint8Array[]): Uint8Array {
+  let n = 0;
+  for (const c of chunks) {
+    n += c.length;
+  }
+  const out = new Uint8Array(n);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
 }
 
 /** Table name of an archive entry (`dir/stops.txt` -> `stops`), or null. */
@@ -197,6 +216,37 @@ export async function streamGtfsZip(
     file.start();
   };
 
+  const onOtherFile = (
+    file: UnzipFile,
+    take: (name: string, bytes: Uint8Array) => void
+  ): void => {
+    const chunks: Uint8Array[] = [];
+    let resolve!: () => void;
+    pending.push(new Promise<void>((r) => (resolve = r)));
+    file.ondata = (err, chunk, final) => {
+      if (err) {
+        fail(err);
+        resolve();
+        return;
+      }
+      if (failed) {
+        resolve();
+        return;
+      }
+      chunks.push(chunk);
+      if (final) {
+        try {
+          take(file.name, concat(chunks));
+          console.log(`[CsvStream] ${file.name}: kept as a file`);
+        } catch (e) {
+          fail(e);
+        }
+        resolve();
+      }
+    };
+    file.start();
+  };
+
   // Innermost archive first: each nested level feeds the next Unzip.
   const innerPaths = options.innerPaths ?? [];
   const levels: Unzip[] = [];
@@ -229,6 +279,9 @@ export async function streamGtfsZip(
         onTableFile(file, table);
       } else if (!file.name.endsWith('/')) {
         result.otherFiles.push(file.name);
+        if (options.onOtherFile) {
+          onOtherFile(file, options.onOtherFile);
+        }
       }
     });
     uz.register(UnzipInflate);

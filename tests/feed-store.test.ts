@@ -633,3 +633,58 @@ describe('key lookup and fold', () => {
     assert.throws(() => store.fold(), /without times/);
   });
 });
+
+describe('non-table files', () => {
+  const GEOJSON = '{"type":"FeatureCollection","features":[]}';
+
+  async function loadKeeping(files: Files) {
+    const store = new FeedStore();
+    const result = await streamGtfsZip(streamOf(zip(files)), store.sinkFor, {
+      onOtherFile: store.addFile,
+    });
+    store.finish();
+    return { store, result };
+  }
+
+  it('lists other entries without keeping them by default', async () => {
+    const { store, result } = await load({
+      ...BASE,
+      'locations.geojson': GEOJSON,
+    });
+    assert.deepEqual(result.otherFiles, ['locations.geojson']);
+    assert.deepEqual(store.fileNames(), []);
+  });
+
+  it('keeps, edits, folds and restores other entries', async () => {
+    const { store, result } = await loadKeeping({
+      ...BASE,
+      'locations.geojson': GEOJSON,
+      'notes/readme.md': '# hi',
+    });
+    const text = (b: Uint8Array | null) =>
+      b === null ? null : new TextDecoder().decode(b);
+    assert.equal(text(store.file('locations.geojson')), GEOJSON);
+
+    const back = readBase(saveToMemory(store, result).src).store;
+    assert.deepEqual(back.fileNames().sort(), [
+      'locations.geojson',
+      'notes/readme.md',
+    ]);
+    assert.equal(text(back.file('notes/readme.md')), '# hi');
+
+    back.setFile('locations.geojson', strToU8('{}'));
+    back.setFile('notes/readme.md', null);
+    back.setFile('extra.json', strToU8('[]'));
+    assert.equal(back.hasEdits(), true);
+    assert.equal(text(back.file('notes/readme.md')), null);
+
+    const folded = back.fold();
+    assert.equal(folded.hasEdits(), false);
+    const again = readBase(saveToMemory(folded, result).src).store;
+    assert.deepEqual(again.fileNames().sort(), [
+      'extra.json',
+      'locations.geojson',
+    ]);
+    assert.equal(text(again.file('locations.geojson')), '{}');
+  });
+});

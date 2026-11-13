@@ -41,8 +41,13 @@ export type StoreInput = { url: string } | { file: File } | { base: string };
 export interface LoadOptions extends StoreOptions {
   /** Trim leading/trailing whitespace from values (default true). */
   trim?: boolean;
-  /** Tables sent whole to the main thread for synchronous reads. */
-  mirror?: string[];
+  /**
+   * Tables sent whole to the main thread for synchronous reads: a list, or
+   * every table but `except` (tables created later included).
+   */
+  mirror?: string[] | { except: string[] };
+  /** Keep non-`.txt` entries' contents (`fileNames`, `file`, saved bases). */
+  keepFiles?: boolean;
 }
 
 export interface LoadProgress {
@@ -80,7 +85,7 @@ export interface MirrorUpdate {
 
 let store: FeedStore | null = null;
 let streamResult: StreamResult | null = null;
-let mirrored = new Set<string>();
+let isMirrored: (table: string) => boolean = () => false;
 /** Mirrored rows touched by the current call, as `table` -> ids. */
 let touched = new Map<string, Set<number>>();
 let resetPending = false;
@@ -99,7 +104,7 @@ function install(s: FeedStore, result: StreamResult): void {
   store = s;
   streamResult = result;
   s.onRowChange = (table, id) => {
-    if (mirrored.has(table)) {
+    if (isMirrored(table)) {
       let ids = touched.get(table);
       if (!ids) {
         ids = new Set();
@@ -113,7 +118,7 @@ function install(s: FeedStore, result: StreamResult): void {
 function mirrorRows(s: FeedStore): Record<string, IdRow[]> {
   const out: Record<string, IdRow[]> = {};
   for (const table of s.tableNames()) {
-    if (mirrored.has(table)) {
+    if (isMirrored(table)) {
       out[table] = s.rows(table);
     }
   }
@@ -182,6 +187,11 @@ const baseApi = {
   setShape: (shapeId: string, rows: Row[]) =>
     requireStore().setShape(shapeId, rows),
   hasEdits: () => requireStore().hasEdits(),
+  fileNames: () => requireStore().fileNames(),
+  /** A copy of a non-table entry's contents (transferred), or null. */
+  file: (name: string) => requireStore().file(name)?.slice() ?? null,
+  setFile: (name: string, bytes: Uint8Array | null) =>
+    requireStore().setFile(name, bytes),
   /** Write the unedited base to a new OPFS file. Resolves to its size. */
   saveBase: (name: string) => saveBaseFile(requireStore(), streamResult!, name),
 };
@@ -290,7 +300,15 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
     });
     s.finish();
   }
-  mirrored = new Set(options.mirror ?? []);
+  const m = options.mirror ?? [];
+  if (Array.isArray(m)) {
+    const set = new Set(m);
+    isMirrored = (t) => set.has(t);
+  } else {
+    // stop_times and shapes have no row ids, so they are never mirrored.
+    const except = new Set([...m.except, 'stop_times', 'shapes']);
+    isMirrored = (t) => !except.has(t);
+  }
   install(s, result);
   const mirror = mirrorRows(s);
   const columns: Record<string, string[]> = {};
@@ -338,6 +356,7 @@ async function parseInto(
   const result = await streamGtfsZip(stream, s.sinkFor, {
     innerPaths,
     trim: options.trim,
+    onOtherFile: options.keepFiles ? s.addFile : undefined,
     onBytes: (bytes) => {
       progress.bytes = bytes;
       emit();
