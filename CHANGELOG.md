@@ -1,3 +1,9 @@
+## v5.24.0 (2026-11-13)
+
+### Feat
+
+- **store**: keep non-table archive entries and mirror all tables but a list
+
 ## v5.23.0 (2026-11-13)
 
 ### Feat
