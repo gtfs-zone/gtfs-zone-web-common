@@ -1,3 +1,10 @@
+## v5.23.0 (2026-11-13)
+
+### Feat
+
+- **store**: extensible store worker, key lookup and fold
+- **store**: save and restore a feed base as one OPFS file
+
 ## v5.22.0 (2026-11-13)
 
 ### Feat
