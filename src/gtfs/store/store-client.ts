@@ -201,9 +201,12 @@ export class FeedStoreClient<A extends Api = StoreApi> extends EventTarget {
       this.dispatchEvent(new Event('mirrorreset'));
     }
     for (const change of update.changes) {
-      const rows = this.mirror.get(change.table);
+      // The worker sends changes for mirrored tables only, including tables
+      // created after the load.
+      let rows = this.mirror.get(change.table);
       if (!rows) {
-        continue;
+        rows = new Map();
+        this.mirror.set(change.table, rows);
       }
       if (change.row) {
         rows.set(change.id, change.row);
