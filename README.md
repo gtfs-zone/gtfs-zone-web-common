@@ -159,11 +159,16 @@ The layout every app shares, in four parts that go together:
   and every value reads back exactly as it was in the file. An edit overlay
   sits on top: row-level edits for ordinary tables, per-trip stop_times and
   per-shape points. Reads return copies.
-- `store.worker.ts` / `store-client.ts`: one worker per loaded feed.
+- `store-worker-core.ts` / `store-client.ts`: one worker per loaded feed.
   `FeedStoreClient.load` spawns it, `release()` terminates it (the only thing
   that frees the memory), and `call()` runs a store method or a view query
-  (`feed-queries.ts`) in it. Tables named in `mirror` are also kept on the
-  main thread for synchronous reads.
+  (`feed-queries.ts`) in it, one call at a time. Tables named in `mirror` are
+  also kept on the main thread for synchronous reads; every reply carries the
+  mirror changes its call made (`mirrorchange`, or `mirrorreset` after the
+  store was replaced). `store.worker.ts` is the plain worker; an app worker
+  calls `serveStore` with its own methods and passes its factory to `load`.
+- `FeedStore.fold()` builds a new, unedited store from the merged view (base
+  plus edits), so it can be saved as a new base.
 - `base-file.ts` / `opfs-base.ts`: an unedited store's base as one binary
   file (header, meta JSON, aligned typed arrays) in the OPFS `feed-bases`
   directory. `call('saveBase', name)` writes a new file and

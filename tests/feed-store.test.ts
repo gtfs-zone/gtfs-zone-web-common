@@ -546,3 +546,90 @@ describe('base file', () => {
     assert.throws(() => readBase(memorySource(foreign)), /not a feed base/);
   });
 });
+
+/** Every table of `a` reads the same as `b`, ignoring row ids. */
+function assertSameView(a: FeedStore, b: FeedStore) {
+  assert.deepEqual(a.counts(), b.counts());
+  for (const table of b.tableNames()) {
+    if (table === 'stop_times') {
+      for (const trip of b.tripsWithStopTimes()) {
+        assert.deepEqual(a.stopTimesForTrip(trip), b.stopTimesForTrip(trip));
+      }
+    } else if (table === 'shapes') {
+      assert.deepEqual(a.shapeIds().sort(), b.shapeIds().sort());
+      for (const shape of b.shapeIds()) {
+        assert.deepEqual(a.shapeRows(shape), b.shapeRows(shape));
+      }
+    } else {
+      assert.deepEqual(
+        a.rows(table).map((r) => r.row),
+        b.rows(table).map((r) => r.row),
+        table
+      );
+    }
+  }
+}
+
+describe('key lookup and fold', () => {
+  it('finds rows by a composite key', async () => {
+    const { store } = await load(BASE);
+    const hits = store.findKey(
+      'calendar_dates',
+      ['service_id', 'date'],
+      ['WK', '20260102']
+    );
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0].row.exception_type, '1');
+    assert.deepEqual(
+      store.findKey('calendar_dates', ['service_id', 'date'], ['WK', '1']),
+      []
+    );
+    assert.throws(() => store.findKey('calendar_dates', ['service_id'], []));
+  });
+
+  it('reports every ordinary row change', async () => {
+    const { store } = await load(BASE);
+    const seen: string[] = [];
+    store.onRowChange = (table, id) => seen.push(`${table}:${id}`);
+    const id = store.insertRow('routes', { route_id: 'R3' });
+    store.updateRow('routes', 0, {
+      ...store.row('routes', 0)!,
+      route_type: '0',
+    });
+    store.deleteRow('routes', id);
+    assert.deepEqual(seen, [`routes:${id}`, 'routes:0', `routes:${id}`]);
+  });
+
+  it('folds edits into an unedited store with the same view', async () => {
+    const { store, result } = await load(BASE);
+    store.updateRow('routes', 0, {
+      ...store.row('routes', 0)!,
+      route_short_name: '1X',
+      route_color: 'FF0000',
+    });
+    store.deleteRow('routes', 1);
+    store.insertRow('routes', { route_id: 'R9', agency_id: 'A' });
+    store.setTripStopTimes('T3', []);
+    store.setTripStopTimes('T5', [
+      { stop_id: 'S1', stop_sequence: '1', arrival_time: '7:00:00' },
+      { stop_id: 'S9', stop_sequence: '2', arrival_time: '07:10:00' },
+    ]);
+    store.setShape('SH2', []);
+    store.setShape('SH3', [
+      { shape_pt_lat: '1.5', shape_pt_lon: '2', shape_pt_sequence: '1' },
+    ]);
+    store.ensureTable('levels', ['level_id', 'level_index']);
+    store.insertRow('levels', { level_id: 'L0', level_index: '0' });
+
+    const folded = store.fold(2);
+    assert.equal(folded.hasEdits(), false);
+    assertSameView(folded, store);
+    const back = readBase(saveToMemory(folded, result).src).store;
+    assertSameView(back, store);
+  });
+
+  it('refuses to fold without stop_times times', async () => {
+    const { store } = await load(BASE, { stopTimes: 'patterns' });
+    assert.throws(() => store.fold(), /without times/);
+  });
+});

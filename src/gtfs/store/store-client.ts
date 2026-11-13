@@ -6,8 +6,13 @@
  * old client before loading the new one, so two feeds are never in memory
  * together.
  *
- * Mirrored tables are kept here as plain rows for synchronous reads; edits
- * made through `call` update them and fire `mirrorchange`.
+ * Mirrored tables are kept here as plain rows for synchronous reads. Every
+ * reply carries the mirror changes its call made, which are applied before
+ * the call resolves and announced as `mirrorchange` (one row) or
+ * `mirrorreset` (whole tables, after the store was replaced).
+ *
+ * An app worker built on `serveStore` passes its own factory and API type:
+ * `FeedStoreClient.load<EditorApi>(input, options, hooks, () => new Worker(...))`.
  */
 
 import { LoadCancelledError } from '../feed-download';
@@ -17,18 +22,20 @@ import type {
   LoadProgress,
   Loaded,
   MirrorChange,
+  MirrorUpdate,
   StoreApi,
   StoreInput,
   WorkerReply,
   WorkerRequest,
-} from './store.worker';
+} from './store-worker-core';
 
 export type {
   LoadOptions,
   LoadProgress,
   StoreInput,
   MirrorChange,
-} from './store.worker';
+  StoreApi,
+} from './store-worker-core';
 export type {
   FeedSummary,
   RouteGeometry,
@@ -37,17 +44,9 @@ export type {
 } from './feed-queries';
 export type { IdRow, Row, TripStop, StopTimesMode } from './feed-store';
 
-/** Edits whose worker result is `{ value, change }`. */
-const MIRROR_EDITS = new Set<keyof StoreApi>([
-  'insertRow',
-  'updateRow',
-  'deleteRow',
-]);
-
-type Unwrap<T> = T extends { value: infer V; change: unknown } ? V : T;
-type Result<K extends keyof StoreApi> = Unwrap<
-  Awaited<ReturnType<StoreApi[K]>>
->;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => unknown;
+type Api = Record<string, AnyFn>;
 
 export interface LoadHooks {
   onProgress?: (p: LoadProgress) => void;
@@ -55,7 +54,7 @@ export interface LoadHooks {
   signal?: AbortSignal;
 }
 
-export class FeedStoreClient extends EventTarget {
+export class FeedStoreClient<A extends Api = StoreApi> extends EventTarget {
   /** Mirrored tables by name, rows by id. */
   readonly mirror = new Map<string, Map<number, Row>>();
   private pending = new Map<
@@ -84,16 +83,18 @@ export class FeedStoreClient extends EventTarget {
       this.failAll(new Error(`[StoreClient] worker error: ${e.message}`));
   }
 
-  static load(
+  static load<A extends Api = StoreApi>(
     input: StoreInput,
     options: LoadOptions = {},
-    hooks: LoadHooks = {}
-  ): Promise<FeedStoreClient> {
-    const worker = new Worker(new URL('./store.worker.ts', import.meta.url), {
-      type: 'module',
-    });
+    hooks: LoadHooks = {},
+    createWorker: () => Worker = () =>
+      new Worker(new URL('./store.worker.ts', import.meta.url), {
+        type: 'module',
+      })
+  ): Promise<FeedStoreClient<A & StoreApi>> {
+    const worker = createWorker();
     console.log('[StoreClient] load started');
-    return new Promise<FeedStoreClient>((resolve, reject) => {
+    return new Promise<FeedStoreClient<A & StoreApi>>((resolve, reject) => {
       const onAbort = (): void => {
         worker.terminate();
         console.log('[StoreClient] load cancelled; worker terminated');
@@ -114,7 +115,7 @@ export class FeedStoreClient extends EventTarget {
         } else if (msg.type === 'loaded') {
           settle();
           console.log('[StoreClient] load finished', msg.loaded.stream.rows);
-          resolve(new FeedStoreClient(worker, msg.loaded));
+          resolve(new FeedStoreClient<A & StoreApi>(worker, msg.loaded));
         } else if (msg.type === 'load-error') {
           settle();
           worker.terminate();
@@ -140,10 +141,10 @@ export class FeedStoreClient extends EventTarget {
   }
 
   /** Run a store method in the worker. */
-  call<K extends keyof StoreApi>(
+  call<K extends keyof A & string>(
     method: K,
-    ...args: Parameters<StoreApi[K]>
-  ): Promise<Result<K>> {
+    ...args: Parameters<A[K]>
+  ): Promise<Awaited<ReturnType<A[K]>>> {
     if (this.released) {
       return Promise.reject(new Error(`[StoreClient] ${method} after release`));
     }
@@ -180,37 +181,39 @@ export class FeedStoreClient extends EventTarget {
       return;
     }
     this.pending.delete(msg.id);
+    if (msg.mirror) {
+      this.applyMirror(msg.mirror);
+    }
     if (msg.type === 'call-error') {
       p.reject(new Error(msg.message));
-      return;
-    }
-    if (MIRROR_EDITS.has(p.method as keyof StoreApi)) {
-      const { value, change } = msg.value as {
-        value: unknown;
-        change: MirrorChange | null;
-      };
-      if (change) {
-        this.applyMirror(change);
-      }
-      p.resolve(value);
       return;
     }
     p.resolve(msg.value);
   }
 
-  private applyMirror(change: MirrorChange): void {
-    const rows = this.mirror.get(change.table);
-    if (!rows) {
-      return;
+  private applyMirror(update: MirrorUpdate): void {
+    if (update.reset) {
+      this.mirror.clear();
+      for (const [table, rows] of Object.entries(update.reset)) {
+        this.mirror.set(table, new Map(rows.map((r) => [r.id, r.row])));
+      }
+      console.log('[StoreClient] mirror reset');
+      this.dispatchEvent(new Event('mirrorreset'));
     }
-    if (change.row) {
-      rows.set(change.id, change.row);
-    } else {
-      rows.delete(change.id);
+    for (const change of update.changes) {
+      const rows = this.mirror.get(change.table);
+      if (!rows) {
+        continue;
+      }
+      if (change.row) {
+        rows.set(change.id, change.row);
+      } else {
+        rows.delete(change.id);
+      }
+      this.dispatchEvent(
+        new CustomEvent<MirrorChange>('mirrorchange', { detail: change })
+      );
     }
-    this.dispatchEvent(
-      new CustomEvent<MirrorChange>('mirrorchange', { detail: change })
-    );
   }
 
   private failAll(err: Error): void {

@@ -208,6 +208,8 @@ export class FeedStore {
   /** shape_id -> its whole point list; [] removes the shape. */
   private shapeOverrides = new Map<string, Row[]>();
   private finished = false;
+  /** Called after every row insert, update or delete of an ordinary table. */
+  onRowChange: ((table: string, id: number) => void) | null = null;
 
   constructor(options: StoreOptions = {}, pool = new Interner()) {
     this.pool = pool;
@@ -444,6 +446,21 @@ export class FeedStore {
   }
 
   /**
+   * Rows whose `cols` equal `values`, e.g. a composite primary key. Uses the
+   * first column's index and checks the rest.
+   */
+  findKey(table: string, cols: string[], values: string[]): IdRow[] {
+    if (cols.length === 0 || cols.length !== values.length) {
+      throw new Error(
+        `[FeedStore] findKey on ${table}: ${cols.length} columns, ${values.length} values`
+      );
+    }
+    return this.find(table, cols[0], values[0]).filter(({ row }) =>
+      cols.every((c, i) => (row[c] ?? '') === values[i])
+    );
+  }
+
+  /**
    * Visit every live row's `cols` values, in id order, without building row
    * objects for base rows. `values` is reused between calls.
    */
@@ -481,17 +498,20 @@ export class FeedStore {
   insertRow(table: string, row: Row): number {
     const id = this.ordinary(table).insert(row);
     console.log(`[FeedStore] ${table}: inserted row ${id}`);
+    this.onRowChange?.(table, id);
     return id;
   }
 
   updateRow(table: string, id: number, row: Row): void {
     this.ordinary(table).update(id, row);
     console.log(`[FeedStore] ${table}: updated row ${id}`);
+    this.onRowChange?.(table, id);
   }
 
   deleteRow(table: string, id: number): void {
     this.ordinary(table).delete(id);
     console.log(`[FeedStore] ${table}: deleted row ${id}`);
+    this.onRowChange?.(table, id);
   }
 
   // ---------- stop_times ----------
@@ -745,6 +765,70 @@ export class FeedStore {
       n += rows.length;
     }
     return n;
+  }
+
+  // ---------- fold ----------
+
+  /**
+   * A new, unedited store holding this store's merged view (base plus
+   * edits), built through the same sinks a parse uses. Row ids of the new
+   * store are dense again, so they differ from this store's.
+   */
+  fold(batchSize = 10_000): FeedStore {
+    this.ready();
+    // Without times the merged view is not the whole feed.
+    this.requireTimes();
+    const out = new FeedStore({ stopTimes: this.stopTimesMode });
+    const feed = (
+      table: string,
+      cols: string[],
+      each: (push: (values: string[]) => void) => void
+    ): void => {
+      const sink = out.sinkFor(table);
+      if (!sink) {
+        return;
+      }
+      sink.header(cols);
+      let batch: string[][] = [];
+      each((values) => {
+        batch.push(values);
+        if (batch.length >= batchSize) {
+          sink.rows(batch);
+          batch = [];
+        }
+      });
+      if (batch.length) {
+        sink.rows(batch);
+      }
+      sink.end();
+    };
+    for (const name of this.tables.keys()) {
+      const cols = this.columns(name);
+      feed(name, cols, (push) => this.scan(name, cols, (v) => push([...v])));
+    }
+    if (this.patterns || this.tripOverrides.size) {
+      const cols = this.columns(STOP_TIMES);
+      feed(STOP_TIMES, cols, (push) => {
+        for (const trip of this.tripsWithStopTimes()) {
+          for (const r of this.stopTimesForTrip(trip)) {
+            push(cols.map((c) => r[c] ?? ''));
+          }
+        }
+      });
+    }
+    if (this.shapes || this.shapeOverrides.size) {
+      const cols = this.columns(SHAPES);
+      feed(SHAPES, cols, (push) => {
+        for (const shape of this.shapeIds()) {
+          for (const r of this.shapeRows(shape)) {
+            push(cols.map((c) => r[c] ?? ''));
+          }
+        }
+      });
+    }
+    out.finish();
+    console.log('[FeedStore] folded edits into a new base');
+    return out;
   }
 
   // ---------- diagnostics ----------
