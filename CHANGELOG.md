@@ -1,3 +1,10 @@
+## v5.24.1 (2026-11-13)
+
+### Fix
+
+- **store**: mirror changes to tables created after the load
+- **store**: report a full OPFS quota as QuotaExceededError
+
 ## v5.24.0 (2026-11-13)
 
 ### Feat
