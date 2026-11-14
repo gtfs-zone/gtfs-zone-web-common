@@ -1,3 +1,9 @@
+## v5.25.0 (2026-11-14)
+
+### Feat
+
+- **store**: list edited trips and shapes
+
 ## v5.24.1 (2026-11-13)
 
 ### Fix
