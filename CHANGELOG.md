@@ -1,3 +1,9 @@
+## v5.30.0 (2026-11-14)
+
+### Feat
+
+- **map**: draw scheduled vehicles as hollow markers
+
 ## v5.29.0 (2026-11-14)
 
 ### Feat
