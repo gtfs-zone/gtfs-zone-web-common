@@ -18,12 +18,26 @@ import {
   kindFor,
   permute,
   sortPermutation,
+  timeAt,
   type Encoded,
   type Interner,
   type Kind,
 } from './columns';
 
 const TIME_COLS = ['arrival_time', 'departure_time'] as const;
+
+/**
+ * One trip's stops and numeric times, in stop_sequence order. Times are
+ * seconds of the service day and `dist` is shape_dist_traveled; NaN where
+ * the cell is empty or does not parse.
+ */
+export interface TripTimes {
+  stopIds: string[];
+  stopSequences: string[];
+  arr: Float64Array;
+  dep: Float64Array;
+  dist: Float64Array;
+}
 
 export class Patterns {
   constructor(
@@ -94,6 +108,34 @@ export class Patterns {
         }
       }
       out.push(o);
+    }
+    return out;
+  }
+
+  /** Trip `t`'s stops and numeric times, without row objects. */
+  tripTimes(t: number): TripTimes {
+    if (!this.arr || !this.dep) {
+      throw new Error('[Patterns] loaded without times');
+    }
+    const p = this.tripPattern[t];
+    const base = this.patStart[p];
+    const len = this.patStart[p + 1] - base;
+    const stop = this.rows.col('stop_id');
+    const seq = this.rows.col('stop_sequence');
+    const dist = this.rows.col('shape_dist_traveled');
+    const out: TripTimes = {
+      stopIds: [],
+      stopSequences: [],
+      arr: new Float64Array(len),
+      dep: new Float64Array(len),
+      dist: new Float64Array(len),
+    };
+    for (let k = 0, i = this.tripTimeStart[t]; k < len; k++, i++) {
+      out.stopIds.push(stop ? stop.get(base + k) : '');
+      out.stopSequences.push(seq ? seq.get(base + k) : '');
+      out.arr[k] = timeAt(this.arr, i);
+      out.dep[k] = timeAt(this.dep, i);
+      out.dist[k] = dist ? dist.num(base + k) : NaN;
     }
     return out;
   }

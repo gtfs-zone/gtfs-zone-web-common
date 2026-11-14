@@ -379,6 +379,20 @@ function parseNum(s: string): number {
   return s.trim() === '' ? NaN : Number(s);
 }
 
+const LOOSE_TIME_RE = /^\s*(\d+):(\d{1,2}):(\d{1,2})\s*$/;
+
+/** Seconds of a GTFS time, accepting unpadded parts ("8:5:00"); NaN otherwise. */
+export function clockSeconds(s: string): number {
+  const m = LOOSE_TIME_RE.exec(s);
+  return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : NaN;
+}
+
+/** Seconds of a time cell, verbatim values included; NaN when empty or not a time. */
+export function timeAt(col: Col, r: number): number {
+  const v = col.num(r);
+  return Number.isNaN(v) ? clockSeconds(col.get(r)) : v;
+}
+
 /** Index of `key` in an ascending array, or -1. */
 export function bsearch(a: Uint32Array, key: number): number {
   let lo = 0;

@@ -8,6 +8,9 @@ import {
   type StopTimesMode,
   type StoreInput,
 } from './store/store-client';
+import { feedServiceDate, serviceDayStart } from './feed-time';
+import type { VehiclePosition } from './rt-types';
+import type { ServiceWindow } from './store/scheduled-vehicles';
 
 /** Verbatim CSV rows, kept so object pages can dump every column. */
 export type RawRow = Record<string, string>;
@@ -392,6 +395,47 @@ export class GTFSScheduled extends EventTarget {
     }
   }
 
+  /**
+   * Vehicles the timetable puts on the road at `ms`, simulated in the worker.
+   * Looks at today's and yesterday's service dates (trips past 24:00) in the
+   * feed's zone, so `adoptFeedTimezone` must have run. `running` counts the
+   * runs before the worker's cap.
+   */
+  async scheduledVehicles(
+    ms: number
+  ): Promise<{ vehicles: VehiclePosition[]; running: number }> {
+    const now = Math.floor(ms / 1000);
+    const windows: ServiceWindow[] = [];
+    for (const offset of [0, -1]) {
+      const date = feedServiceDate(ms, offset);
+      const start = serviceDayStart(date);
+      if (start === null) {
+        throw new Error(`[GTFSScheduled] no service day start for ${date}`);
+      }
+      windows.push({ date, seconds: now - start });
+    }
+    const r = await this.store.call('scheduledVehicles', windows);
+    const vehicles = r.vehicles.map((v): VehiclePosition => ({
+      key: v.key,
+      vehicleId: '',
+      entityId: '',
+      lat: v.lat,
+      lon: v.lon,
+      bearing: v.bearing,
+      tripId: v.tripId,
+      routeId: v.routeId,
+      directionId: v.directionId || undefined,
+      startDate: v.startDate,
+      startTime: v.startTime,
+      currentStopSequence: finiteOrUndefined(v.stopSequence),
+      stopId: v.stopId || undefined,
+      currentStatus: v.status,
+      timestamp: now,
+      raw: v,
+    }));
+    return { vehicles, running: r.running };
+  }
+
   /** Whether `tripsByRoute` and `stopRefs` are complete for a route. */
   routeLoaded(routeId: string): boolean {
     return this.stopTimesComplete || this.routeStops.has(routeId);
@@ -677,4 +721,9 @@ function toStopTime(row: RawRow): StopTime {
     arrival_time: row.arrival_time ?? '',
     departure_time: row.departure_time ?? '',
   };
+}
+
+function finiteOrUndefined(s: string): number | undefined {
+  const n = s.trim() === '' ? NaN : Number(s);
+  return Number.isFinite(n) ? n : undefined;
 }

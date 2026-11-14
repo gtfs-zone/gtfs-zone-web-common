@@ -11,8 +11,8 @@
  */
 
 import { ColTable, type Row } from './col-table';
-import { Interner } from './columns';
-import { PatternBuilder, type Patterns } from './patterns';
+import { Interner, clockSeconds } from './columns';
+import { PatternBuilder, type Patterns, type TripTimes } from './patterns';
 import { ShapeTable } from './shapes';
 import type { TableSink } from './csv-stream';
 
@@ -214,6 +214,8 @@ export class FeedStore {
   /** path -> edited contents; null removes the entry. */
   private fileOverrides = new Map<string, Uint8Array | null>();
   private finished = false;
+  /** Bumped by every edit, so caches built over the store can tell they are stale. */
+  editCount = 0;
   /** Called after every row insert, update or delete of an ordinary table. */
   onRowChange: ((table: string, id: number) => void) | null = null;
 
@@ -450,6 +452,7 @@ export class FeedStore {
     const t = new Table(base);
     t.cols = [...cols];
     this.tables.set(table, t);
+    this.editCount++;
   }
 
   // ---------- ordinary tables ----------
@@ -520,6 +523,7 @@ export class FeedStore {
 
   insertRow(table: string, row: Row): number {
     const id = this.ordinary(table).insert(row);
+    this.editCount++;
     console.log(`[FeedStore] ${table}: inserted row ${id}`);
     this.onRowChange?.(table, id);
     return id;
@@ -527,12 +531,14 @@ export class FeedStore {
 
   updateRow(table: string, id: number, row: Row): void {
     this.ordinary(table).update(id, row);
+    this.editCount++;
     console.log(`[FeedStore] ${table}: updated row ${id}`);
     this.onRowChange?.(table, id);
   }
 
   deleteRow(table: string, id: number): void {
     this.ordinary(table).delete(id);
+    this.editCount++;
     console.log(`[FeedStore] ${table}: deleted row ${id}`);
     this.onRowChange?.(table, id);
   }
@@ -566,6 +572,30 @@ export class FeedStore {
       row[c] ??= '';
     }
     return row;
+  }
+
+  /** A trip's stops and numeric times, or null when it has no stop_times. */
+  tripTimes(tripId: string): TripTimes | null {
+    this.ready();
+    this.requireTimes();
+    const o = this.tripOverrides.get(tripId);
+    if (o) {
+      if (!o.length) {
+        return null;
+      }
+      const num = (v: string | undefined) =>
+        v === undefined || v.trim() === '' ? NaN : Number(v);
+      return {
+        stopIds: o.map((r) => r.stop_id ?? ''),
+        stopSequences: o.map((r) => r.stop_sequence ?? ''),
+        arr: Float64Array.from(o, (r) => clockSeconds(r.arrival_time ?? '')),
+        dep: Float64Array.from(o, (r) => clockSeconds(r.departure_time ?? '')),
+        dist: Float64Array.from(o, (r) => num(r.shape_dist_traveled)),
+      };
+    }
+    const p = this.patterns;
+    const t = p?.tripIndex(tripId) ?? -1;
+    return t < 0 ? null : p!.tripTimes(t);
   }
 
   /** stop_id and stop_sequence of a trip's stops, in order (works without times). */
@@ -693,6 +723,7 @@ export class FeedStore {
       .map((r) => ({ ...r, trip_id: tripId }))
       .sort((a, b) => seqOf(a) - seqOf(b) || 0);
     this.tripOverrides.set(tripId, sorted);
+    this.editCount++;
     console.log(
       `[FeedStore] stop_times: trip ${tripId} set to ${sorted.length} rows`
     );
@@ -785,6 +816,7 @@ export class FeedStore {
             (Number(b.shape_pt_sequence) || 0) || 0
       );
     this.shapeOverrides.set(shapeId, sorted);
+    this.editCount++;
     console.log(
       `[FeedStore] shapes: ${shapeId} set to ${sorted.length} points`
     );

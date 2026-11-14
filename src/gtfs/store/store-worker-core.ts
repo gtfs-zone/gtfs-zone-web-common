@@ -29,6 +29,7 @@ import {
   tripsInfo,
   type FeedSummary,
 } from './feed-queries';
+import { scheduledVehicles, type ServiceWindow } from './scheduled-vehicles';
 import { splitInnerZipPath } from '../feed-url-resolve';
 import { describeHttpError, describeNetworkError } from '../feed-selection';
 
@@ -191,6 +192,8 @@ const baseApi = {
   tripsInfo: (tripIds: string[]) => tripsInfo(requireStore(), tripIds),
   routeTrips: (routeId: string) => routeTrips(requireStore(), routeId),
   allStopTimes: () => allStopTimes(requireStore()),
+  scheduledVehicles: (windows: ServiceWindow[], cap?: number) =>
+    scheduledVehicles(requireStore(), windows, cap),
   allShapes: () => allShapes(requireStore()),
   stats: () => requireStore().stats(),
   ensureTable: (table: string, cols: string[]) =>
