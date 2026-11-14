@@ -180,6 +180,10 @@ already, and `ui/lazy-list` observes a region as its scroll root.
   mirror changes its call made (`mirrorchange`, or `mirrorreset` after the
   store was replaced). `store.worker.ts` is the plain worker; an app worker
   calls `serveStore` with its own methods and passes its factory to `load`.
+- `FeedStore.patternReader()` (`pattern-reader.ts`) reads stop_times at the
+  pattern level without building rows: trip to pattern, pattern to trips, a
+  content key and hash per pattern that match across stores, and each trip's
+  encoded times (`encodedTimes`) as `Int32Array` views. For comparing two stores.
 - `FeedStore.fold()` builds a new, unedited store from the merged view (base
   plus edits), so it can be saved as a new base.
 - `base-file.ts` / `opfs-base.ts`: an unedited store's base as one binary

@@ -13,6 +13,7 @@
 import { ColTable, type Row } from './col-table';
 import { Interner, clockSeconds } from './columns';
 import { PatternBuilder, type Patterns, type TripTimes } from './patterns';
+import { PatternReader } from './pattern-reader';
 import { ShapeTable } from './shapes';
 import type { TableSink } from './csv-stream';
 
@@ -678,6 +679,14 @@ export class FeedStore {
         fn(this.tripStops(id), [id]);
       }
     }
+  }
+
+  /** Pattern-level reads of the loaded stop_times; null when skipped. */
+  patternReader(): PatternReader | null {
+    this.ready();
+    return this.patterns
+      ? new PatternReader(this.patterns, this.tripOverrides)
+      : null;
   }
 
   /** Trips whose stop_times were replaced by an edit (removed ones included). */

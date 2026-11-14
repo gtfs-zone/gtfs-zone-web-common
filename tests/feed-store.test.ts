@@ -11,6 +11,7 @@ import {
   writeBase,
   type ByteSource,
 } from '../src/gtfs/store/base-file';
+import { TIME_EMPTY, TIME_VERBATIM } from '../src/gtfs/store/pattern-reader';
 import {
   feedSummary,
   routeGeometries,
@@ -705,5 +706,89 @@ describe('non-table files', () => {
       'locations.geojson',
     ]);
     assert.equal(text(again.file('locations.geojson')), '{}');
+  });
+});
+
+describe('pattern reader', () => {
+  /** stop_times with its columns in another order. */
+  function reordered(csv: string): string {
+    const rows = parse(csv);
+    const cols = Object.keys(rows[0]).reverse();
+    return [
+      cols.join(','),
+      ...rows.map((r) => cols.map((c) => r[c]).join(',')),
+    ].join('\n');
+  }
+
+  it('groups trips by pattern and reads times in the store encoding', async () => {
+    const { store } = await load(BASE);
+    const reader = store.patternReader()!;
+    assert.equal(reader.tripCount, 4);
+    assert.ok(reader.hasTimes);
+    const t1 = reader.tripIndex('T1');
+    const t2 = reader.tripIndex('T2');
+    const p = reader.tripPattern(t1);
+    assert.equal(reader.tripPattern(t2), p);
+    assert.deepEqual([...reader.patternTrips(p)].sort(), [t1, t2].sort());
+    assert.equal(reader.patternLength(p), 3);
+    assert.deepEqual(
+      reader.patternStops(p).map((s) => s.stop_id),
+      ['S1', 'S2', 'S3']
+    );
+
+    const a = reader.encodedTimes(t1);
+    const b = reader.encodedTimes(t2);
+    assert.deepEqual(
+      [...a.arr].map((v) => v >> 1),
+      [28800, 29100, 29400]
+    );
+    assert.equal(a.arr[0] & 1, 0);
+    assert.equal(b.arr[0] & 1, 1);
+    assert.equal(b.arr[2] >> 1, 25 * 3600 + 600);
+
+    const t3 = reader.tripIndex('T3');
+    assert.equal(reader.encodedTimes(t3).dep[0], TIME_EMPTY);
+    assert.equal(reader.encodedTimes(t3).arr[0], TIME_VERBATIM);
+    assert.equal(reader.timeText(t3, 0, 'arr'), '9:5:00');
+    assert.equal(
+      reader.encodedTimes(reader.tripIndex('T4')).arr[1],
+      TIME_EMPTY
+    );
+    assert.equal(reader.tripIndex('nope'), -1);
+  });
+
+  it('keys patterns on content, not column order or store', async () => {
+    const a = (await load(BASE)).store.patternReader()!;
+    const b = (
+      await load({
+        ...BASE,
+        'stop_times.txt': reordered(BASE['stop_times.txt']),
+      })
+    ).store.patternReader()!;
+    for (const id of ['T1', 'T3', 'T4']) {
+      const pa = a.tripPattern(a.tripIndex(id));
+      const pb = b.tripPattern(b.tripIndex(id));
+      assert.equal(a.patternKey(pa), b.patternKey(pb), id);
+      assert.equal(a.patternHash(pa), b.patternHash(pb), id);
+    }
+    const p1 = a.tripPattern(a.tripIndex('T1'));
+    const p4 = a.tripPattern(a.tripIndex('T4'));
+    assert.notEqual(a.patternHash(p1), a.patternHash(p4));
+  });
+
+  it('flags edited trips and is null without stop_times', async () => {
+    const { store } = await load(BASE);
+    const reader = store.patternReader()!;
+    store.setTripStopTimes('T1', []);
+    assert.ok(reader.isEdited(reader.tripIndex('T1')));
+    assert.ok(!reader.isEdited(reader.tripIndex('T2')));
+    const skipped = (await load(BASE, { stopTimes: 'skip' })).store;
+    assert.equal(skipped.patternReader(), null);
+    const noTimes = (await load(BASE, { stopTimes: 'patterns' })).store;
+    assert.equal(noTimes.patternReader()!.hasTimes, false);
+    assert.throws(
+      () => noTimes.patternReader()!.encodedTimes(0),
+      /without times/
+    );
   });
 });
