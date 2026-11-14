@@ -1,3 +1,15 @@
+## v6.0.0 (2026-11-14)
+
+### BREAKING CHANGE
+
+- SearchController's getEntries and limit options are replaced
+by getGroups, groupLimit and remoteLimit; scheduleSearchEntries is replaced by
+scheduleSearchGroups.
+
+### Feat
+
+- **search**: group map search results into capped sections
+
 ## v5.30.0 (2026-11-14)
 
 ### Feat
