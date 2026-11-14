@@ -92,7 +92,7 @@ between the apps and the layout this package is moving to.
 
 ## Checks
 
-`pnpm run check` runs all five, and a pre-commit hook runs them on every
+`pnpm run check` runs all six, and a pre-commit hook runs them on every
 commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 | script | what it does |
@@ -102,6 +102,7 @@ commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 | `knip` | reports unused files and dependencies |
 | `check:exports` | reports exports no consumer imports |
 | `test` | unit tests under `tests/`, on Node's built-in runner |
+| `check-spec` | diffs `src/gtfs/spec/` against the reference snapshots |
 
 `format` runs prettier over the same directories.
 
@@ -193,6 +194,25 @@ aggregates (trips per route and per stop, routes per stop, route geometry).
 Trips and stop_times are fetched on demand (`loadTrips`, `loadRoute`), unless
 the `mirror` level keeps every trip (`trips`) or everything (`all`, small feeds
 only) on the main thread.
+
+## GTFS spec
+
+`gtfs/spec/` is the GTFS Schedule reference as data, plus the Google overlay:
+
+- `gtfs-spec.ts`: `baseGtfsSpec` (the reference, verbatim) and `gtfsSpec`
+  (with `extensions/google.ts` applied). `files/*.ts` hold one file each.
+- `types.ts`: each file's `primaryKey` (fields, `*` or `none`, as the
+  reference states it) and per-field type, presence, enums and foreign keys.
+- `primary-keys.ts`: `GTFS_PRIMARY_KEYS`, the row key per table derived from
+  `primaryKey`, with `getGTFSPrimaryKey` / `getNaturalKeyField`.
+- `adapter.ts` derives lookups and Zod schemas from a spec; `field-types.ts`
+  holds the field type validators, with their messages in their own small
+  catalog (`messages.ts`) so a worker building schemas bundles nothing else.
+
+`pnpm check-spec` diffs the spec against `reference/gtfs-reference.md` and
+`reference/google-reference.md` and fails on drift, primary keys included;
+[reference/README.md](reference/README.md) covers refreshing the snapshots.
+`zod` is a peer dependency for the schemas.
 
 ## Published data
 

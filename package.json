@@ -17,9 +17,10 @@
     "check:exports": "tsx scripts/check-exports.ts",
     "test": "tsx --test tests/*.test.ts",
     "knip": "knip",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run check:exports && pnpm run test",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run check:exports && pnpm run test && pnpm run check-spec",
     "commit": "cz commit",
-    "vuln": "sh scripts/vuln-gate.sh"
+    "vuln": "sh scripts/vuln-gate.sh",
+    "check-spec": "tsx scripts/check-spec.ts"
   },
   "peerDependencies": {
     "@leeoniya/ufuzzy": "*",
@@ -29,7 +30,8 @@
     "gtfs-realtime-bindings": "*",
     "gtfs-zone-vocab": "*",
     "maplibre-gl": ">=6.4.1 <7",
-    "papaparse": "*"
+    "papaparse": "*",
+    "zod": "*"
   },
   "peerDependenciesMeta": {
     "gtfs-realtime-bindings": {
@@ -55,6 +57,7 @@
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.71.0"
+    "typescript-eslint": "^8.71.0",
+    "zod": "^4.6.7"
   }
 }

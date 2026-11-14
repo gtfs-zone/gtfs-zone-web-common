@@ -1,0 +1,23 @@
+/** Field type validation messages, in English. */
+export const en = {
+  'value.month': 'Month must be between 01 and 12',
+  'value.day': 'Day must be between 01 and 31',
+  'value.minutes': 'Minutes must be between 00 and 59',
+  'value.seconds': 'Seconds must be between 00 and 59',
+  'value.integerNoDecimals': 'Must be an integer (no decimal places)',
+  'value.languageCode': 'Must be a valid IETF BCP 47 language code',
+  'value.currencyCode': 'Must be a 3-letter ISO 4217 currency code',
+  'value.decimalAmount': 'Must be a valid decimal amount',
+  'value.hexColor': 'Must be a 6-digit hexadecimal color',
+  'value.dateFormat': 'Must be in YYYYMMDD format',
+  'value.timeFormat': 'Must be in HH:MM:SS format',
+  'value.url': 'Must be a full URL starting with http:// or https://',
+  'value.email': 'Must be a valid email address',
+  'value.nonNegative': 'Must be 0 or greater',
+  'value.positive': 'Must be greater than 0',
+  'value.notZero': 'Must not be 0',
+  'value.unknownType': 'Unknown field type: {type}',
+  'value.invalidFormat': 'Invalid format for {type}. {description}',
+  'value.min': 'Value must be >= {min}',
+  'value.max': 'Value must be <= {max}',
+} as const;
