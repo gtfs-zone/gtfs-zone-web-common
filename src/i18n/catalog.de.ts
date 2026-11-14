@@ -109,7 +109,7 @@ export const de: Translation<typeof en> = {
   'load.showAllTipScheduled':
     'Katalog-Feeds werden angezeigt, wenn ein Fahrplan bei der letzten täglichen Prüfung geantwortet hat. Alle anzeigen listet auch die übrigen; manche Server lehnen eine direkte Prüfung ab, antworten aber über den CORS-Proxy.',
   'load.corsTip':
-    'Leitet Anfragen über cors.kcfam.us, wenn der Feed-Server keine CORS-Header sendet.',
+    'Leitet Anfragen über cors.gtfs.zone, wenn der Feed-Server keine CORS-Header sendet.',
   'load.corsProxy': 'CORS-Proxy',
   'load.routes_one': '{count} Linie',
   'load.routes_other': '{count} Linien',

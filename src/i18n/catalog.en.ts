@@ -107,7 +107,7 @@ export const en = {
   'load.showAllTipScheduled':
     'Catalog feeds are listed when a schedule answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.',
   'load.corsTip':
-    "Routes requests through cors.kcfam.us when the feed server doesn't send CORS headers.",
+    "Routes requests through cors.gtfs.zone when the feed server doesn't send CORS headers.",
   'load.corsProxy': 'CORS proxy',
   'load.routes_one': '{count} route',
   'load.routes_other': '{count} routes',
