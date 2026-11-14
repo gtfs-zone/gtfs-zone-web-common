@@ -110,7 +110,7 @@ export const fr: Translation<typeof en> = {
   'load.showAllTipScheduled':
     'Les flux du catalogue sont listés quand un horaire théorique a répondu au dernier contrôle quotidien. Tout afficher liste aussi les autres ; certains hôtes refusent un contrôle direct mais répondent via le proxy CORS.',
   'load.corsTip':
-    "Fait passer les requêtes par cors.kcfam.us quand le serveur du flux n'envoie pas d'en-têtes CORS.",
+    "Fait passer les requêtes par cors.gtfs.zone quand le serveur du flux n'envoie pas d'en-têtes CORS.",
   'load.corsProxy': 'Proxy CORS',
   'load.routes_one': '{count} ligne',
   'load.routes_other': '{count} lignes',

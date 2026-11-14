@@ -56,7 +56,7 @@ Read from the consumer's Vite env at its build time:
 
 | variable | default | what it does |
 | --- | --- | --- |
-| `VITE_CORS_PROXY` | `https://cors.kcfam.us/` | prefix put in front of a feed URL fetched through the CORS proxy (`gtfs/feed-selection.ts`) |
+| `VITE_CORS_PROXY` | `https://cors.gtfs.zone/` | prefix put in front of a feed URL fetched through the CORS proxy (`gtfs/feed-selection.ts`) |
 
 ## Localization
 
