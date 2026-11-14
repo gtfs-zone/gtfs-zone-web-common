@@ -1,9 +1,9 @@
 /**
  * Feed selection model.
  *
- * A session needs BOTH a scheduled GTFS source and at least one GTFS-RT endpoint
- * before it can load. That contract lives here: every load path (the feed
- * catalog, manual, and later the URL hash) produces a `FeedSelection`, and
+ * A session needs a scheduled GTFS source before it can load; realtime
+ * endpoints are optional. That contract lives here: every load path (the feed
+ * catalog, manual, and the URL hash) produces a `FeedSelection`, and
  * `isComplete` is the single gate.
  *
  * `useCors` is per-source rather than global, because a scheduled feed from an
@@ -12,6 +12,7 @@
  */
 
 import { isLocalUrl, resolveRealtimeUrl } from './feed-url-resolve';
+import { t } from '../i18n/messages';
 
 const CORS_PROXY =
   import.meta.env?.VITE_CORS_PROXY || 'https://cors.gtfs.zone/';
@@ -114,45 +115,17 @@ export function hasAnyRealtimeUrl(rt: RealtimeSource | null): boolean {
   return Boolean(rt.vehiclesUrl || rt.tripUpdatesUrl || rt.alertsUrl);
 }
 
-/**
- * Both halves chosen, and the RT half actually points somewhere.
- *
- * `requireRealtime` is what separates the two apps sharing this file: a live
- * map is useless without a realtime endpoint, but a schedule editor only ever
- * needs the schedule. Defaults to the stricter rule so the realtime app
- * reads unchanged.
- */
-export function isComplete(
-  sel: FeedSelection,
-  requireRealtime = true
-): boolean {
+/** A schedule is chosen; realtime is optional. */
+export function isComplete(sel: FeedSelection): boolean {
   if (!sel.scheduled) {
     return false;
   }
-  if (sel.scheduled.kind === 'url' && !sel.scheduled.url) {
-    return false;
-  }
-  return !requireRealtime || hasAnyRealtimeUrl(sel.realtime);
+  return sel.scheduled.kind !== 'url' || Boolean(sel.scheduled.url);
 }
 
 /** Human-readable reason a selection is not yet loadable; '' when complete. */
-export function describeMissing(
-  sel: FeedSelection,
-  requireRealtime = true
-): string {
-  const needScheduled =
-    !sel.scheduled || (sel.scheduled.kind === 'url' && !sel.scheduled.url);
-  const needRt = requireRealtime && !hasAnyRealtimeUrl(sel.realtime);
-  if (needScheduled && needRt) {
-    return 'Choose a scheduled feed and a realtime feed';
-  }
-  if (needScheduled) {
-    return 'Choose a scheduled feed';
-  }
-  if (needRt) {
-    return 'Choose a realtime feed';
-  }
-  return '';
+export function describeMissing(sel: FeedSelection): string {
+  return isComplete(sel) ? '' : t('load.chooseScheduled');
 }
 
 /**

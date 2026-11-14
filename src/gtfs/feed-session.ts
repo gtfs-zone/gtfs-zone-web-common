@@ -13,7 +13,9 @@
  *
  * `FeedSessionBase` is the half both apps' sessions share: the four members,
  * and downloading and parsing the schedule behind the progress bar. Each app
- * extends it with how its realtime half arrives.
+ * extends it with how its realtime half arrives. An app that sets
+ * `parseCache` loads through it, so an unchanged feed is restored instead of
+ * parsed.
  */
 
 import { GTFSScheduled, type ScheduledOptions } from './scheduled';
@@ -26,6 +28,8 @@ import {
 } from './feed-download';
 import { feedProgressIndicator } from '../ui/progress-indicator';
 import type { LoadProgress } from './store/store-client';
+import type { CacheInput, CachedFeed, ParseCache } from './parse-cache';
+import { t } from '../i18n/messages';
 
 /**
  * `V` is the app's own vehicle shape, which may carry more than this package
@@ -52,6 +56,9 @@ export type ScheduleInput = { url: string } | { file: File };
 
 /** The progress line for one load step. */
 function progressText(label: string, p: LoadProgress): string {
+  if (p.stage === 'restore') {
+    return t('progress.restoring', { label });
+  }
   if (p.stage === 'index') {
     return `Indexing ${label}…`;
   }
@@ -76,6 +83,12 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
   scheduleError: string | null = null;
   /** When the current schedule finished parsing, in epoch milliseconds. */
   scheduleLoadedAt: number | null = null;
+  /** The current schedule came from the stored copy, not a parse. */
+  scheduleRestored = false;
+  /** The current schedule's entry in `parseCache`, or null. */
+  scheduleEntry: CachedFeed | null = null;
+  /** Why the current schedule could not be stored; it loaded anyway. */
+  storeError: string | null = null;
 
   vehicles = new Map<string, V>();
   alerts = new Map<string, AlertRecord>();
@@ -83,6 +96,8 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
 
   /** How schedules are loaded; an app that only sees small feeds mirrors `all`. */
   protected scheduleOptions: ScheduledOptions = {};
+  /** Stores parsed schedules; null parses every load. */
+  protected parseCache: ParseCache | null = null;
 
   private controller: AbortController | null = null;
   /** Latest `withTrips` call per payload kind, so a slow lookup never wins. */
@@ -94,9 +109,14 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
    * The current schedule is released first, so two feeds are never in memory
    * together; a cancelled or failed load leaves no schedule. Sets
    * `scheduleError` and rethrows on failure; throws `LoadCancelledError` on a
-   * cancel.
+   * cancel. `{ stored }` and `meta` need a `parseCache`; `meta` is what the
+   * cache keeps with the entry.
    */
-  async loadSchedule(input: ScheduleInput, label: string): Promise<void> {
+  async loadSchedule(
+    input: ScheduleInput | { stored: string },
+    label: string,
+    meta: { sourceUrl?: string; extra?: unknown } = {}
+  ): Promise<void> {
     this.cancelLoad();
     this.releaseSchedule();
     const controller = new AbortController();
@@ -106,18 +126,33 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
       onCancel: () => controller.abort(),
     });
     try {
-      const feed = await GTFSScheduled.load(input, this.scheduleOptions, {
+      const hooks = {
         signal: controller.signal,
-        onProgress: (p) => {
+        onProgress: (p: LoadProgress) => {
           feedProgressIndicator.updateProgress(
             'scheduled-load',
-            p.stage === 'index'
-              ? 100
-              : (downloadPercent(p.bytes, p.total) ?? 0),
+            p.stage === 'read' ? (downloadPercent(p.bytes, p.total) ?? 0) : 100,
             progressText(label, p)
           );
         },
-      });
+      };
+      let feed: GTFSScheduled;
+      if (this.parseCache) {
+        const out = await this.parseCache.load(
+          input as CacheInput,
+          { label, ...meta },
+          this.scheduleOptions,
+          hooks
+        );
+        feed = out.feed;
+        this.scheduleRestored = out.restored;
+        this.scheduleEntry = out.entry;
+        this.storeError = out.storeError;
+      } else if ('stored' in input) {
+        throw new Error('[FeedSession] a stored feed needs a parseCache');
+      } else {
+        feed = await GTFSScheduled.load(input, this.scheduleOptions, hooks);
+      }
       // A load superseded after the worker finished is dropped here.
       if (controller.signal.aborted) {
         feed.release();
@@ -167,6 +202,9 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
     this.scheduledFeed.release();
     this.scheduledFeed = null;
     this.scheduleLoadedAt = null;
+    this.scheduleRestored = false;
+    this.scheduleEntry = null;
+    this.storeError = null;
     console.log('[FeedSession] schedule released');
   }
 

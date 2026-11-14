@@ -34,6 +34,12 @@ export const en = {
 
   'progress.processing': 'Processing...',
   'progress.cancelling': 'Cancelling...',
+  'load.chooseScheduled': 'Choose a scheduled feed',
+  'progress.restoring': 'Restoring {label} from the stored copy…',
+  'cache.storeFailed':
+    'The feed loaded, but could not be stored in this browser, so it will be parsed again next time - {reason}',
+  'cache.quota': 'browser storage is full',
+  'cache.missing': 'The stored copy of {name} is no longer in this browser',
 
   'search.failed': 'Search failed, see the console',
   'search.noFeedResults': 'No feed results. Place search unavailable',
@@ -102,9 +108,7 @@ export const en = {
   'load.customRealtime':
     'Type or paste your own scheduled and realtime URLs below',
   'load.customScheduled': 'Type or paste your own feed URL below',
-  'load.showAllTipRealtime':
-    'Catalog feeds are listed when a schedule and at least one realtime endpoint answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.',
-  'load.showAllTipScheduled':
+  'load.showAllTip':
     'Catalog feeds are listed when a schedule answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.',
   'load.corsTip':
     "Routes requests through cors.gtfs.zone when the feed server doesn't send CORS headers.",

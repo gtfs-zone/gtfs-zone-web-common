@@ -20,9 +20,8 @@
  * listed first: picking one restores it, and a stored feed whose catalog
  * entry was republished since its import gets an update button.
  *
- * Catalog rows load in one click when they fill a complete selection; a row
- * that fills only half of one (realtime without a schedule) fills the fields
- * instead.
+ * Catalog rows load in one click when they carry a schedule; a realtime-only
+ * row fills the realtime fields and waits for a schedule.
  *
  * `options.notice` and `options.linkedWith` are the failure half of the same
  * idea: when a link named a feed and it could not be loaded, the modal opens
@@ -31,17 +30,16 @@
  *
  * `options.realtime` is the one axis an app gets a say in. With it off the
  * realtime section, its URL fields, the role chips and every realtime-only
- * catalog feed are simply not emitted, and a scheduled source alone is a
- * complete selection. It also picks which catalog feeds are listed by default:
- * the editor's rule is a schedule that answered feed-catalog's last check, the
- * visualiser's is that plus at least one realtime role that did. "Show all"
- * lifts the rule. Everything else, the search, upload, CORS and seeding, is
- * the same everywhere, which is the whole reason this is one file.
+ * catalog feed are simply not emitted. With it on they are, but realtime stays
+ * optional: a schedule alone is always a complete selection. Catalog feeds
+ * are listed by default when their schedule answered feed-catalog's last
+ * check, in every app; "Show all" lifts the rule. Everything else, the
+ * search, upload, CORS and seeding, is the same everywhere, which is the
+ * whole reason this is one file.
  */
 
 import type { CatalogFeed } from '../gtfs/feed-catalog';
 import {
-  RT_ROLES,
   loadFeedCatalog,
   placeLine,
   realtimeSlots,
@@ -161,7 +159,7 @@ export type LoadModalResult =
   | null;
 
 export interface LoadModalOptions {
-  /** Show the realtime section and require an RT endpoint. Default true. */
+  /** Show the realtime section; realtime is optional either way. Default true. */
   realtime?: boolean;
   /** Extra buttons in the action bar, e.g. "New Empty Feed". */
   extraActions?: ModalAction[];
@@ -231,7 +229,6 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     return null;
   }
 
-  const up = (role: (typeof RT_ROLES)[number]) => feed.roleState[role] === 'up';
   return {
     rowId: `feed:${feed.feedId}`,
     feed,
@@ -255,10 +252,7 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     // the ones that turn out not to.
     scheduledCors: true,
     rtCors: true,
-    // An untyped realtime role is in RT_ROLES, so it counts for the viewer.
-    valid: realtime
-      ? feed.roleState.scheduled === 'up' && RT_ROLES.some(up)
-      : feed.roleState.scheduled === 'up',
+    valid: feed.roleState.scheduled === 'up',
   };
 }
 
@@ -360,12 +354,6 @@ function renderRows(
     ...rows.map((row) => renderRow(row, selected.has(row.rowId), realtime)),
   ];
   return custom + out.join('');
-}
-
-function showAllTooltip(realtime: boolean): string {
-  return realtime
-    ? t('load.showAllTipRealtime')
-    : t('load.showAllTipScheduled');
 }
 
 function corsToggle(id: string): string {
@@ -684,7 +672,7 @@ export async function showLoadModal(
         <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
           <input type="checkbox" id="load-show-all" class="toggle toggle-xs" />
           ${t('load.showAll')} <span id="load-hidden-count" class="opacity-60"></span>
-          ${renderTooltipTrigger(showAllTooltip(realtime), '<span class="opacity-60">?</span>')}
+          ${renderTooltipTrigger(t('load.showAllTip'), '<span class="opacity-60">?</span>')}
         </label>
       </div>
       <div id="load-results" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden"></div>
@@ -768,7 +756,7 @@ export async function showLoadModal(
         className: 'btn-primary',
         onClick: () => {
           const sel = readForm();
-          if (describeBadUrl() || !isComplete(sel, realtime)) {
+          if (describeBadUrl() || !isComplete(sel)) {
             return true;
           }
           result = { kind: 'selection', selection: sel };
@@ -836,8 +824,7 @@ export async function showLoadModal(
         if (rtLabelEl) {
           rtLabelEl.textContent = `— ${rtLabel}`;
         }
-        const problem =
-          describeBadUrl() || describeMissing(readForm(), realtime);
+        const problem = describeBadUrl() || describeMissing(readForm());
         loadBtn.disabled = problem !== '';
         hintEl.textContent = problem;
       };
@@ -1045,10 +1032,9 @@ export async function showLoadModal(
         if (!row) {
           return;
         }
-        // A row that alone makes a complete selection loads; one that fills
-        // only half (realtime without a schedule) waits for the other half.
+        // A row with a schedule loads; a realtime-only row waits for one.
         const sel = rowSelection(row, realtime);
-        if (isComplete(sel, realtime)) {
+        if (isComplete(sel)) {
           result = { kind: 'selection', selection: sel };
           close();
           return;
@@ -1071,7 +1057,7 @@ export async function showLoadModal(
           }
           revalidate();
           const sel = readForm();
-          if (describeBadUrl() || !isComplete(sel, realtime)) {
+          if (describeBadUrl() || !isComplete(sel)) {
             return;
           }
           result = { kind: 'selection', selection: sel };

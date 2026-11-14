@@ -37,6 +37,13 @@ export const fr: Translation<typeof en> = {
 
   'progress.processing': 'Traitement...',
   'progress.cancelling': 'Annulation...',
+  'load.chooseScheduled': 'Choisissez un flux théorique',
+  'progress.restoring': 'Restauration de {label} depuis la copie enregistrée…',
+  'cache.storeFailed':
+    "Le flux est chargé, mais n'a pas pu être enregistré dans ce navigateur ; il sera de nouveau analysé la prochaine fois - {reason}",
+  'cache.quota': 'le stockage du navigateur est plein',
+  'cache.missing':
+    "La copie enregistrée de {name} n'est plus dans ce navigateur",
 
   'search.failed': 'La recherche a échoué, voir la console',
   'search.noFeedResults':
@@ -105,9 +112,7 @@ export const fr: Translation<typeof en> = {
     'Saisissez ou collez vos propres URL théoriques et temps réel ci-dessous',
   'load.customScheduled':
     'Saisissez ou collez votre propre URL de flux ci-dessous',
-  'load.showAllTipRealtime':
-    "Les flux du catalogue sont listés quand un horaire théorique et au moins un point d'accès temps réel ont répondu au dernier contrôle quotidien. Tout afficher liste aussi les autres ; certains hôtes refusent un contrôle direct mais répondent via le proxy CORS.",
-  'load.showAllTipScheduled':
+  'load.showAllTip':
     'Les flux du catalogue sont listés quand un horaire théorique a répondu au dernier contrôle quotidien. Tout afficher liste aussi les autres ; certains hôtes refusent un contrôle direct mais répondent via le proxy CORS.',
   'load.corsTip':
     "Fait passer les requêtes par cors.gtfs.zone quand le serveur du flux n'envoie pas d'en-têtes CORS.",

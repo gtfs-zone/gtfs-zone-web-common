@@ -34,9 +34,18 @@ import { describeHttpError, describeNetworkError } from '../feed-selection';
 
 /**
  * Where the feed comes from. A URL may name a nested zip (`a.zip#b.zip`);
- * `base` names a base file saved earlier with `saveBase`.
+ * `base` names a base file saved earlier with `saveBase`. A URL with `reuse`
+ * restores that base instead of parsing when the response's validators match.
  */
-export type StoreInput = { url: string } | { file: File } | { base: string };
+export type StoreInput =
+  { url: string; reuse?: ReusableBase } | { file: File } | { base: string };
+
+/** A saved base of a URL, and the validators it was downloaded with. */
+export interface ReusableBase {
+  base: string;
+  lastModified: string | null;
+  etag: string | null;
+}
 
 export interface LoadOptions extends StoreOptions {
   /** Trim leading/trailing whitespace from values (default true). */
@@ -69,6 +78,8 @@ export interface Loaded {
   stopTimesMode: FeedStore['stopTimesMode'];
   /** The response's validators for a URL load; null otherwise. */
   source: SourceValidators | null;
+  /** The store came from a saved base, not from parsing the zip. */
+  restored: boolean;
 }
 
 /** HTTP validators of a downloaded feed, as the server sent them. */
@@ -256,12 +267,18 @@ const post = (msg: WorkerReply, transfer: Transferable[] = []): void =>
 
 const PROGRESS_INTERVAL_MS = 100;
 
-async function openSource(input: { url: string } | { file: File }): Promise<{
+interface OpenedSource {
   stream: ReadableStream<Uint8Array>;
   total: number | null;
   innerPaths: string[];
   validators: SourceValidators | null;
-}> {
+  /** The body was cancelled, so the stream cannot be read. */
+  consumed?: boolean;
+}
+
+async function openSource(
+  input: { url: string } | { file: File }
+): Promise<OpenedSource> {
   if ('file' in input) {
     return {
       stream: input.file.stream(),
@@ -301,23 +318,41 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
   let s: FeedStore;
   let result: StreamResult;
   let source: SourceValidators | null = null;
+  let restored = false;
   if ('base' in input) {
     post({
       type: 'progress',
       progress: { stage: 'restore', bytes: 0, total: null },
     });
     ({ store: s, stream: result } = await loadBaseFile(input.base));
+    restored = true;
   } else {
-    s = new FeedStore(options);
-    ({ result, source } = await parseInto(s, input, options));
-    console.log(
-      `[StoreWorker] parsed in ${Math.round(performance.now() - t0)}ms`
-    );
-    post({
-      type: 'progress',
-      progress: { stage: 'index', bytes: 0, total: null },
-    });
-    s.finish();
+    let opened = await openSource(input);
+    const reuse = 'reuse' in input ? input.reuse : undefined;
+    const fromBase =
+      reuse && validatorsMatch(reuse, opened.validators)
+        ? await restoreInstead(opened, reuse.base)
+        : null;
+    if (fromBase) {
+      ({ store: s, stream: result } = fromBase);
+      source = opened.validators;
+      restored = true;
+    } else {
+      if (opened.consumed) {
+        // The body was cancelled for a restore that failed; fetch it again.
+        opened = await openSource(input);
+      }
+      s = new FeedStore(options);
+      ({ result, source } = await parseInto(s, input, opened, options));
+      console.log(
+        `[StoreWorker] parsed in ${Math.round(performance.now() - t0)}ms`
+      );
+      post({
+        type: 'progress',
+        progress: { stage: 'index', bytes: 0, total: null },
+      });
+      s.finish();
+    }
   }
   const m = options.mirror ?? [];
   if (Array.isArray(m)) {
@@ -348,17 +383,62 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
       mirror,
       stopTimesMode: s.stopTimesMode,
       source,
+      restored,
     },
   });
+}
+
+/**
+ * True when the response is the version the base was saved from: the same
+ * ETag, or with no ETag on either side, the same Last-Modified. A response
+ * with neither never matches.
+ */
+function validatorsMatch(
+  reuse: ReusableBase,
+  now: SourceValidators | null
+): boolean {
+  if (!now) {
+    return false;
+  }
+  if (reuse.etag && now.etag) {
+    return reuse.etag === now.etag;
+  }
+  return Boolean(reuse.lastModified && reuse.lastModified === now.lastModified);
+}
+
+/**
+ * Cancel the download and restore `base`. Resolves null when the base cannot
+ * be read (deleted, or written by another version), so the caller parses.
+ */
+async function restoreInstead(
+  opened: OpenedSource,
+  base: string
+): Promise<{ store: FeedStore; stream: StreamResult } | null> {
+  opened.consumed = true;
+  await opened.stream
+    .cancel()
+    .catch((e: unknown) => console.warn('[StoreWorker] cancel failed', e));
+  console.log(`[StoreWorker] source unchanged; restoring ${base}`);
+  post({
+    type: 'progress',
+    progress: { stage: 'restore', bytes: 0, total: null },
+  });
+  try {
+    return await loadBaseFile(base);
+  } catch (err) {
+    console.warn(`[StoreWorker] restoring ${base} failed; parsing`, err);
+    return null;
+  }
 }
 
 /** Stream a zip into `s`, posting read progress. */
 async function parseInto(
   s: FeedStore,
   input: { url: string } | { file: File },
+  opened: OpenedSource,
   options: LoadOptions
 ): Promise<{ result: StreamResult; source: SourceValidators | null }> {
-  const { stream, total, innerPaths, validators } = await openSource(input);
+  const { stream, total, innerPaths, validators } = opened;
   console.log(
     `[StoreWorker] reading ${'file' in input ? input.file.name : input.url}`
   );

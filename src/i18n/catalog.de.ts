@@ -37,6 +37,14 @@ export const de: Translation<typeof en> = {
 
   'progress.processing': 'Wird verarbeitet...',
   'progress.cancelling': 'Wird abgebrochen...',
+  'load.chooseScheduled': 'Wählen Sie einen Fahrplan-Feed',
+  'progress.restoring':
+    '{label} wird aus der gespeicherten Kopie wiederhergestellt…',
+  'cache.storeFailed':
+    'Der Feed wurde geladen, konnte aber nicht in diesem Browser gespeichert werden und wird beim nächsten Mal erneut eingelesen - {reason}',
+  'cache.quota': 'der Browserspeicher ist voll',
+  'cache.missing':
+    'Die gespeicherte Kopie von {name} ist nicht mehr in diesem Browser',
 
   'search.failed': 'Suche fehlgeschlagen, siehe Konsole',
   'search.noFeedResults': 'Keine Treffer im Feed. Ortssuche nicht verfügbar',
@@ -104,9 +112,7 @@ export const de: Translation<typeof en> = {
     'Geben Sie unten Ihre eigenen Fahrplan- und Echtzeit-URLs ein oder fügen Sie sie ein',
   'load.customScheduled':
     'Geben Sie unten Ihre eigene Feed-URL ein oder fügen Sie sie ein',
-  'load.showAllTipRealtime':
-    'Katalog-Feeds werden angezeigt, wenn ein Fahrplan und mindestens ein Echtzeit-Endpunkt bei der letzten täglichen Prüfung geantwortet haben. Alle anzeigen listet auch die übrigen; manche Server lehnen eine direkte Prüfung ab, antworten aber über den CORS-Proxy.',
-  'load.showAllTipScheduled':
+  'load.showAllTip':
     'Katalog-Feeds werden angezeigt, wenn ein Fahrplan bei der letzten täglichen Prüfung geantwortet hat. Alle anzeigen listet auch die übrigen; manche Server lehnen eine direkte Prüfung ab, antworten aber über den CORS-Proxy.',
   'load.corsTip':
     'Leitet Anfragen über cors.gtfs.zone, wenn der Feed-Server keine CORS-Header sendet.',
