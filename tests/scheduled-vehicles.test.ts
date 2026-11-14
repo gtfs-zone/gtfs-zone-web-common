@@ -45,9 +45,62 @@ const FEED: Record<string, string> = {
     'trip_id,start_time,end_time,headway_secs\nF1,06:00:00,07:00:00,1800\n',
 };
 
-async function load(): Promise<FeedStore> {
+// An L-shaped shape (east, then north), a loop out and back, the L with
+// shape_dist_traveled, and a shape far from its stops.
+const SHAPED: Record<string, string> = {
+  'stops.txt': [
+    'stop_id,stop_name,stop_lat,stop_lon',
+    'A,A,0,0',
+    'D,D,0.01,0.01',
+    'X,X,0,0.02',
+    'M,M,0.003,0.005',
+    'F,F,0.1,0.1',
+  ].join('\n'),
+  'routes.txt': 'route_id,route_type\nR,3\n',
+  'trips.txt': [
+    'route_id,service_id,trip_id,shape_id',
+    'R,WK,L1,L',
+    'R,WK,O1,O',
+    'R,WK,S1,SD',
+    'R,WK,N1,L',
+    'R,WK,F1,L',
+  ].join('\n'),
+  'stop_times.txt': [
+    'trip_id,arrival_time,departure_time,stop_id,stop_sequence,shape_dist_traveled',
+    'L1,08:00:00,08:00:00,A,1,',
+    'L1,08:10:00,08:10:00,D,2,',
+    'O1,09:00:00,09:00:00,A,1,',
+    'O1,09:10:00,09:10:00,X,2,',
+    'O1,09:20:00,09:20:00,A,3,',
+    'S1,10:00:00,10:00:00,A,1,0',
+    'S1,10:10:00,10:10:00,M,2,15',
+    'S1,10:20:00,10:20:00,D,3,20',
+    'N1,11:00:00,11:00:00,A,1,',
+    'N1,11:10:00,11:10:00,D,2,',
+    'F1,12:00:00,12:00:00,A,1,',
+    'F1,12:10:00,12:10:00,F,2,',
+  ].join('\n'),
+  'shapes.txt': [
+    'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled',
+    'L,0,0,1,',
+    'L,0,0.01,2,',
+    'L,0.01,0.01,3,',
+    'O,0,0,1,',
+    'O,0,0.02,2,',
+    'O,0,0,3,',
+    'SD,0,0,1,0',
+    'SD,0,0.01,2,10',
+    'SD,0.01,0.01,3,20',
+  ].join('\n'),
+  'calendar.txt': [
+    'service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date',
+    'WK,1,1,1,1,1,0,0,20260101,20261231',
+  ].join('\n'),
+};
+
+async function load(feed = FEED): Promise<FeedStore> {
   const bytes = zipSync(
-    Object.fromEntries(Object.entries(FEED).map(([k, v]) => [k, strToU8(v)]))
+    Object.fromEntries(Object.entries(feed).map(([k, v]) => [k, strToU8(v)]))
   );
   const store = new FeedStore();
   await streamGtfsZip(new Blob([bytes]).stream(), store.sinkFor);
@@ -56,8 +109,8 @@ async function load(): Promise<FeedStore> {
 }
 
 const sec = (h: number, m: number) => h * 3600 + m * 60;
-const near = (a: number, b: number) =>
-  assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+const near = (a: number, b: number, eps = 1e-9) =>
+  assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
 describe('scheduledVehicles', () => {
   it('interpolates an untimed stop by shape_dist_traveled', async () => {
@@ -171,5 +224,54 @@ describe('scheduledVehicles', () => {
     const [v] = scheduledVehicles(store, w).vehicles;
     assert.equal(v.tripId, 'T1');
     near(v.lon, 0.005);
+  });
+});
+
+describe('scheduledVehicles along the shape', () => {
+  const at = async (h: number, m: number, sec = 0) => {
+    const store = await load(SHAPED);
+    const r = scheduledVehicles(store, [
+      { date: '20261109', seconds: h * 3600 + m * 60 + sec },
+    ]);
+    assert.equal(r.vehicles.length, 1);
+    return r.vehicles[0];
+  };
+
+  it('follows a projected shape around a corner', async () => {
+    const east = await at(8, 2, 30);
+    near(east.lon, 0.005, 1e-6);
+    near(east.lat, 0, 1e-6);
+    near(east.bearing!, 90, 1e-6);
+    const north = await at(8, 7, 30);
+    near(north.lon, 0.01, 1e-6);
+    near(north.lat, 0.005, 1e-6);
+    near(north.bearing!, 0, 1e-6);
+    const end = await at(8, 10);
+    assert.equal(end.status, 1);
+    assert.equal(end.bearing, undefined);
+  });
+
+  it('keeps a loop in stop order', async () => {
+    const back = await at(9, 15);
+    assert.equal(back.stopId, 'A');
+    assert.equal(back.stopSequence, '3');
+    near(back.lon, 0.01, 1e-6);
+    near(back.bearing!, 270, 1e-6);
+  });
+
+  it('places stops by shape_dist_traveled', async () => {
+    // M is at 15 of 20, halfway up the north leg, though it sits nearer the
+    // east leg.
+    const m = await at(10, 10);
+    assert.equal(m.stopId, 'M');
+    assert.equal(m.status, 1);
+    near(m.lon, 0.01, 1e-6);
+    near(m.lat, 0.005, 1e-6);
+  });
+
+  it('falls back to the stop-to-stop line far from the shape', async () => {
+    const v = await at(12, 5);
+    near(v.lon, 0.05);
+    near(v.lat, 0.05);
   });
 });

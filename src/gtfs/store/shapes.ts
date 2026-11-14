@@ -278,6 +278,21 @@ export class ShapeTable {
     return out;
   }
 
+  /** shape_dist_traveled of one shape's points, sorted by shape_pt_sequence. */
+  dists(shapeId: string): Float64Array {
+    const [a, b] = this.range(shapeId);
+    const col = this.data.get('shape_dist_traveled');
+    const order = this.orderedRows(a, b);
+    const out = new Float64Array(order.length);
+    if (!col) {
+      return out.fill(NaN);
+    }
+    for (let i = 0; i < order.length; i++) {
+      out[i] = col.num(order[i]);
+    }
+    return out;
+  }
+
   private orderedRows(a: number, b: number): number[] {
     const rows: number[] = [];
     for (let r = a; r < b; r++) {

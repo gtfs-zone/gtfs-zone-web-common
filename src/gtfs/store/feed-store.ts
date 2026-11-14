@@ -799,6 +799,19 @@ export class FeedStore {
     return this.shapes?.coords(shapeId) ?? new Float64Array(0);
   }
 
+  /** shape_dist_traveled of a shape's points, in shapeCoords order; NaN when empty. */
+  shapeDists(shapeId: string): Float64Array {
+    this.ready();
+    const o = this.shapeOverrides.get(shapeId);
+    if (o) {
+      return Float64Array.from(o, (r) => {
+        const v = r.shape_dist_traveled ?? '';
+        return v.trim() === '' ? NaN : Number(v);
+      });
+    }
+    return this.shapes?.dists(shapeId) ?? new Float64Array(0);
+  }
+
   setShape(shapeId: string, rows: Row[]): void {
     this.ready();
     for (const r of rows) {

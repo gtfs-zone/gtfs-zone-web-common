@@ -5,7 +5,9 @@
  * frequencies expanded into instances) are indexed once as
  * [first departure, last arrival], sorted by start. A query takes the runs
  * covering a second and places each one by time: at a stop between its
- * arrival and departure, otherwise on the straight line between two stops.
+ * arrival and departure, otherwise between two stops along the trip's shape
+ * (see `along-shape.ts`), or on the straight line between them when the
+ * trip has no usable shape.
  *
  * Built lazily per store and rebuilt when the store is edited.
  */
@@ -13,6 +15,14 @@
 import type { FeedStore } from './feed-store';
 import { clockSeconds } from './columns';
 import type { TripTimes } from './patterns';
+import {
+  bearingOf,
+  metres,
+  pointAt,
+  shapeLine,
+  stopDistances,
+  type ShapeLine,
+} from './along-shape';
 
 /** A service date and the seconds since its service day start (noon - 12h). */
 export interface ServiceWindow {
@@ -50,12 +60,16 @@ const SCHEDULED_VEHICLE_CAP = 5000;
 /** Dates kept indexed; a tick only touches today and yesterday. */
 const DAY_CACHE = 4;
 
+/** Shape points kept decoded across ticks, least recently used dropped first. */
+const SHAPE_CACHE_POINTS = 4_000_000;
+
 interface Run {
   start: number;
   end: number;
   tripId: string;
   routeId: string;
   directionId: string;
+  shapeId: string;
   /** Seconds added to the trip's times (frequency instances; 0 otherwise). */
   offset: number;
   startTime?: string;
@@ -98,6 +112,13 @@ class Simulator {
   private stopPos = new Map<string, [number, number]>();
   private calendar: CalendarRow[] = [];
   private frequencies = new Map<string, Frequency[]>();
+  private lines = new Map<string, ShapeLine | null>();
+  private linePoints = 0;
+  /** Stop metres along the shape per stop list + shape; null for straight lines. */
+  private tracks = new Map<string, Float64Array | null>();
+  /** Stop lists placed since the last log: how, and why not along the shape. */
+  private placed = new Map<string, number>();
+  private fallbacks = new Map<string, number>();
 
   constructor(private store: FeedStore) {
     this.editCount = store.editCount;
@@ -214,8 +235,8 @@ class Simulator {
     let untimed = 0;
     this.store.scan(
       'trips',
-      ['trip_id', 'service_id', 'route_id', 'direction_id'],
-      ([tripId, serviceId, routeId, directionId]) => {
+      ['trip_id', 'service_id', 'route_id', 'direction_id', 'shape_id'],
+      ([tripId, serviceId, routeId, directionId, shapeId]) => {
         if (!services.has(serviceId)) {
           return;
         }
@@ -241,6 +262,7 @@ class Simulator {
             tripId,
             routeId,
             directionId,
+            shapeId,
             offset: 0,
           });
           return;
@@ -253,6 +275,7 @@ class Simulator {
               tripId,
               routeId,
               directionId,
+              shapeId,
               offset: s - first,
               startTime: formatClock(s),
             });
@@ -326,7 +349,81 @@ class Simulator {
         `[ScheduledVehicles] ${found.length} runs, capped to ${cap}`
       );
     }
+    for (const [by, n] of this.placed) {
+      console.log(`[ScheduledVehicles] ${n} stop lists placed by ${by}`);
+    }
+    for (const [reason, n] of this.fallbacks) {
+      console.warn(
+        `[ScheduledVehicles] ${n} stop lists drawn stop to stop: ${reason}`
+      );
+    }
+    this.placed.clear();
+    this.fallbacks.clear();
     return { vehicles, running: found.length };
+  }
+
+  /** A shape's polyline, decoded once and kept while it fits the cache. */
+  private line(shapeId: string): ShapeLine | null {
+    if (this.lines.has(shapeId)) {
+      const cached = this.lines.get(shapeId)!;
+      this.lines.delete(shapeId);
+      this.lines.set(shapeId, cached);
+      return cached;
+    }
+    const line = shapeLine(this.store.shapeCoords(shapeId));
+    this.lines.set(shapeId, line);
+    this.linePoints += line?.m.length ?? 0;
+    for (const [id, l] of this.lines) {
+      if (this.linePoints <= SHAPE_CACHE_POINTS || id === shapeId) {
+        break;
+      }
+      this.lines.delete(id);
+      this.linePoints -= l?.m.length ?? 0;
+    }
+    return line;
+  }
+
+  /**
+   * Metres along the shape of each of the trip's stops, cached per stop
+   * list and shape. Null when the trip is drawn stop to stop.
+   */
+  private track(
+    run: Run,
+    tt: TripTimes,
+    pos: ([number, number] | null)[]
+  ): Float64Array | null {
+    if (!run.shapeId) {
+      return null;
+    }
+    const key = `${this.store.stopListKey(run.tripId)}\n${run.shapeId}`;
+    if (this.tracks.has(key)) {
+      return this.tracks.get(key)!;
+    }
+    // Read with shape_dist_traveled, which the cached line leaves out.
+    const line = shapeLine(
+      this.store.shapeCoords(run.shapeId),
+      this.store.shapeDists(run.shapeId)
+    );
+    let along: Float64Array | null = null;
+    if (!line) {
+      this.fallback('shape_id with fewer than two points in shapes.txt');
+    } else {
+      const r = stopDistances(line, tt.dist, pos);
+      if (r.along) {
+        along = r.along;
+        const by =
+          r.by === 'dist' ? 'shape_dist_traveled' : 'projection onto the shape';
+        this.placed.set(by, (this.placed.get(by) ?? 0) + 1);
+      } else {
+        this.fallback(r.reason);
+      }
+    }
+    this.tracks.set(key, along);
+    return along;
+  }
+
+  private fallback(reason: string): void {
+    this.fallbacks.set(reason, (this.fallbacks.get(reason) ?? 0) + 1);
   }
 
   /** The run's position at second `t` of its trip's own times. */
@@ -340,11 +437,14 @@ class Simulator {
       return null;
     }
     const pos = tt.stopIds.map((id) => this.stopPos.get(id) ?? null);
-    fillTimes(tt, pos);
-    // Only stops with coordinates and times can carry the vehicle.
+    const along = this.track(run, tt, pos);
+    const line = along ? this.line(run.shapeId) : null;
+    fillTimes(tt, pos, along);
+    // Only stops with times and a place (on the shape, else coordinates)
+    // can carry the vehicle.
     const rows: number[] = [];
     for (let i = 0; i < pos.length; i++) {
-      if (pos[i] && Number.isFinite(tt.arr[i])) {
+      if ((line || pos[i]) && Number.isFinite(tt.arr[i])) {
         rows.push(i);
       }
     }
@@ -363,36 +463,52 @@ class Simulator {
       i: number,
       status: 1 | 2,
       lonLat: [number, number],
-      toward: number | undefined
+      bearing: number | undefined
     ): ScheduledVehicle => ({
       ...base,
       lon: lonLat[0],
       lat: lonLat[1],
-      bearing:
-        toward === undefined ? undefined : bearingOf(lonLat, pos[toward]!),
+      bearing,
       stopId: tt.stopIds[i],
       stopSequence: tt.stopSequences[i],
       status,
     });
     for (let k = 0; k < rows.length; k++) {
       const i = rows[k];
-      if (k < rows.length - 1 && t > tt.dep[i]) {
+      const last = k === rows.length - 1;
+      if (!last && t > tt.dep[i]) {
         continue;
       }
       if (k === 0 || t >= tt.arr[i]) {
-        return vehicle(i, 1, pos[i]!, rows[k + 1]);
+        // At the stop, facing the next one; no bearing at the last stop.
+        if (line) {
+          const p = pointAt(line, along![i]);
+          return vehicle(i, 1, p.lonLat, last ? undefined : p.bearing);
+        }
+        const next = rows[k + 1];
+        return vehicle(
+          i,
+          1,
+          pos[i]!,
+          last ? undefined : bearingOf(pos[i]!, pos[next]!)
+        );
       }
       // Between the previous stop's departure and this stop's arrival.
       const h = rows[k - 1];
       const span = tt.arr[i] - tt.dep[h];
       const f = span > 0 ? clamp((t - tt.dep[h]) / span) : 1;
+      const arrived = f >= 1 && last;
+      if (line) {
+        const p = pointAt(line, along![h] + (along![i] - along![h]) * f);
+        return vehicle(i, 2, p.lonLat, arrived ? undefined : p.bearing);
+      }
       const a = pos[h]!;
       const b = pos[i]!;
       const at: [number, number] = [
         a[0] + (b[0] - a[0]) * f,
         a[1] + (b[1] - a[1]) * f,
       ];
-      return vehicle(i, 2, at, f < 1 ? i : undefined);
+      return vehicle(i, 2, at, f < 1 ? bearingOf(at, b) : undefined);
     }
     return null;
   }
@@ -435,10 +551,15 @@ function formatClock(s: number): string {
 /**
  * Fill empty times in place: a lone arrival or departure stands for both,
  * and stops with neither are interpolated between the known stops around
- * them, by shape_dist_traveled when every stop in the gap has it, else by
+ * them, by metres along the shape when the trip has a track, else by
+ * shape_dist_traveled when every stop in the gap has it, else by
  * straight-line distance, else evenly.
  */
-function fillTimes(tt: TripTimes, pos: ([number, number] | null)[]): void {
+function fillTimes(
+  tt: TripTimes,
+  pos: ([number, number] | null)[],
+  along: Float64Array | null
+): void {
   const { arr, dep, dist } = tt;
   const n = arr.length;
   for (let i = 0; i < n; i++) {
@@ -454,10 +575,10 @@ function fillTimes(tt: TripTimes, pos: ([number, number] | null)[]): void {
       continue;
     }
     if (prev >= 0 && i - prev > 1) {
-      const along = gapDistances(prev, i, dist, pos);
-      const total = along[along.length - 1];
+      const gap = gapDistances(prev, i, along ?? dist, pos);
+      const total = gap[gap.length - 1];
       for (let k = prev + 1; k < i; k++) {
-        const f = total > 0 ? along[k - prev] / total : (k - prev) / (i - prev);
+        const f = total > 0 ? gap[k - prev] / total : (k - prev) / (i - prev);
         arr[k] = dep[k] = dep[prev] + (arr[i] - dep[prev]) * f;
       }
     }
@@ -497,25 +618,4 @@ function gapDistances(
     out.push(sum);
   }
   return out;
-}
-
-const RAD = Math.PI / 180;
-
-/** Haversine distance in metres between two [lon, lat] points. */
-function metres(a: [number, number], b: [number, number]): number {
-  const dLat = (b[1] - a[1]) * RAD;
-  const dLon = (b[0] - a[0]) * RAD;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(a[1] * RAD) * Math.cos(b[1] * RAD) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
-}
-
-/** Initial bearing from `a` to `b`, degrees clockwise from north. */
-function bearingOf(a: [number, number], b: [number, number]): number {
-  const y = Math.sin((b[0] - a[0]) * RAD) * Math.cos(b[1] * RAD);
-  const x =
-    Math.cos(a[1] * RAD) * Math.sin(b[1] * RAD) -
-    Math.sin(a[1] * RAD) * Math.cos(b[1] * RAD) * Math.cos((b[0] - a[0]) * RAD);
-  return (Math.atan2(y, x) / RAD + 360) % 360;
 }
