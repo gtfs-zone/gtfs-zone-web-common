@@ -16,6 +16,14 @@
  * are otherwise indistinguishable, and it is worth knowing what you are about
  * to fetch before you fetch it.
  *
+ * `options.library` is the feeds this browser already stores ("Your feeds"),
+ * listed first: picking one restores it, and a stored feed whose catalog
+ * entry was republished since its import gets an update button.
+ *
+ * Catalog rows load in one click when they fill a complete selection; a row
+ * that fills only half of one (realtime without a schedule) fills the fields
+ * instead.
+ *
  * `options.notice` and `options.linkedWith` are the failure half of the same
  * idea: when a link named a feed and it could not be loaded, the modal opens
  * holding that link's URLs, says why, and offers one click to try again through
@@ -45,11 +53,11 @@ import type { FeedSelection } from '../gtfs/feed-selection';
 import { describeMissing, isComplete } from '../gtfs/feed-selection';
 import { normalizeFeedUrl, validateFeedUrl } from '../gtfs/feed-url-resolve';
 import type { ModalAction } from './modal-utils';
-import { renderUploadIcon, showModal } from './modal-utils';
+import { renderTrashIcon, renderUploadIcon, showModal } from './modal-utils';
 import { renderTooltipTrigger } from './field-label';
 import { SELECTED_ROW_CLASS } from './selectable-row';
 import { t } from '../i18n/messages';
-import { formatNumber } from '../i18n/fmt';
+import { formatDate, formatNumber } from '../i18n/fmt';
 
 function creditLink(href: string, label: string): string {
   return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="link">${label}</a>`;
@@ -81,8 +89,10 @@ interface FeedRow {
   feed: CatalogFeed;
   /** Which slots a click fills. */
   provides: 'pair' | 'scheduled' | 'rt';
-  /** Escaped HTML. */
+  /** Escaped HTML: the feed's subtitle and place. */
   subtitle: string;
+  /** Escaped HTML: size and last-updated date. */
+  meta: string;
   scheduledUrl?: string;
   vehiclesUrl?: string;
   tripUpdatesUrl?: string;
@@ -93,14 +103,32 @@ interface FeedRow {
   valid: boolean;
 }
 
-/** What the stored feed is, for the boot screen's continue card. */
-export interface ContinueOffer {
+/** One feed this browser stores, as a row under "Your feeds". */
+export interface StoredFeedOffer {
+  id: string;
   name: string;
-  routes: number;
-  stops: number;
-  trips: number;
-  /** Omitted by apps that do not edit; the card drops the count entirely. */
+  routes?: number;
+  stops?: number;
+  trips?: number;
+  /** Omitted by apps that do not edit; the row drops the count entirely. */
   edits?: number;
+  /** Size on disk. */
+  bytes?: number;
+  /** Epoch ms. */
+  lastOpened?: number;
+  /** The feed currently open in the app. */
+  active?: boolean;
+  /** The schedule URL it was loaded from, unproxied; matched to the catalog. */
+  sourceUrl?: string;
+  /** The schedule's Last-Modified when it was loaded, YYYY-MM-DD. */
+  sourceModified?: string;
+}
+
+/** "Your feeds": the stored feeds and how to delete one. */
+export interface FeedLibrary {
+  feeds: StoredFeedOffer[];
+  /** Delete a stored feed. The modal has already asked for confirmation. */
+  onDelete(id: string): Promise<void>;
 }
 
 /**
@@ -122,26 +150,23 @@ export interface LinkedOffer {
 }
 
 /**
- * What the modal closed with. `continue` means the user picked the continue
- * card, so the caller restores the feed already in IndexedDB rather than
- * loading anything; `selection` carries what the form was filled with. A
- * discriminated union rather than a sentinel selection, so no caller has to
- * distinguish the two by identity.
+ * What the modal closed with: `stored` restores a feed from "Your feeds",
+ * `update` loads a newer version of stored feed `id` from the catalog, and
+ * `selection` carries what the form or a catalog row was filled with.
  */
 export type LoadModalResult =
-  { kind: 'continue' } | { kind: 'selection'; selection: FeedSelection } | null;
+  | { kind: 'stored'; id: string }
+  | { kind: 'update'; id: string; selection: FeedSelection }
+  | { kind: 'selection'; selection: FeedSelection }
+  | null;
 
 export interface LoadModalOptions {
   /** Show the realtime section and require an RT endpoint. Default true. */
   realtime?: boolean;
   /** Extra buttons in the action bar, e.g. "New Empty Feed". */
   extraActions?: ModalAction[];
-  /**
-   * Offer the stored feed as the first card. Only boot passes this: reopening
-   * the modal from inside a feed is how that feed's URL is edited, and
-   * "continue with what is already open" means nothing there.
-   */
-  continueWith?: ContinueOffer;
+  /** The stored feeds, listed first as "Your feeds". */
+  library?: FeedLibrary;
   /**
    * Why the modal is open, when it is open because something failed. Rendered
    * above everything else; absent or empty renders nothing.
@@ -212,13 +237,15 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     feed,
     provides:
       scheduledUrl && hasRt ? 'pair' : scheduledUrl ? 'scheduled' : 'rt',
-    subtitle: [
-      ...[
-        feed.subtitle,
-        placeLine(feed),
-        feed.lastModified ? t('load.updated', { date: feed.lastModified }) : '',
-      ].map((part) => (part ? escHtml(part) : '')),
+    subtitle: [feed.subtitle, placeLine(feed)]
+      .filter(Boolean)
+      .map((part) => escHtml(part as string))
+      .join(' - '),
+    meta: [
       feed.staticBytes ? sizeHtml(feed.staticBytes) : '',
+      feed.lastModified
+        ? escHtml(t('load.updated', { date: feed.lastModified }))
+        : '',
     ]
       .filter(Boolean)
       .join(' - '),
@@ -279,6 +306,10 @@ function renderRow(row: FeedRow, selected: boolean, realtime: boolean): string {
     <button type="button" class="w-full text-left px-3 py-2 rounded-lg flex items-start gap-2 ${classes}" data-row-id="${escHtml(row.rowId)}">
       <div class="flex-1 min-w-0">
         <p class="text-sm font-medium truncate">${escHtml(feed.name)}</p>
+        <p class="text-xs flex items-center gap-1.5 min-w-0">
+          ${feedStateBadge(feed.state, feed.since, 'xs', feed.neverUp)}
+          <span class="opacity-70 truncate">${row.meta}</span>
+        </p>
         ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${row.subtitle}</p>` : ''}
         ${urlLine(realtime ? t('load.urlScheduled') : '', row.scheduledUrl)}
         ${realtime ? urlLine('vp', row.vehiclesUrl) : ''}
@@ -287,7 +318,6 @@ function renderRow(row: FeedRow, selected: boolean, realtime: boolean): string {
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
         ${selected ? `<span class="text-xs opacity-60">${t('load.selected')}</span>` : ''}
-        ${feedStateBadge(feed.state, feed.since, 'xs', feed.neverUp)}
         ${realtime ? roleChips(feed) : ''}
       </div>
     </button>`;
@@ -355,21 +385,142 @@ function rtField(id: string, label: string, placeholder: string): string {
     </label>`;
 }
 
-/** The stored feed, as the first thing on the boot screen. */
-function continueCard(offer: ContinueOffer): string {
+/** A stored feed's counts, size and last-opened date, as one line. */
+function storedMeta(offer: StoredFeedOffer): string {
   const counts = [
-    t('load.routes', { count: offer.routes }),
-    t('load.stops', { count: offer.stops }),
-    t('load.trips', { count: offer.trips }),
-    ...(offer.edits === undefined
-      ? []
-      : [t('load.edits', { count: offer.edits })]),
-  ].join(', ');
+    offer.routes === undefined ? '' : t('load.routes', { count: offer.routes }),
+    offer.stops === undefined ? '' : t('load.stops', { count: offer.stops }),
+    offer.trips === undefined ? '' : t('load.trips', { count: offer.trips }),
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return [
+    counts ? escHtml(counts) : '',
+    offer.edits === undefined
+      ? ''
+      : `<span class="${offer.edits > 0 ? 'text-warning' : ''}">${escHtml(t('load.edits', { count: offer.edits }))}</span>`,
+    offer.bytes === undefined ? '' : escHtml(formatBytes(offer.bytes)),
+    offer.lastOpened === undefined
+      ? ''
+      : escHtml(
+          t('load.lastOpened', {
+            date: formatDate(offer.lastOpened, { dateStyle: 'medium' }),
+          })
+        ),
+  ]
+    .filter(Boolean)
+    .join(' - ');
+}
+
+/** One row under "Your feeds"; `newer` is the catalog row of a newer version. */
+function storedRow(offer: StoredFeedOffer, newer: FeedRow | undefined): string {
+  const id = escHtml(offer.id);
+  const border = offer.active ? 'border-primary/40' : 'border-transparent';
   return `
-      <button type="button" id="load-continue" class="shrink-0 w-full text-left rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 p-3">
-        <p class="text-sm font-medium truncate">${escHtml(t('load.continueWith', { name: offer.name }))}</p>
-        <p class="text-xs opacity-60 truncate">${escHtml(counts)}</p>
-      </button>`;
+      <div class="flex items-center gap-1 rounded-lg border ${border} hover:bg-base-200 pr-1">
+        <button type="button" data-stored-id="${id}" class="flex-1 min-w-0 text-left px-3 py-2">
+          <p class="text-sm font-medium flex items-center gap-1.5 min-w-0">
+            <span class="truncate">${escHtml(offer.name)}</span>
+            ${offer.active ? `<span class="badge badge-xs badge-primary shrink-0">${t('load.active')}</span>` : ''}
+            ${newer ? `<span class="badge badge-xs badge-info shrink-0" title="${escHtml(t('load.updated', { date: newer.feed.lastModified ?? '' }))}">${t('load.newer')}</span>` : ''}
+          </p>
+          <p class="text-xs opacity-60 truncate">${storedMeta(offer)}</p>
+        </button>
+        ${newer ? `<button type="button" data-update-id="${id}" class="btn btn-xs btn-info btn-outline shrink-0">${t('load.update')}</button>` : ''}
+        <button type="button" data-delete-id="${id}" class="btn btn-ghost btn-xs btn-square shrink-0" title="${escHtml(t('load.delete'))}" aria-label="${escHtml(t('load.delete'))}">
+          ${renderTrashIcon('h-3.5 w-3.5')}
+        </button>
+      </div>`;
+}
+
+/** "Your feeds", or nothing when no feed is stored. */
+function renderLibrary(
+  feeds: StoredFeedOffer[],
+  newer: Map<string, FeedRow>
+): string {
+  if (feeds.length === 0) {
+    return '';
+  }
+  return `
+      <p class="text-xs uppercase tracking-wide opacity-50 px-3 pb-1">${t('load.yourFeeds')}</p>
+      ${feeds.map((f) => storedRow(f, newer.get(f.id))).join('')}`;
+}
+
+/**
+ * The catalog row of a newer version of each stored feed, by stored id: the
+ * row whose schedule URL is the feed's source URL, with a later Last-Modified.
+ */
+function newerVersions(
+  feeds: StoredFeedOffer[],
+  rows: FeedRow[]
+): Map<string, FeedRow> {
+  const byUrl = new Map<string, FeedRow>();
+  for (const row of rows) {
+    if (row.scheduledUrl && !byUrl.has(row.scheduledUrl)) {
+      byUrl.set(row.scheduledUrl, row);
+    }
+  }
+  const out = new Map<string, FeedRow>();
+  for (const f of feeds) {
+    if (!f.sourceUrl || !f.sourceModified) {
+      continue;
+    }
+    const row = byUrl.get(normalizeFeedUrl(f.sourceUrl));
+    if (row?.feed.lastModified && row.feed.lastModified > f.sourceModified) {
+      out.set(f.id, row);
+    }
+  }
+  return out;
+}
+
+/** What a catalog row fills, as a selection of its own. */
+function rowSelection(row: FeedRow, realtime: boolean): FeedSelection {
+  return {
+    scheduled:
+      row.provides !== 'rt' && row.scheduledUrl
+        ? {
+            kind: 'url',
+            url: row.scheduledUrl,
+            useCors: row.scheduledCors,
+            label: row.feed.name,
+          }
+        : null,
+    realtime:
+      realtime && row.provides !== 'scheduled'
+        ? {
+            vehiclesUrl: row.vehiclesUrl,
+            tripUpdatesUrl: row.tripUpdatesUrl,
+            alertsUrl: row.alertsUrl,
+            useCors: row.rtCors,
+            label: row.feed.name,
+          }
+        : null,
+  };
+}
+
+/** Ask before deleting a stored feed. Resolves true to go ahead. */
+async function confirmDelete(offer: StoredFeedOffer): Promise<boolean> {
+  let ok = false;
+  await showModal({
+    title: escHtml(t('load.deleteTitle', { name: offer.name })),
+    body: `<p class="text-sm">${escHtml(
+      offer.edits
+        ? t('load.deleteBodyEdits', { count: offer.edits })
+        : t('load.deleteBody')
+    )}</p>`,
+    escapeAction: 1,
+    actions: [
+      {
+        label: t('load.delete'),
+        className: 'btn-error',
+        onClick: () => {
+          ok = true;
+        },
+      },
+      { label: t('common.cancel'), onClick: () => {} },
+    ],
+  });
+  return ok;
 }
 
 /** Why the modal is open, when something failed to open the feed instead. */
@@ -465,6 +616,8 @@ export async function showLoadModal(
   let matcher = new FeedMatcher([]);
   let visible: FeedRow[] = [];
   let result: LoadModalResult = null;
+  let library = [...(options.library?.feeds ?? [])];
+  let newer = new Map<string, FeedRow>();
 
   // Slot state that is not held in the DOM: the labels a row click supplies,
   // which row each slot came from, and an uploaded file (which cannot be put
@@ -524,7 +677,7 @@ export async function showLoadModal(
     <div class="flex h-full min-h-0 min-w-0 flex-col gap-3">
       ${options.notice ? noticeBlock(options.notice) : ''}
       ${options.linkedWith ? linkedCard(options.linkedWith) : ''}
-      ${options.continueWith ? continueCard(options.continueWith) : ''}
+      <div id="load-library" class="shrink-0 max-h-56 overflow-y-auto overflow-x-hidden space-y-0.5"></div>
 
       <div class="flex shrink-0 items-center gap-3">
         <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="${escHtml(t('load.searchPlaceholder'))}" autofocus />
@@ -594,7 +747,7 @@ export async function showLoadModal(
 
   await showModal({
     title:
-      options.continueWith || options.linkedWith
+      library.length > 0 || options.linkedWith
         ? t('load.titleOpen')
         : t('load.titleLoad'),
     body,
@@ -626,15 +779,12 @@ export async function showLoadModal(
       ...(options.extraActions ?? []),
     ],
     onMount: (close) => {
-      // The continue card is its own action: it neither reads nor validates the
-      // form, so it closes the modal directly rather than going through one of
-      // the action-bar buttons.
-      document
-        .getElementById('load-continue')
-        ?.addEventListener('click', () => {
-          result = { kind: 'continue' };
-          close();
-        });
+      const libraryEl = document.getElementById('load-library')!;
+      const renderLibraryEl = () => {
+        libraryEl.innerHTML = renderLibrary(library, newer);
+        libraryEl.classList.toggle('hidden', library.length === 0);
+      };
+      renderLibraryEl();
 
       const searchInput = input('load-search');
       const showAllInput = input('load-show-all');
@@ -821,7 +971,64 @@ export async function showLoadModal(
         statusEl.classList.remove('flex');
         matcher = new FeedMatcher(rows.map((r) => r.feed));
         filterAndRender();
+        newer = newerVersions(library, rows);
+        if (newer.size > 0) {
+          console.log(
+            `[LoadModal] newer catalog versions for ${[...newer.keys()].join(', ')}`
+          );
+          renderLibraryEl();
+        }
       })();
+
+      // Stored rows neither read nor validate the form, so they close the
+      // modal directly rather than going through the action bar.
+      libraryEl.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const del = target.closest<HTMLElement>('[data-delete-id]');
+        if (del?.dataset.deleteId) {
+          void deleteStored(del.dataset.deleteId);
+          return;
+        }
+        const upd = target.closest<HTMLElement>('[data-update-id]');
+        const updateId = upd?.dataset.updateId;
+        const row = updateId ? newer.get(updateId) : undefined;
+        if (updateId && row) {
+          console.log(`[LoadModal] update ${updateId} from ${row.feed.feedId}`);
+          result = {
+            kind: 'update',
+            id: updateId,
+            selection: rowSelection(row, realtime),
+          };
+          close();
+          return;
+        }
+        const pick = target.closest<HTMLElement>('[data-stored-id]');
+        if (pick?.dataset.storedId) {
+          result = { kind: 'stored', id: pick.dataset.storedId };
+          close();
+        }
+      });
+
+      const deleteStored = async (id: string) => {
+        const offer = library.find((f) => f.id === id);
+        if (!offer || !options.library || !(await confirmDelete(offer))) {
+          return;
+        }
+        try {
+          await options.library.onDelete(id);
+        } catch (err) {
+          console.error(`[LoadModal] deleting stored feed ${id} failed`, err);
+          notesEl.insertAdjacentHTML(
+            'beforeend',
+            `<p class="text-xs text-error">${escHtml(t('load.deleteFailed', { name: offer.name, reason: reason(err) }))}</p>`
+          );
+          return;
+        }
+        console.log(`[LoadModal] deleted stored feed ${id}`);
+        library = library.filter((f) => f.id !== id);
+        newer.delete(id);
+        renderLibraryEl();
+      };
 
       // Delegated, so re-rendering the list never re-wires handlers.
       resultsEl.addEventListener('click', (e) => {
@@ -834,36 +1041,48 @@ export async function showLoadModal(
           return;
         }
         const btn = target.closest<HTMLElement>('[data-row-id]');
-        if (btn?.dataset.rowId) {
-          applyRow(btn.dataset.rowId);
+        const row = rows.find((r) => r.rowId === btn?.dataset.rowId);
+        if (!row) {
+          return;
         }
+        // A row that alone makes a complete selection loads; one that fills
+        // only half (realtime without a schedule) waits for the other half.
+        const sel = rowSelection(row, realtime);
+        if (isComplete(sel, realtime)) {
+          result = { kind: 'selection', selection: sel };
+          close();
+          return;
+        }
+        applyRow(row.rowId);
       });
 
       const linked = options.linkedWith;
       if (linked) {
-        document
-          .getElementById('load-linked')!
-          .addEventListener('click', () => {
-            applyLinked(linked);
-          });
-        // The retry is the Load button with the proxy boxes ticked first, not a
-        // second way to load: same form, same validation, same result.
-        document
-          .getElementById('load-linked-retry')
-          ?.addEventListener('click', () => {
-            applyLinked(linked);
+        // The card and its retry are the Load button on the link's URLs, the
+        // retry with the proxy boxes ticked first: same form, same validation,
+        // same result. A link that does not validate stays in the fields.
+        const loadLinked = (withCors: boolean) => {
+          applyLinked(linked);
+          if (withCors) {
             input('load-scheduled-cors').checked = true;
             if (realtime) {
               input('load-rt-cors').checked = true;
             }
-            revalidate();
-            const sel = readForm();
-            if (describeBadUrl() || !isComplete(sel, realtime)) {
-              return;
-            }
-            result = { kind: 'selection', selection: sel };
-            close();
-          });
+          }
+          revalidate();
+          const sel = readForm();
+          if (describeBadUrl() || !isComplete(sel, realtime)) {
+            return;
+          }
+          result = { kind: 'selection', selection: sel };
+          close();
+        };
+        document
+          .getElementById('load-linked')!
+          .addEventListener('click', () => loadLinked(false));
+        document
+          .getElementById('load-linked-retry')
+          ?.addEventListener('click', () => loadLinked(true));
       }
 
       input('load-scheduled-url').addEventListener('input', () => {

@@ -67,6 +67,14 @@ export interface Loaded {
   columns: Record<string, string[]>;
   mirror: Record<string, IdRow[]>;
   stopTimesMode: FeedStore['stopTimesMode'];
+  /** The response's validators for a URL load; null otherwise. */
+  source: SourceValidators | null;
+}
+
+/** HTTP validators of a downloaded feed, as the server sent them. */
+export interface SourceValidators {
+  lastModified: string | null;
+  etag: string | null;
 }
 
 /** A mirrored row that changed: `row` is null when it was deleted. */
@@ -252,12 +260,14 @@ async function openSource(input: { url: string } | { file: File }): Promise<{
   stream: ReadableStream<Uint8Array>;
   total: number | null;
   innerPaths: string[];
+  validators: SourceValidators | null;
 }> {
   if ('file' in input) {
     return {
       stream: input.file.stream(),
       total: input.file.size,
       innerPaths: [],
+      validators: null,
     };
   }
   const { url, innerPaths } = splitInnerZipPath(input.url);
@@ -272,7 +282,15 @@ async function openSource(input: { url: string } | { file: File }): Promise<{
     throw new Error(describeHttpError(url, res.status, res.statusText, body));
   }
   const len = res.headers.get('Content-Length');
-  return { stream: res.body, total: len ? Number(len) : null, innerPaths };
+  return {
+    stream: res.body,
+    total: len ? Number(len) : null,
+    innerPaths,
+    validators: {
+      lastModified: res.headers.get('Last-Modified'),
+      etag: res.headers.get('ETag'),
+    },
+  };
 }
 
 async function load(input: StoreInput, options: LoadOptions): Promise<void> {
@@ -282,6 +300,7 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
   const t0 = performance.now();
   let s: FeedStore;
   let result: StreamResult;
+  let source: SourceValidators | null = null;
   if ('base' in input) {
     post({
       type: 'progress',
@@ -290,7 +309,7 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
     ({ store: s, stream: result } = await loadBaseFile(input.base));
   } else {
     s = new FeedStore(options);
-    result = await parseInto(s, input, options);
+    ({ result, source } = await parseInto(s, input, options));
     console.log(
       `[StoreWorker] parsed in ${Math.round(performance.now() - t0)}ms`
     );
@@ -328,6 +347,7 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
       columns,
       mirror,
       stopTimesMode: s.stopTimesMode,
+      source,
     },
   });
 }
@@ -337,8 +357,8 @@ async function parseInto(
   s: FeedStore,
   input: { url: string } | { file: File },
   options: LoadOptions
-): Promise<StreamResult> {
-  const { stream, total, innerPaths } = await openSource(input);
+): Promise<{ result: StreamResult; source: SourceValidators | null }> {
+  const { stream, total, innerPaths, validators } = await openSource(input);
   console.log(
     `[StoreWorker] reading ${'file' in input ? input.file.name : input.url}`
   );
@@ -368,7 +388,7 @@ async function parseInto(
       emit();
     },
   });
-  return result;
+  return { result, source: validators };
 }
 
 /**

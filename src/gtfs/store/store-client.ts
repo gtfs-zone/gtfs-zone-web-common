@@ -35,6 +35,7 @@ export type {
   StoreInput,
   MirrorChange,
   StoreApi,
+  SourceValidators,
 } from './store-worker-core';
 export type {
   FeedSummary,
