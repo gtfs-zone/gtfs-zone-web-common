@@ -1,3 +1,9 @@
+## v5.28.0 (2026-11-14)
+
+### Feat
+
+- **load-modal**: app-provided sections listed above Your feeds
+
 ## v5.27.0 (2026-11-14)
 
 ### Feat
