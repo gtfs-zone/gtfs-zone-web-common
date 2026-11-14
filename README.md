@@ -188,6 +188,10 @@ already, and `ui/lazy-list` observes a region as its scroll root.
   `FeedStoreClient.load({ base: name })` restores it without parsing. Files
   are never overwritten; list, delete, sweep and clear work on any thread.
 
+`util/zip-index.ts` (`readZipIndex`) reads a zip's central directory (name,
+CRC32 and sizes per entry, zip64 included) from a `Uint8Array` or a `Blob`
+without inflating anything; a `Blob` is read by tail slices only.
+
 `gtfs/scheduled.ts` (`GTFSScheduled`) is the realtime apps' view of a store:
 it mirrors stops, routes, agency, calendar and feed_info, plus per-feed
 aggregates (trips per route and per stop, routes per stop, route geometry).
