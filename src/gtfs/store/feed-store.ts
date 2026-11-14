@@ -626,6 +626,12 @@ export class FeedStore {
     }
   }
 
+  /** Trips whose stop_times were replaced by an edit (removed ones included). */
+  editedTripIds(): string[] {
+    this.ready();
+    return [...this.tripOverrides.keys()];
+  }
+
   /** Ids of every trip that has stop_times. */
   tripsWithStopTimes(): string[] {
     this.ready();
@@ -711,6 +717,12 @@ export class FeedStore {
   }
 
   // ---------- shapes ----------
+
+  /** Shapes whose points were replaced by an edit (removed ones included). */
+  editedShapeIds(): string[] {
+    this.ready();
+    return [...this.shapeOverrides.keys()];
+  }
 
   shapeIds(): string[] {
     this.ready();
