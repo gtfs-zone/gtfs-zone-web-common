@@ -52,6 +52,8 @@ export const de: Translation<typeof en> = {
   'search.searchingPlaces': 'Orte werden gesucht...',
   'search.placesUnavailable': 'Ortssuche nicht verfügbar',
   'search.places': 'Orte',
+  'search.stops': 'Haltestellen',
+  'search.routes': 'Linien',
 
   'shortcuts.failed': '{action} fehlgeschlagen: {error}',
   'shortcuts.key.ctrl': 'Strg',

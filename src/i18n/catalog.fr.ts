@@ -52,6 +52,8 @@ export const fr: Translation<typeof en> = {
   'search.searchingPlaces': 'Recherche de lieux...',
   'search.placesUnavailable': 'Recherche de lieux indisponible',
   'search.places': 'Lieux',
+  'search.stops': 'Arrêts',
+  'search.routes': 'Lignes',
 
   'shortcuts.failed': '{action} : échec ({error})',
   'shortcuts.key.shift': 'Maj',

@@ -2,18 +2,19 @@
  * The map search box.
  *
  * Deliberately knows nothing about GTFS, the database, or page state: the app
- * supplies entries through `getEntries()` and receives an opaque payload back
- * through `onSelect()`. That is what lets one implementation serve apps whose
- * data layer and `PageState` union differ.
+ * supplies grouped entries through `getGroups()` and receives an opaque payload
+ * back through `onSelect()`. That is what lets one implementation serve apps
+ * whose data layer and `PageState` union differ.
  *
- * Entries are rebuilt on every (debounced) query, always fresh, no cache to
- * invalidate against the patch system. If typing ever feels laggy on a large
- * feed, the fix is to cache the entry list in the adapter and invalidate it on
- * feed load/reset and on patch writes; nothing in here has to change.
+ * Each group is matched on its own and rendered as a section under its label,
+ * capped at its `limit`, in the order the app returns them. Groups without a
+ * match are hidden. `getGroups()` runs on every (debounced) query, so an app
+ * with a large feed memoizes its groups; the haystacks of an `entries` array
+ * are cached against that array, so a memoized group costs no rebuild here.
  *
  * An app may also supply `getRemoteEntries()`, a server-side search (places,
- * say). Its results are appended under a "Places" heading after the local
- * matches, unfiltered, since the server already matched them.
+ * say). Its results come last under a "Places" heading, unfiltered, since the
+ * server already matched them.
  */
 
 import uFuzzy from '@leeoniya/ufuzzy';
@@ -28,19 +29,32 @@ export interface SearchEntry<T> {
   secondary?: string;
   /** Everything worth matching against, joined with spaces. */
   haystack: string;
-  /** Lower sorts first. Entries without one are treated as 0. */
+  /** Lower sorts first within its group. Entries without one are treated as 0. */
   priority?: number;
 }
 
+/** One section of the results, matched and capped on its own. */
+export interface SearchGroup<T> {
+  /** Section heading. */
+  label: string;
+  /** Kept by identity: the same array reuses its cached haystacks. */
+  entries: readonly SearchEntry<T>[];
+  /** Most matches shown. Defaults to `groupLimit`. */
+  limit?: number;
+}
+
 export interface SearchControllerOptions<T> {
-  getEntries: () => SearchEntry<T>[] | Promise<SearchEntry<T>[]>;
+  getGroups: () => SearchGroup<T>[] | Promise<SearchGroup<T>[]>;
   /** Server-side matches for the query. Aborted when a newer query starts. */
   getRemoteEntries?: (
     query: string,
     signal: AbortSignal
   ) => Promise<SearchEntry<T>[]>;
   onSelect: (payload: T) => void;
-  limit?: number;
+  /** Most matches per group without a `limit`. Defaults to 8. */
+  groupLimit?: number;
+  /** Most remote matches shown. Defaults to 5. */
+  remoteLimit?: number;
   minQueryLength?: number;
   /** Shortest query sent to `getRemoteEntries`. Defaults to 3. */
   remoteMinQueryLength?: number;
@@ -54,6 +68,40 @@ type RemoteState = 'idle' | 'pending' | 'done' | 'error';
 const uf = new uFuzzy({ intraIns: 1 });
 
 const DEBOUNCE_MS = 200;
+
+// Haystack arrays per entries array, so a memoized group is not remapped on
+// every keystroke.
+const haystackCache = new WeakMap<readonly SearchEntry<unknown>[], string[]>();
+
+function haystacksOf<T>(entries: readonly SearchEntry<T>[]): string[] {
+  let haystacks = haystackCache.get(entries);
+  if (!haystacks) {
+    haystacks = entries.map((e) => e.haystack);
+    haystackCache.set(entries, haystacks);
+  }
+  return haystacks;
+}
+
+/** The group's matches, by priority then match quality, capped at `limit`. */
+function matchGroup<T>(
+  entries: readonly SearchEntry<T>[],
+  query: string,
+  limit: number
+): SearchEntry<T>[] {
+  const [idxs, info, order] = uf.search(haystacksOf(entries), query);
+  // `info.idx` maps an info slot back to its haystack index, and `order` is
+  // those slots in rank order, so `info.idx[order[i]]` is the entry index.
+  const ranked = info && order ? order.map((o) => info.idx[o]) : (idxs ?? []);
+  // Stable sort: entries with equal priority keep uFuzzy's quality order.
+  const matches = ranked.map((i) => entries[i]);
+  matches.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  return matches.slice(0, limit);
+}
+
+interface MatchedGroup<T> {
+  label: string;
+  matches: SearchEntry<T>[];
+}
 
 function esc(s: string): string {
   return s
@@ -117,15 +165,15 @@ export class SearchController<T> {
   private opts: SearchControllerOptions<T>;
   private input: HTMLInputElement | null = null;
   private dropdown: HTMLElement | null = null;
-  /** Local then remote matches, in the order the rows are rendered. */
+  /** Every selectable row, in the order rendered: groups, then remote. */
   private matches: SearchEntry<T>[] = [];
-  private localMatches: SearchEntry<T>[] = [];
+  private localGroups: MatchedGroup<T>[] = [];
   private remoteMatches: SearchEntry<T>[] = [];
   private remoteState: RemoteState = 'idle';
   private remoteAbort: AbortController | null = null;
   private activeIndex = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Guards against a slow `getEntries()` overwriting a newer query. */
+  /** Guards against a slow `getGroups()` overwriting a newer query. */
   private requestId = 0;
 
   constructor(opts: SearchControllerOptions<T>) {
@@ -187,9 +235,9 @@ export class SearchController<T> {
       return;
     }
 
-    let entries: SearchEntry<T>[];
+    let groups: SearchGroup<T>[];
     try {
-      entries = await this.opts.getEntries();
+      groups = await this.opts.getGroups();
     } catch (error) {
       console.error('[Search] Failed to build entries:', error);
       this.renderMessage(t('search.failed'));
@@ -199,18 +247,13 @@ export class SearchController<T> {
       return; // a newer query is already in flight
     }
 
-    const [idxs, info, order] = uf.search(
-      entries.map((e) => e.haystack),
-      query
-    );
-    // `info.idx` maps an info slot back to its haystack index, and `order` is
-    // those slots in rank order, so `info.idx[order[i]]` is the entry index.
-    const ranked = info && order ? order.map((o) => info.idx[o]) : (idxs ?? []);
-
-    // Stable sort: entries with equal priority keep uFuzzy's quality order.
-    const matches = ranked.map((i) => entries[i]);
-    matches.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
-    this.localMatches = matches.slice(0, this.opts.limit ?? 20);
+    const groupLimit = this.opts.groupLimit ?? 8;
+    this.localGroups = groups
+      .map((group) => ({
+        label: group.label,
+        matches: matchGroup(group.entries, query, group.limit ?? groupLimit),
+      }))
+      .filter((group) => group.matches.length > 0);
     this.remoteMatches = [];
     this.activeIndex = 0;
 
@@ -231,7 +274,7 @@ export class SearchController<T> {
       if (id !== this.requestId || abort.signal.aborted) {
         return;
       }
-      this.remoteMatches = remote;
+      this.remoteMatches = remote.slice(0, this.opts.remoteLimit ?? 5);
       this.remoteState = 'done';
     } catch (error) {
       if (id !== this.requestId || abort.signal.aborted) {
@@ -248,7 +291,10 @@ export class SearchController<T> {
     if (!this.dropdown) {
       return;
     }
-    this.matches = [...this.localMatches, ...this.remoteMatches];
+    this.matches = [
+      ...this.localGroups.flatMap((group) => group.matches),
+      ...this.remoteMatches,
+    ];
     if (this.matches.length === 0 && this.remoteState !== 'pending') {
       if (this.remoteState === 'error') {
         this.renderMessage(t('search.noFeedResults'));
@@ -259,26 +305,24 @@ export class SearchController<T> {
     }
 
     this.dropdown.innerHTML = '';
-    this.matches.forEach((entry, i) => {
-      if (i === this.localMatches.length) {
-        this.appendRemoteHeading();
+    let index = 0;
+    for (const group of this.localGroups) {
+      this.appendHeading(group.label);
+      for (const entry of group.matches) {
+        this.appendRow(entry, index++);
       }
-      const row = document.createElement('div');
-      row.dataset.index = String(i);
-      row.className =
-        'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-base-200 border-b border-base-200 last:border-0';
-      row.innerHTML = `
-        ${entry.icon}
-        <span class="min-w-0 flex-1 truncate text-sm">${esc(entry.primary)}</span>
-        ${entry.secondary ? `<span class="min-w-0 max-w-[50%] truncate text-right text-xs opacity-60" title="${esc(entry.secondary)}">${esc(entry.secondary)}</span>` : ''}
-      `;
-      row.addEventListener('mouseenter', () => this.setActive(i));
-      row.addEventListener('click', () => this.select(i));
-      this.dropdown!.appendChild(row);
-    });
-    // Still searching, or failed, with no remote rows to head.
-    if (this.remoteMatches.length === 0 && this.remoteState !== 'done') {
-      this.appendRemoteHeading();
+    }
+    if (this.remoteState !== 'idle') {
+      this.appendHeading(
+        this.remoteState === 'pending'
+          ? t('search.searchingPlaces')
+          : this.remoteState === 'error'
+            ? t('search.placesUnavailable')
+            : t('search.places')
+      );
+      for (const entry of this.remoteMatches) {
+        this.appendRow(entry, index++);
+      }
     }
 
     this.show();
@@ -287,22 +331,28 @@ export class SearchController<T> {
     );
   }
 
-  /** The "Places" heading row. Carries no `data-index`, so it is not selectable. */
-  private appendRemoteHeading(): void {
-    if (!this.dropdown || this.remoteState === 'idle') {
-      return;
-    }
-    const label =
-      this.remoteState === 'pending'
-        ? t('search.searchingPlaces')
-        : this.remoteState === 'error'
-          ? t('search.placesUnavailable')
-          : t('search.places');
+  /** A section heading. Carries no `data-index`, so it is not selectable. */
+  private appendHeading(label: string): void {
     const heading = document.createElement('div');
     heading.className =
       'px-3 pt-2 pb-1 text-xs font-semibold opacity-60 border-b border-base-200';
     heading.textContent = label;
-    this.dropdown.appendChild(heading);
+    this.dropdown!.appendChild(heading);
+  }
+
+  private appendRow(entry: SearchEntry<T>, index: number): void {
+    const row = document.createElement('div');
+    row.dataset.index = String(index);
+    row.className =
+      'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-base-200 border-b border-base-200 last:border-0';
+    row.innerHTML = `
+      ${entry.icon}
+      <span class="min-w-0 flex-1 truncate text-sm">${esc(entry.primary)}</span>
+      ${entry.secondary ? `<span class="min-w-0 max-w-[50%] truncate text-right text-xs opacity-60" title="${esc(entry.secondary)}">${esc(entry.secondary)}</span>` : ''}
+    `;
+    row.addEventListener('mouseenter', () => this.setActive(index));
+    row.addEventListener('click', () => this.select(index));
+    this.dropdown!.appendChild(row);
   }
 
   private renderMessage(html: string): void {
@@ -310,7 +360,7 @@ export class SearchController<T> {
       return;
     }
     this.matches = [];
-    this.localMatches = [];
+    this.localGroups = [];
     this.remoteMatches = [];
     this.dropdown.innerHTML = `<div class="px-3 py-4 text-center text-sm opacity-60">${html}</div>`;
     this.show();

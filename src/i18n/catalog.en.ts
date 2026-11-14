@@ -47,6 +47,8 @@ export const en = {
   'search.searchingPlaces': 'Searching places...',
   'search.placesUnavailable': 'Place search unavailable',
   'search.places': 'Places',
+  'search.stops': 'Stops',
+  'search.routes': 'Routes',
 
   'shortcuts.failed': '{action} failed: {error}',
   'shortcuts.key.ctrl': 'Ctrl',
