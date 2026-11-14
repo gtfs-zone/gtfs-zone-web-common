@@ -1,3 +1,9 @@
+## v5.25.1 (2026-11-14)
+
+### Fix
+
+- **feed-selection**: default the CORS proxy to cors.gtfs.zone
+
 ## v5.25.0 (2026-11-14)
 
 ### Feat
