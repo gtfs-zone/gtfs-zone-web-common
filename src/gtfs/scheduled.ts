@@ -431,6 +431,7 @@ export class GTFSScheduled extends EventTarget {
       stopId: v.stopId || undefined,
       currentStatus: v.status,
       timestamp: now,
+      scheduled: true,
       raw: v,
     }));
     return { vehicles, running: r.running };

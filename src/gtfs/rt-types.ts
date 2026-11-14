@@ -82,6 +82,8 @@ export interface VehiclePosition {
   occupancyStatus?: number;
   /** Seconds since epoch, per the spec. Stale values are worth surfacing. */
   timestamp?: number;
+  /** Simulated from the timetable (`GTFSScheduled.scheduledVehicles`), not reported by a producer. */
+  scheduled?: boolean;
   /** The decoded entity, kept verbatim for the vehicle page's raw dump. */
   raw: unknown;
 }

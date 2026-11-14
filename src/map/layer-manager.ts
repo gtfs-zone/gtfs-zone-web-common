@@ -226,6 +226,15 @@ function stopStyle(accent: string): StopStyleOptions {
  *  white inner stroke and the arrow its route-colored fill. */
 const VEHICLE_CASING_COLOR = '#0f172a';
 
+/** Fill of a scheduled (simulated) vehicle; its route color moves to the edge. */
+const VEHICLE_SCHEDULED_FILL = '#ffffff';
+
+const SCHEDULED: ExpressionSpecification = [
+  'boolean',
+  ['get', 'scheduled'],
+  false,
+];
+
 /** A feature the map can focus. A vehicle hit also carries the app's `X`. */
 export type MapFocusTarget<X extends object = object> =
   | { kind: 'stop'; id: string }
@@ -1103,9 +1112,24 @@ export class LayerManager<
           18,
           11,
         ],
-        'circle-color': ['get', 'color'],
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': ['case', FOCUSED, 3, 1.5],
+        'circle-color': [
+          'case',
+          SCHEDULED,
+          VEHICLE_SCHEDULED_FILL,
+          ['get', 'color'],
+        ] as unknown as ExpressionSpecification,
+        'circle-stroke-color': [
+          'case',
+          SCHEDULED,
+          ['get', 'color'],
+          '#ffffff',
+        ] as unknown as ExpressionSpecification,
+        'circle-stroke-width': [
+          'case',
+          FOCUSED,
+          ['case', SCHEDULED, 4, 3],
+          ['case', SCHEDULED, 3, 1.5],
+        ] as unknown as ExpressionSpecification,
       },
     });
 
@@ -1139,8 +1163,19 @@ export class LayerManager<
       paint: {
         // The arrow image is an SDF, so its fill follows the route color and a
         // dark halo gives it the same hard-contrast edge as the dot's casing.
-        'icon-color': ['get', 'color'],
-        'icon-halo-color': VEHICLE_CASING_COLOR,
+        // A scheduled vehicle is hollow: white fill, route-colored edge.
+        'icon-color': [
+          'case',
+          SCHEDULED,
+          VEHICLE_SCHEDULED_FILL,
+          ['get', 'color'],
+        ] as unknown as ExpressionSpecification,
+        'icon-halo-color': [
+          'case',
+          SCHEDULED,
+          ['get', 'color'],
+          VEHICLE_CASING_COLOR,
+        ] as unknown as ExpressionSpecification,
         'icon-halo-width': ['case', FOCUSED, 3, 2],
       },
     });
@@ -1363,6 +1398,7 @@ export class LayerManager<
           vehicle_id: v.key,
           bearing: v.bearing ?? 0,
           has_bearing: v.bearing !== undefined,
+          scheduled: v.scheduled === true,
           color: route?.color ?? VEHICLE_UNMATCHED_COLOR,
           route_id: routeId ?? '',
           trip_id: v.tripId ?? '',
