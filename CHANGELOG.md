@@ -1,3 +1,10 @@
+## v5.29.0 (2026-11-14)
+
+### Feat
+
+- **feed**: place scheduled vehicles along the trip's shape
+- **feed**: simulate scheduled vehicle positions in the store worker
+
 ## v5.28.0 (2026-11-14)
 
 ### Feat
