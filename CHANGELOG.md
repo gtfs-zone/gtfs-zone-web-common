@@ -1,3 +1,9 @@
+## v5.26.0 (2026-11-14)
+
+### Feat
+
+- **load-modal**: list stored feeds, load catalog rows in one click
+
 ## v5.25.1 (2026-11-14)
 
 ### Fix
