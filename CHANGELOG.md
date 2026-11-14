@@ -1,3 +1,9 @@
+## v5.27.0 (2026-11-14)
+
+### Feat
+
+- **feed**: parse cache in OPFS, optional realtime in the load modal
+
 ## v5.26.0 (2026-11-14)
 
 ### Feat
