@@ -16,8 +16,12 @@
  * are otherwise indistinguishable, and it is worth knowing what you are about
  * to fetch before you fetch it.
  *
+ * `options.sections` are rows an app lists above everything else, under its
+ * own heading (accuracy's TIDES archive). The search narrows them by name and
+ * subtitle; picking one closes the modal with its id and the app takes over.
+ *
  * `options.library` is the feeds this browser already stores ("Your feeds"),
- * listed first: picking one restores it, and a stored feed whose catalog
+ * listed next: picking one restores it, and a stored feed whose catalog
  * entry was republished since its import gets an update button.
  *
  * Catalog rows load in one click when they carry a schedule; a realtime-only
@@ -129,6 +133,25 @@ export interface FeedLibrary {
   onDelete(id: string): Promise<void>;
 }
 
+/** One app-provided row, picked in one click. */
+export interface AppOffer {
+  /** Unique across every section. */
+  id: string;
+  name: string;
+  /** Plain text, one line. */
+  subtitle?: string;
+  /** The one open now: badged and scrolled into view. */
+  active?: boolean;
+}
+
+/** App rows under their own heading, listed before "Your feeds". */
+export interface OfferSection {
+  heading: string;
+  offers: AppOffer[];
+  /** Plain text shown under the heading, e.g. why the rows are missing. */
+  note?: string;
+}
+
 /**
  * The feed a link named, when it could not simply be loaded.
  *
@@ -148,11 +171,13 @@ export interface LinkedOffer {
 }
 
 /**
- * What the modal closed with: `stored` restores a feed from "Your feeds",
- * `update` loads a newer version of stored feed `id` from the catalog, and
- * `selection` carries what the form or a catalog row was filled with.
+ * What the modal closed with: `offer` is a row of `options.sections`,
+ * `stored` restores a feed from "Your feeds", `update` loads a newer version
+ * of stored feed `id` from the catalog, and `selection` carries what the form
+ * or a catalog row was filled with.
  */
 export type LoadModalResult =
+  | { kind: 'offer'; id: string }
   | { kind: 'stored'; id: string }
   | { kind: 'update'; id: string; selection: FeedSelection }
   | { kind: 'selection'; selection: FeedSelection }
@@ -163,7 +188,9 @@ export interface LoadModalOptions {
   realtime?: boolean;
   /** Extra buttons in the action bar, e.g. "New Empty Feed". */
   extraActions?: ModalAction[];
-  /** The stored feeds, listed first as "Your feeds". */
+  /** App rows listed first, each section under its heading. */
+  sections?: OfferSection[];
+  /** The stored feeds, listed after `sections` as "Your feeds". */
   library?: FeedLibrary;
   /**
    * Why the modal is open, when it is open because something failed. Rendered
@@ -511,6 +538,39 @@ async function confirmDelete(offer: StoredFeedOffer): Promise<boolean> {
   return ok;
 }
 
+function offerRow(offer: AppOffer): string {
+  const border = offer.active ? 'border-primary/40' : 'border-transparent';
+  return `
+      <button type="button" data-offer-id="${escHtml(offer.id)}" class="w-full text-left px-3 py-2 rounded-lg border ${border} hover:bg-base-200"${offer.active ? ' aria-current="true"' : ''}>
+        <p class="text-sm font-medium flex items-center gap-1.5 min-w-0">
+          <span class="truncate">${escHtml(offer.name)}</span>
+          ${offer.active ? `<span class="badge badge-xs badge-primary shrink-0">${t('load.active')}</span>` : ''}
+        </p>
+        ${offer.subtitle ? `<p class="text-xs opacity-60 truncate">${escHtml(offer.subtitle)}</p>` : ''}
+      </button>`;
+}
+
+/** The app sections, each row kept when it contains `query` (lowercased). */
+function renderSections(sections: OfferSection[], query: string): string {
+  return sections
+    .map((section) => {
+      const offers = section.offers.filter(
+        (o) =>
+          !query ||
+          o.name.toLowerCase().includes(query) ||
+          (o.subtitle ?? '').toLowerCase().includes(query)
+      );
+      if (offers.length === 0 && !section.note) {
+        return '';
+      }
+      return `
+      <p class="text-xs uppercase tracking-wide opacity-50 px-3 pb-1">${escHtml(section.heading)}</p>
+      ${section.note ? `<p class="text-xs text-warning px-3 pb-1">${escHtml(section.note)}</p>` : ''}
+      ${offers.map(offerRow).join('')}`;
+    })
+    .join('');
+}
+
 /** Why the modal is open, when something failed to open the feed instead. */
 function noticeBlock(text: string): string {
   return `
@@ -605,6 +665,7 @@ export async function showLoadModal(
   let visible: FeedRow[] = [];
   let result: LoadModalResult = null;
   let library = [...(options.library?.feeds ?? [])];
+  const sections = options.sections ?? [];
   let newer = new Map<string, FeedRow>();
 
   // Slot state that is not held in the DOM: the labels a row click supplies,
@@ -665,6 +726,7 @@ export async function showLoadModal(
     <div class="flex h-full min-h-0 min-w-0 flex-col gap-3">
       ${options.notice ? noticeBlock(options.notice) : ''}
       ${options.linkedWith ? linkedCard(options.linkedWith) : ''}
+      <div id="load-sections" class="shrink-0 max-h-56 overflow-y-auto overflow-x-hidden space-y-0.5"></div>
       <div id="load-library" class="shrink-0 max-h-56 overflow-y-auto overflow-x-hidden space-y-0.5"></div>
 
       <div class="flex shrink-0 items-center gap-3">
@@ -735,7 +797,7 @@ export async function showLoadModal(
 
   await showModal({
     title:
-      library.length > 0 || options.linkedWith
+      library.length > 0 || options.linkedWith || sections.length > 0
         ? t('load.titleOpen')
         : t('load.titleLoad'),
     body,
@@ -775,6 +837,31 @@ export async function showLoadModal(
       renderLibraryEl();
 
       const searchInput = input('load-search');
+      const sectionsEl = document.getElementById('load-sections')!;
+      const renderSectionsEl = () => {
+        sectionsEl.innerHTML = renderSections(
+          sections,
+          searchInput.value.trim().toLowerCase()
+        );
+        sectionsEl.classList.toggle(
+          'hidden',
+          sectionsEl.innerHTML.trim() === ''
+        );
+      };
+      renderSectionsEl();
+      sectionsEl
+        .querySelector<HTMLElement>('[aria-current]')
+        ?.scrollIntoView({ block: 'nearest' });
+      sectionsEl.addEventListener('click', (e) => {
+        const pick = (e.target as HTMLElement).closest<HTMLElement>(
+          '[data-offer-id]'
+        );
+        if (pick?.dataset.offerId) {
+          console.log(`[LoadModal] picked offer ${pick.dataset.offerId}`);
+          result = { kind: 'offer', id: pick.dataset.offerId };
+          close();
+        }
+      });
       const showAllInput = input('load-show-all');
       const hiddenCountEl = document.getElementById('load-hidden-count')!;
       const resultsEl = document.getElementById('load-results')!;
@@ -1111,7 +1198,10 @@ export async function showLoadModal(
           revalidate();
         });
 
-      searchInput.addEventListener('input', filterAndRender);
+      searchInput.addEventListener('input', () => {
+        renderSectionsEl();
+        filterAndRender();
+      });
       showAllInput.addEventListener('change', filterAndRender);
 
       // Seed from what is loaded, so reopening the modal is how a feed is edited.
