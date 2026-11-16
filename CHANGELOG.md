@@ -1,3 +1,14 @@
+## v6.2.0 (2026-11-16)
+
+### Feat
+
+- **feed**: fetch trip rows without stop_times on request
+
+### Perf
+
+- **store**: index scheduled vehicle runs from per-trip span arrays
+- **map**: draw routes and stops from vector tiles cut in the store worker
+
 ## v6.1.0 (2026-11-16)
 
 ### Feat
