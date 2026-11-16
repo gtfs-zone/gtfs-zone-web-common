@@ -23,8 +23,9 @@ function host(url: string): string | undefined {
 }
 
 /**
- * Everything a query matches a feed against: its names, its place, and the
- * host of every URL, so "cadavl" finds a feed by where it is served from.
+ * Everything a query matches a feed against: its names, its place and place
+ * tags, and the host of every URL, so "cadavl" finds a feed by where it is
+ * served from.
  */
 export function feedHaystack(feed: CatalogFeed): string {
   const parts = new Set<string>();
@@ -33,6 +34,7 @@ export function feedHaystack(feed: CatalogFeed): string {
     feed.subtitle,
     ...feed.altNames,
     ...feed.place,
+    ...feed.placeTags,
     feed.countryCode,
   ]) {
     if (value) {

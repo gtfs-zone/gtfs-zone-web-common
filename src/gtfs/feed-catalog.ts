@@ -67,6 +67,8 @@ export interface CatalogFeed {
   altNames: string[];
   /** Municipality, subdivision, country; whichever are known. */
   place: string[];
+  /** Countries and regions the feed serves beyond `place`, most stop times first. */
+  placeTags: string[];
   countryCode?: string;
   lat?: number;
   lon?: number;
@@ -92,6 +94,7 @@ interface SearchEntry {
   s?: string;
   a?: string[];
   p?: string[];
+  pt?: string[];
   cc?: string;
   ll?: [number, number];
   st: FeedState;
@@ -132,6 +135,7 @@ function fromSearchEntry(e: SearchEntry): CatalogFeed {
     subtitle: e.s,
     altNames: e.a ?? [],
     place: e.p ?? [],
+    placeTags: e.pt ?? [],
     countryCode: e.cc,
     lat: e.ll?.[0],
     lon: e.ll?.[1],
@@ -155,6 +159,7 @@ function fromFeedsEntry(e: FeedsEntry): CatalogFeed {
     place: [e.municipality, e.subdivision, e.country ?? e.country_code].filter(
       (part): part is string => Boolean(part)
     ),
+    placeTags: [],
     countryCode: e.country_code,
     lat: e.lat,
     lon: e.lon,
