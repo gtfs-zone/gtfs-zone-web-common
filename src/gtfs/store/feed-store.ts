@@ -598,6 +598,30 @@ export class FeedStore {
     return t < 0 ? null : p!.tripTimes(t);
   }
 
+  /**
+   * A trip's first and last stop times into `out`, as `Patterns.tripSpan`.
+   * Returns its stop count, 0 when it has no stop_times.
+   */
+  tripSpan(tripId: string, out: Float64Array): number {
+    this.ready();
+    this.requireTimes();
+    if (this.tripOverrides.has(tripId)) {
+      const tt = this.tripTimes(tripId);
+      if (!tt) {
+        return 0;
+      }
+      const n = tt.arr.length;
+      out[0] = tt.arr[0];
+      out[1] = tt.dep[0];
+      out[2] = tt.arr[n - 1];
+      out[3] = tt.dep[n - 1];
+      return n;
+    }
+    const p = this.patterns;
+    const t = p?.tripIndex(tripId) ?? -1;
+    return t < 0 ? 0 : p!.tripSpan(t, out);
+  }
+
   /** stop_id and stop_sequence of a trip's stops, in order (works without times). */
   tripStops(tripId: string): TripStop[] {
     this.ready();

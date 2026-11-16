@@ -1,9 +1,10 @@
 /**
  * Vehicle positions simulated from the timetable, for feeds without realtime.
  *
- * Per service date, the trips running that day (calendar + calendar_dates,
- * frequencies expanded into instances) are indexed once as
- * [first departure, last arrival], sorted by start. A query takes the runs
+ * Each trip's first and last times are read once into typed arrays. Per
+ * service date, the trips running that day (calendar + calendar_dates,
+ * frequencies expanded into instances) are then indexed as typed arrays of
+ * [first arrival, last departure], sorted by start. A query takes the runs
  * covering a second and places each one by time: at a stop between its
  * arrival and departure, otherwise between two stops along the trip's shape
  * (see `along-shape.ts`), or on the straight line between them when the
@@ -64,8 +65,6 @@ const DAY_CACHE = 4;
 const SHAPE_CACHE_POINTS = 4_000_000;
 
 interface Run {
-  start: number;
-  end: number;
   tripId: string;
   routeId: string;
   directionId: string;
@@ -75,11 +74,33 @@ interface Run {
   startTime?: string;
 }
 
+/** Each trip, by trips row id: its service and when it runs. */
+interface TripSpans {
+  /** Index into `serviceIds`; -1 for a trip that never runs. */
+  service: Int32Array;
+  /** First arrival (else departure) and last departure (else arrival). */
+  from: Float64Array;
+  to: Float64Array;
+  serviceIds: string[];
+}
+
+/** One service date's runs, sorted by start. */
 interface DayIndex {
-  /** Sorted by start. */
-  runs: Run[];
+  start: Float64Array;
+  end: Float64Array;
+  /** trips row id. */
+  row: Int32Array;
+  /** Start of a frequencies.txt instance in seconds; NaN for other trips. */
+  instance: Float64Array;
   /** Longest run, to bound the search back from a second. */
   maxSpan: number;
+}
+
+/** A run found at a query second: its day index and position in it. */
+interface Found {
+  w: ServiceWindow;
+  day: DayIndex;
+  k: number;
 }
 
 interface CalendarRow {
@@ -112,6 +133,9 @@ class Simulator {
   private stopPos = new Map<string, [number, number]>();
   private calendar: CalendarRow[] = [];
   private frequencies = new Map<string, Frequency[]>();
+  private spans: TripSpans | null = null;
+  private freqRows: Map<number, { first: number; list: Frequency[] }> | null =
+    null;
   private lines = new Map<string, ShapeLine | null>();
   private linePoints = 0;
   /** Stop metres along the shape per stop list + shape; null for straight lines. */
@@ -221,6 +245,65 @@ class Simulator {
     return out;
   }
 
+  /** Every trip's service and first and last times, read once. */
+  private tripSpans(): TripSpans {
+    if (this.spans) {
+      return this.spans;
+    }
+    const t0 = performance.now();
+    // Row ids run past the row count once rows are deleted; size by a scan.
+    let maxId = -1;
+    this.store.scan('trips', ['trip_id'], (_, id) => {
+      maxId = Math.max(maxId, id);
+    });
+    const spans: TripSpans = {
+      service: new Int32Array(maxId + 1).fill(-1),
+      from: new Float64Array(maxId + 1),
+      to: new Float64Array(maxId + 1),
+      serviceIds: [],
+    };
+    const serviceIndex = new Map<string, number>();
+    const out = new Float64Array(4);
+    let untimed = 0;
+    let timed = 0;
+    this.store.scan(
+      'trips',
+      ['trip_id', 'service_id'],
+      ([tripId, serviceId], id) => {
+        if (this.store.tripSpan(tripId, out) < 2) {
+          return;
+        }
+        // The vehicle is shown from its first arrival to its last departure.
+        const from = pick(out[0], out[1]);
+        const to = pick(out[3], out[2]);
+        if (!Number.isFinite(from) || !Number.isFinite(to)) {
+          untimed++;
+          return;
+        }
+        let s = serviceIndex.get(serviceId);
+        if (s === undefined) {
+          s = spans.serviceIds.length;
+          serviceIndex.set(serviceId, s);
+          spans.serviceIds.push(serviceId);
+        }
+        spans.service[id] = s;
+        spans.from[id] = from;
+        spans.to[id] = to;
+        timed++;
+      }
+    );
+    if (untimed) {
+      console.warn(
+        `[ScheduledVehicles] skipped ${untimed} trips without a first or last time`
+      );
+    }
+    console.log(
+      `[ScheduledVehicles] ${timed} trip spans read in ${Math.round(performance.now() - t0)}ms`
+    );
+    this.spans = spans;
+    return spans;
+  }
+
   private day(date: string): DayIndex {
     const cached = this.days.get(date);
     if (cached) {
@@ -229,74 +312,58 @@ class Simulator {
       this.days.set(date, cached);
       return cached;
     }
+    const spans = this.tripSpans();
     const t0 = performance.now();
     const services = this.activeServices(date);
-    const runs: Run[] = [];
-    let untimed = 0;
-    this.store.scan(
-      'trips',
-      ['trip_id', 'service_id', 'route_id', 'direction_id', 'shape_id'],
-      ([tripId, serviceId, routeId, directionId, shapeId]) => {
-        if (!services.has(serviceId)) {
-          return;
-        }
-        const tt = this.store.tripTimes(tripId);
-        if (!tt || tt.stopIds.length < 2) {
-          return;
-        }
-        const n = tt.stopIds.length;
-        // The vehicle is shown from its first arrival to its last departure;
-        // frequency instances count from the first departure.
-        const first = pick(tt.dep[0], tt.arr[0]);
-        const from = pick(tt.arr[0], tt.dep[0]);
-        const to = pick(tt.dep[n - 1], tt.arr[n - 1]);
-        if (!Number.isFinite(first) || !Number.isFinite(to)) {
-          untimed++;
-          return;
-        }
-        const freqs = this.frequencies.get(tripId);
-        if (!freqs) {
-          runs.push({
-            start: from,
-            end: to,
-            tripId,
-            routeId,
-            directionId,
-            shapeId,
-            offset: 0,
-          });
-          return;
-        }
-        for (const f of freqs) {
-          for (let s = f.start; s < f.end; s += f.headway) {
-            runs.push({
-              start: s + from - first,
-              end: s + to - first,
-              tripId,
-              routeId,
-              directionId,
-              shapeId,
-              offset: s - first,
-              startTime: formatClock(s),
-            });
-          }
+    const active = new Uint8Array(spans.serviceIds.length);
+    spans.serviceIds.forEach((id, s) => {
+      active[s] = services.has(id) ? 1 : 0;
+    });
+    const start: number[] = [];
+    const end: number[] = [];
+    const rows: number[] = [];
+    const instance: number[] = [];
+    const freqRows = this.frequencyRows();
+    for (let id = 0; id < spans.service.length; id++) {
+      const s = spans.service[id];
+      if (s < 0 || !active[s]) {
+        continue;
+      }
+      const freq = freqRows.get(id);
+      if (!freq) {
+        start.push(spans.from[id]);
+        end.push(spans.to[id]);
+        rows.push(id);
+        instance.push(NaN);
+        continue;
+      }
+      // Frequency instances count from the trip's first departure.
+      const { first, list } = freq;
+      for (const f of list) {
+        for (let t = f.start; t < f.end; t += f.headway) {
+          start.push(t + spans.from[id] - first);
+          end.push(t + spans.to[id] - first);
+          rows.push(id);
+          instance.push(t);
         }
       }
-    );
-    runs.sort((a, b) => a.start - b.start);
-    let maxSpan = 0;
-    for (const r of runs) {
-      maxSpan = Math.max(maxSpan, r.end - r.start);
     }
-    if (untimed) {
-      console.warn(
-        `[ScheduledVehicles] ${date}: skipped ${untimed} trips without a first or last time`
-      );
+    const order = Uint32Array.from(start.keys()).sort(
+      (a, b) => start[a] - start[b]
+    );
+    const index: DayIndex = {
+      start: Float64Array.from(order, (i) => start[i]),
+      end: Float64Array.from(order, (i) => end[i]),
+      row: Int32Array.from(order, (i) => rows[i]),
+      instance: Float64Array.from(order, (i) => instance[i]),
+      maxSpan: 0,
+    };
+    for (let k = 0; k < order.length; k++) {
+      index.maxSpan = Math.max(index.maxSpan, index.end[k] - index.start[k]);
     }
     console.log(
-      `[ScheduledVehicles] ${date}: ${services.size} services, ${runs.length} runs indexed in ${Math.round(performance.now() - t0)}ms`
+      `[ScheduledVehicles] ${date}: ${services.size} services, ${order.length} runs indexed in ${Math.round(performance.now() - t0)}ms`
     );
-    const index = { runs, maxSpan };
     this.days.set(date, index);
     if (this.days.size > DAY_CACHE) {
       this.days.delete(this.days.keys().next().value!);
@@ -304,42 +371,79 @@ class Simulator {
     return index;
   }
 
-  /** Runs covering `seconds` of the service day `date`. */
-  private running(date: string, seconds: number): Run[] {
-    const { runs, maxSpan } = this.day(date);
-    const from = seconds - maxSpan;
+  /**
+   * Frequency trips by trips row id, with each trip's first departure
+   * (instances are offset from it). Read once.
+   */
+  private frequencyRows(): Map<number, { first: number; list: Frequency[] }> {
+    if (this.freqRows) {
+      return this.freqRows;
+    }
+    const out = new Map<number, { first: number; list: Frequency[] }>();
+    if (this.frequencies.size) {
+      const span = new Float64Array(4);
+      this.store.scan('trips', ['trip_id'], ([tripId], id) => {
+        const list = this.frequencies.get(tripId);
+        if (list && this.store.tripSpan(tripId, span) >= 2) {
+          out.set(id, { first: pick(span[1], span[0]), list });
+        }
+      });
+    }
+    this.freqRows = out;
+    return out;
+  }
+
+  /** Runs of `date` covering `seconds`, as positions in its day index. */
+  private running(w: ServiceWindow, out: Found[]): void {
+    const day = this.day(w.date);
+    const from = w.seconds - day.maxSpan;
     let lo = 0;
-    let hi = runs.length;
+    let hi = day.start.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if (runs[mid].start < from) {
+      if (day.start[mid] < from) {
         lo = mid + 1;
       } else {
         hi = mid;
       }
     }
-    const out: Run[] = [];
-    for (let i = lo; i < runs.length && runs[i].start <= seconds; i++) {
-      if (runs[i].end >= seconds) {
-        out.push(runs[i]);
+    for (let k = lo; k < day.start.length && day.start[k] <= w.seconds; k++) {
+      if (day.end[k] >= w.seconds) {
+        out.push({ w, day, k });
       }
     }
-    return out;
+  }
+
+  /** The run at position `k` of a day index, with its trip's ids. */
+  private run(day: DayIndex, k: number): Run | null {
+    const row = this.store.row('trips', day.row[k]);
+    if (!row) {
+      return null;
+    }
+    const s = day.instance[k];
+    const freq = Number.isNaN(s) ? null : this.frequencyRows().get(day.row[k]);
+    return {
+      tripId: row.trip_id ?? '',
+      routeId: row.route_id ?? '',
+      directionId: row.direction_id ?? '',
+      shapeId: row.shape_id ?? '',
+      offset: freq ? s - freq.first : 0,
+      startTime: freq ? formatClock(s) : undefined,
+    };
   }
 
   vehicles(windows: ServiceWindow[], cap: number): ScheduledVehicles {
-    const found: [ServiceWindow, Run][] = [];
+    const found: Found[] = [];
     for (const w of windows) {
-      for (const run of this.running(w.date, w.seconds)) {
-        found.push([w, run]);
-      }
+      this.running(w, found);
     }
     const vehicles: ScheduledVehicle[] = [];
-    for (const [w, run] of found) {
+    for (const { w, day, k } of found) {
       if (vehicles.length >= cap) {
         break;
       }
-      const v = this.place(run, w, w.seconds - run.offset);
+      const run = this.run(day, k);
+      const v = run && this.place(run, w, w.seconds - run.offset);
       if (v) {
         vehicles.push(v);
       }

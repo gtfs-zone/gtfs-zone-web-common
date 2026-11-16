@@ -112,6 +112,25 @@ export class Patterns {
     return out;
   }
 
+  /**
+   * Trip `t`'s first and last stop times, without allocating: `out` gets
+   * [first arrival, first departure, last arrival, last departure], NaN
+   * where empty. Returns the trip's stop count.
+   */
+  tripSpan(t: number, out: Float64Array): number {
+    if (!this.arr || !this.dep) {
+      throw new Error('[Patterns] loaded without times');
+    }
+    const len = this.tripLength(t);
+    const a = this.tripTimeStart[t];
+    const z = a + len - 1;
+    out[0] = timeAt(this.arr, a);
+    out[1] = timeAt(this.dep, a);
+    out[2] = timeAt(this.arr, z);
+    out[3] = timeAt(this.dep, z);
+    return len;
+  }
+
   /** Trip `t`'s stops and numeric times, without row objects. */
   tripTimes(t: number): TripTimes {
     if (!this.arr || !this.dep) {
