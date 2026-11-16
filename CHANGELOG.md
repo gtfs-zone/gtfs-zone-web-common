@@ -1,3 +1,9 @@
+## v6.1.0 (2026-11-16)
+
+### Feat
+
+- **store**: parse only the listed tables, keep other .txt entries as files
+
 ## v6.0.0 (2026-11-14)
 
 ### BREAKING CHANGE
