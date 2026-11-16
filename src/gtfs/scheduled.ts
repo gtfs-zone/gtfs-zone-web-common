@@ -173,7 +173,8 @@ const DAY_FIELDS = [
 /**
  * A scheduled feed held by a store worker, with the small tables and the
  * per-feed aggregates kept here for synchronous reads. Fires `dataloaded`
- * when `loadRoute` brings in data a page may be waiting for.
+ * when `loadRoute` or `loadTripTimes` brings in data a page may be waiting
+ * for.
  *
  * Big tables are complete on the main thread as far as the `MirrorLevel`
  * says. Beyond that, `trips` and `stopTimesByTrip` hold the trips fetched by
@@ -235,6 +236,8 @@ export class GTFSScheduled extends EventTarget {
   private routeStops = new Map<string, Map<string, StopRef[]>>();
   /** Trips fetched by `loadTrips`, oldest first. */
   private fetched = new Set<string>();
+  /** The fetched trips whose stop_times were fetched too. */
+  private timesFetched = new Set<string>();
   private summary: FeedSummary;
 
   private constructor(
@@ -367,17 +370,21 @@ export class GTFSScheduled extends EventTarget {
   }
 
   /**
-   * Fetch trips and their stop_times into `trips` / `stopTimesByTrip`. A no-op
-   * when both are already complete. The most recently requested trips are
-   * kept; older ones are dropped (from `trips` too, unless it is complete).
+   * Fetch trips, and their stop_times unless `stopTimes` is false, into
+   * `trips` / `stopTimesByTrip`. A no-op when both are already complete. The
+   * most recently requested trips are kept; older ones are dropped (from
+   * `trips` too, unless it is complete).
    */
-  async loadTrips(tripIds: Iterable<string>): Promise<void> {
+  async loadTrips(
+    tripIds: Iterable<string>,
+    { stopTimes = true }: { stopTimes?: boolean } = {}
+  ): Promise<void> {
     if (this.stopTimesComplete) {
       return;
     }
     const want: string[] = [];
     for (const id of new Set(tripIds)) {
-      if (this.fetched.has(id)) {
+      if (this.fetched.has(id) && (!stopTimes || this.timesFetched.has(id))) {
         // Refresh its place in the eviction order.
         this.fetched.delete(id);
         this.fetched.add(id);
@@ -386,7 +393,7 @@ export class GTFSScheduled extends EventTarget {
       }
     }
     if (want.length) {
-      const info = await this.store.call('tripsInfo', want);
+      const info = await this.store.call('tripsInfo', want, stopTimes);
       for (const id of want) {
         const row = info.trips[id];
         if (row && !this.tripsComplete) {
@@ -396,7 +403,11 @@ export class GTFSScheduled extends EventTarget {
         if (st?.length) {
           this.stopTimesByTrip.set(id, st.map(toStopTime));
         }
+        this.fetched.delete(id);
         this.fetched.add(id);
+        if (stopTimes) {
+          this.timesFetched.add(id);
+        }
       }
     }
     for (const id of this.fetched) {
@@ -404,11 +415,26 @@ export class GTFSScheduled extends EventTarget {
         break;
       }
       this.fetched.delete(id);
+      this.timesFetched.delete(id);
       this.stopTimesByTrip.delete(id);
       if (!this.tripsComplete) {
         this.trips.delete(id);
       }
     }
+  }
+
+  /** Whether `stopTimesByTrip` has (or can never have) a trip's stop_times. */
+  tripTimesLoaded(tripId: string): boolean {
+    return this.stopTimesComplete || this.timesFetched.has(tripId);
+  }
+
+  /** Fetch one trip with its stop_times, then fire `dataloaded`. */
+  async loadTripTimes(tripId: string): Promise<void> {
+    if (this.tripTimesLoaded(tripId)) {
+      return;
+    }
+    await this.loadTrips([tripId]);
+    this.dispatchEvent(new Event('dataloaded'));
   }
 
   /**

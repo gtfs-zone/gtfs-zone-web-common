@@ -214,12 +214,14 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
    * Pages and the realtime index read trips synchronously, so a payload is
    * applied only once its trips are here. Calls are sequenced per `kind`: an
    * older payload whose lookup finishes late is dropped. A failed lookup is
-   * logged and the payload applied anyway, unmatched.
+   * logged and the payload applied anyway, unmatched. `stopTimes: false`
+   * fetches the trip rows only.
    */
   protected withTrips(
     kind: string,
     tripIds: Iterable<string | null | undefined>,
-    apply: () => void
+    apply: () => void,
+    options: { stopTimes?: boolean } = {}
   ): void {
     const seq = (this.tripSeq.get(kind) ?? 0) + 1;
     this.tripSeq.set(kind, seq);
@@ -230,7 +232,7 @@ export class FeedSessionBase<V extends VehiclePosition = VehiclePosition>
         ids.push(id);
       }
     }
-    const ready = feed ? feed.loadTrips(ids) : Promise.resolve();
+    const ready = feed ? feed.loadTrips(ids, options) : Promise.resolve();
     ready
       .catch((err) => {
         if (feed === this.scheduledFeed) {

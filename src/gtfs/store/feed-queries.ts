@@ -186,9 +186,13 @@ export interface TripsInfo {
   stopTimes: Record<string, Row[]>;
 }
 
-export function tripsInfo(store: FeedStore, tripIds: string[]): TripsInfo {
+export function tripsInfo(
+  store: FeedStore,
+  tripIds: string[],
+  stopTimes = true
+): TripsInfo {
   const out: TripsInfo = { trips: {}, stopTimes: {} };
-  const withTimes = store.stopTimesMode === 'full';
+  const withTimes = stopTimes && store.stopTimesMode === 'full';
   for (const id of new Set(tripIds)) {
     const [hit] = store.find('trips', 'trip_id', id);
     if (hit) {

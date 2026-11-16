@@ -202,7 +202,8 @@ const baseApi = {
   /** One map tile as MVT bytes, or null when empty. */
   storeTile: (layer: TileLayer, z: number, x: number, y: number) =>
     mapTiles.tile(layer, z, x, y),
-  tripsInfo: (tripIds: string[]) => tripsInfo(requireStore(), tripIds),
+  tripsInfo: (tripIds: string[], stopTimes?: boolean) =>
+    tripsInfo(requireStore(), tripIds, stopTimes),
   routeTrips: (routeId: string) => routeTrips(requireStore(), routeId),
   allStopTimes: () => allStopTimes(requireStore()),
   scheduledVehicles: (windows: ServiceWindow[], cap?: number) =>
