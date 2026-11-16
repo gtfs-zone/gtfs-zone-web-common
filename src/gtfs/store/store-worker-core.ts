@@ -56,8 +56,13 @@ export interface LoadOptions extends StoreOptions {
    * every table but `except` (tables created later included).
    */
   mirror?: string[] | { except: string[] };
-  /** Keep non-`.txt` entries' contents (`fileNames`, `file`, saved bases). */
+  /** Keep non-table entries' contents (`fileNames`, `file`, saved bases). */
   keepFiles?: boolean;
+  /**
+   * Table names to parse. Any other `.txt` entry is not parsed: it is listed
+   * in `otherFiles` and, with `keepFiles`, kept as a file. All when unset.
+   */
+  tables?: readonly string[];
 }
 
 export interface LoadProgress {
@@ -456,8 +461,10 @@ async function parseInto(
     }
   };
   emit(true);
+  const tables = options.tables ? new Set(options.tables) : null;
   const result = await streamGtfsZip(stream, s.sinkFor, {
     innerPaths,
+    isTable: tables ? (table) => tables.has(table) : undefined,
     trim: options.trim,
     onOtherFile: options.keepFiles ? s.addFile : undefined,
     onBytes: (bytes) => {

@@ -655,6 +655,25 @@ describe('non-table files', () => {
     assert.deepEqual(store.fileNames(), []);
   });
 
+  it('keeps a .txt entry the table filter rejects as a file', async () => {
+    const store = new FeedStore();
+    const result = await streamGtfsZip(
+      streamOf(zip({ ...BASE, 'trips2.txt': 'trip_id\nT9\n' })),
+      store.sinkFor,
+      {
+        isTable: (table) => table !== 'trips2',
+        onOtherFile: store.addFile,
+      }
+    );
+    store.finish();
+    assert.deepEqual(result.otherFiles, ['trips2.txt']);
+    assert.equal(store.hasTable('trips2'), false);
+    assert.equal(
+      new TextDecoder().decode(store.file('trips2.txt')!),
+      'trip_id\nT9\n'
+    );
+  });
+
   it('keeps, edits, folds and restores other entries', async () => {
     const { store, result } = await loadKeeping({
       ...BASE,

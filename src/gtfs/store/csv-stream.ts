@@ -30,7 +30,13 @@ export interface StreamOptions {
   /** Inflated bytes of `table` so far; `size` is 0 when the zip omits it. */
   onTableBytes?: (table: string, read: number, size: number) => void;
   /**
-   * Receives each non-`.txt` entry's whole contents, by archive path. When
+   * Which `.txt` entries are tables, by table name. A `.txt` entry it rejects
+   * is handled like any non-table entry. Every `.txt` entry is a table when
+   * unset.
+   */
+  isTable?: (table: string) => boolean;
+  /**
+   * Receives each non-table entry's whole contents, by archive path. When
    * unset, those entries are only listed in `otherFiles`, never inflated.
    */
   onOtherFile?: (name: string, bytes: Uint8Array) => void;
@@ -43,7 +49,7 @@ export interface StreamResult {
   padded: Record<string, number>;
   /** Papa errors per table, capped per table. */
   errors: Record<string, string[]>;
-  /** Archive entries that were not `.txt` tables, by name. */
+  /** Archive entries that were not parsed as tables, by name. */
   otherFiles: string[];
 }
 
@@ -275,7 +281,7 @@ export async function streamGtfsZip(
         return;
       }
       const table = tableName(file.name);
-      if (table) {
+      if (table && (options.isTable?.(table) ?? true)) {
         onTableFile(file, table);
       } else if (!file.name.endsWith('/')) {
         result.otherFiles.push(file.name);
