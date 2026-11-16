@@ -1,3 +1,9 @@
+## v6.3.0 (2026-11-17)
+
+### Feat
+
+- **search**: match feeds by place tags
+
 ## v6.2.0 (2026-11-16)
 
 ### Feat
