@@ -1,6 +1,8 @@
 /**
  * The realtime map's layer engine: the `routes`, `stops` and `vehicles`
- * sources, what fills them from a `GTFSScheduled` and a vehicle list, the
+ * sources (routes and stops as vector tiles cut in the feed's store worker,
+ * see `store-tiles.ts`), what fills them from a `GTFSScheduled` and a
+ * vehicle list, the
  * route and stop spotlight, the feature-state sync with its `sourcedata`
  * retry, and the single map-level hit test.
  *
@@ -24,9 +26,16 @@ import type {
 } from 'maplibre-gl';
 import type { GTFSScheduled } from '../gtfs/scheduled';
 import type { VehiclePosition } from '../gtfs/rt-types';
-import { routeSortKey } from '../gtfs/route-sort';
-import { casingColor } from '../gtfs/route-colors';
 import { vehicleRouteId } from '../gtfs/entity-render';
+import {
+  ROUTES_SOURCE_LAYER,
+  ROUTE_TILES_MAXZOOM,
+  STOPS_SOURCE_LAYER,
+  STOP_TILES_MAXZOOM,
+  setSourceTiles,
+  tileUrl,
+  useTileFeed,
+} from './store-tiles';
 import { clearThemeColorCache, resolveThemeColor } from '../util/theme-color';
 import { ensureMapIcons } from './icons';
 import {
@@ -82,7 +91,7 @@ import {
 export interface MapDataIssues {
   /** Rows in stops.txt with a blank `stop_id` — unaddressable by feature-state. */
   stopsMissingId: number;
-  /** Rows in stops.txt with unparseable `stop_lat`/`stop_lon`. */
+  /** Rows in stops.txt with no position of their own or on a parent. */
   stopsMissingCoords: number;
   /** Vehicles whose `trip.route_id` doesn't resolve against the schedule. */
   vehiclesUnmatched: number;
@@ -127,6 +136,15 @@ const LAYER_ORDER = [
 ] as const;
 
 const SOURCE_IDS = [ROUTES_SOURCE, STOPS_SOURCE, VEHICLES_SOURCE] as const;
+
+const STOP_LAYERS = [
+  STOP_FOCUS_HALO_LAYER,
+  STOP_FOCUS_RING_LAYER,
+  STOPS_BACKGROUND_LAYER,
+  STOP_FOCUS_TOP_LAYER,
+  STOPS_STATION_DOT_LAYER,
+  STOPS_CLICKAREA_LAYER,
+] as const;
 
 /**
  * Click priority, topmost first. A single map-level click handler queries these
@@ -262,9 +280,8 @@ export class LayerManager<
   private vehicleExtra: VehicleExtra<V, X> | null;
   private feed: GTFSScheduled | null = null;
 
-  /** Built once per feed and re-used on style rebuilds. */
-  private stopsData: GeoJSON.FeatureCollection = EMPTY;
-  private routesData: GeoJSON.FeatureCollection = EMPTY;
+  /** Tile URL generation of the current feed; 0 before any feed. */
+  private tileGen = 0;
   private vehiclesData: GeoJSON.FeatureCollection = EMPTY;
   private latestVehicles: V[] = [];
 
@@ -341,14 +358,15 @@ export class LayerManager<
 
   setScheduledFeed(feed: GTFSScheduled | null): void {
     this.feed = feed;
-    this.stopsData = feed ? this.buildStops(feed) : EMPTY;
-    this.routesData = feed ? this.buildRoutes(feed) : EMPTY;
-    this.pushData(STOPS_SOURCE, this.stopsData);
-    this.pushData(ROUTES_SOURCE, this.routesData);
+    this.tileGen = useTileFeed(feed);
+    setSourceTiles(this.map, ROUTES_SOURCE, this.tileUrl('routes'));
+    setSourceTiles(this.map, STOPS_SOURCE, this.tileUrl('stops'));
+    this.issues.stopsMissingId = feed?.stopTiles.missingId ?? 0;
+    this.issues.stopsMissingCoords = feed?.stopTiles.missingCoords ?? 0;
     if (this.map.style) {
       clearRouteLabelImages(this.map);
     }
-    this.refreshStopFade(this.stopsData.features.length);
+    this.refreshStopFade(feed?.stopTiles.stops ?? 0);
     // A new feed almost never contains the old focus; AppState clears it
     // separately, but the map's own spotlight and feature state have to go now
     // either way. setFocus(null) wipes every source's feature state, so a stale
@@ -362,7 +380,9 @@ export class LayerManager<
     this.vehiclesData = this.buildVehicles(positions);
     // setData rather than re-adding the source: re-adding on every 15s poll
     // flashes the markers and drops their feature state.
-    this.pushData(VEHICLES_SOURCE, this.vehiclesData);
+    (this.map.getSource(VEHICLES_SOURCE) as GeoJSONSource | undefined)?.setData(
+      this.vehiclesData
+    );
     // The focused vehicle may have just appeared or changed trips.
     if (this.focus?.kind === 'vehicle') {
       this.applySpotlight(this.spotlightRouteIds());
@@ -450,7 +470,10 @@ export class LayerManager<
         continue;
       }
       try {
-        this.map.removeFeatureState({ source });
+        this.map.removeFeatureState({
+          source,
+          sourceLayer: sourceLayerOf(source),
+        });
       } catch (err) {
         console.debug(
           `[LayerManager] removeFeatureState failed for ${source}`,
@@ -518,7 +541,10 @@ export class LayerManager<
       return;
     }
     try {
-      this.map.setFeatureState({ source, id }, state);
+      this.map.setFeatureState(
+        { source, sourceLayer: sourceLayerOf(source), id },
+        state
+      );
     } catch (err) {
       console.debug(
         `[LayerManager] setFeatureState failed for ${kind} ${id}`,
@@ -591,7 +617,20 @@ export class LayerManager<
       return;
     }
     this.stopFadeActive = active;
+    for (const id of STOP_LAYERS) {
+      if (this.map.getLayer(id)) {
+        this.map.setLayerZoomRange(id, this.stopsMinZoom(), 24);
+      }
+    }
     this.applyStopDim();
+  }
+
+  /**
+   * Stop layers skip the zooms where the fade hides every stop, so a big
+   * feed's stop tiles are never loaded there.
+   */
+  private stopsMinZoom(): number {
+    return this.stopFadeActive ? FADE_BANDS.stationMin : 0;
   }
 
   /**
@@ -747,29 +786,12 @@ export class LayerManager<
 
   /** `[[west, south], [east, north]]`, or null when the route has no geometry. */
   routeBounds(routeId: string): [[number, number], [number, number]] | null {
-    const feature = this.routesData.features.find(
-      (f) => f.properties?.route_id === routeId
-    );
-    if (!feature || feature.geometry.type !== 'MultiLineString') {
-      return null;
-    }
-    return boundsOf(feature.geometry.coordinates.flat() as [number, number][]);
+    return corners(this.feed?.routeBounds.get(routeId) ?? null);
   }
 
   /** Bounds of every drawn stop and route line: the "fit the whole feed" box. */
   feedBounds(): [[number, number], [number, number]] | null {
-    const coords = this.stopsData.features.map(
-      (f) => (f.geometry as GeoJSON.Point).coordinates as [number, number]
-    );
-    for (const feature of this.routesData.features) {
-      if (feature.geometry.type !== 'MultiLineString') {
-        continue;
-      }
-      for (const line of feature.geometry.coordinates) {
-        coords.push(...(line as [number, number][]));
-      }
-    }
-    return boundsOf(coords);
+    return corners(this.feed?.mapBounds ?? null);
   }
 
   // ── Style lifecycle ────────────────────────────────────────────────────────
@@ -807,30 +829,26 @@ export class LayerManager<
     }
   }
 
-  private pushData(
-    id: (typeof SOURCE_IDS)[number],
-    data: GeoJSON.FeatureCollection
-  ): void {
-    const source = this.map.getSource(id) as GeoJSONSource | undefined;
-    if (source) {
-      source.setData(data);
-    }
+  private tileUrl(layer: 'routes' | 'stops'): string {
+    return tileUrl(this.feed ? layer : null, this.tileGen);
   }
 
   private addSources(): void {
     // promoteId lifts the id out of properties so setFeatureState can address
-    // string ids like "place-jfk"; without it every feature id would be 0.
+    // string ids like "place-jfk", which the vector-tile encoder cannot carry.
     if (!this.map.getSource(ROUTES_SOURCE)) {
       this.map.addSource(ROUTES_SOURCE, {
-        type: 'geojson',
-        data: this.routesData,
+        type: 'vector',
+        tiles: [this.tileUrl('routes')],
+        maxzoom: ROUTE_TILES_MAXZOOM,
         promoteId: 'route_id',
       });
     }
     if (!this.map.getSource(STOPS_SOURCE)) {
       this.map.addSource(STOPS_SOURCE, {
-        type: 'geojson',
-        data: this.stopsData,
+        type: 'vector',
+        tiles: [this.tileUrl('stops')],
+        maxzoom: STOP_TILES_MAXZOOM,
         promoteId: 'stop_id',
       });
     }
@@ -851,7 +869,9 @@ export class LayerManager<
     // Above the stops so a label is not hidden under a station, below the
     // vehicles so it never covers one.
     if (!this.map.getLayer(ROUTE_LABELS_LAYER)) {
-      this.map.addLayer(routeLabelLayerSpec(ROUTES_SOURCE));
+      this.map.addLayer(
+        routeLabelLayerSpec(ROUTES_SOURCE, ROUTES_SOURCE_LAYER)
+      );
     }
     this.addVehicleLayers();
   }
@@ -865,6 +885,7 @@ export class LayerManager<
       id: ROUTES_CASING_LAYER,
       type: 'line',
       source: ROUTES_SOURCE,
+      'source-layer': ROUTES_SOURCE_LAYER,
       paint: {
         'line-color': ['get', 'colorDark'],
         'line-width': zoomWidth(ROUTE_CASING_WIDTH_STOPS, null, 1),
@@ -880,6 +901,7 @@ export class LayerManager<
       id: ROUTES_LINE_LAYER,
       type: 'line',
       source: ROUTES_SOURCE,
+      'source-layer': ROUTES_SOURCE_LAYER,
       paint: {
         'line-color': ['get', 'color'],
         'line-width': zoomWidth(ROUTE_WIDTH_STOPS, null, 1),
@@ -900,6 +922,7 @@ export class LayerManager<
       id: ROUTES_DIRECTION_LAYER,
       type: 'symbol',
       source: ROUTES_SOURCE,
+      'source-layer': ROUTES_SOURCE_LAYER,
       filter: NO_ROUTE_FILTER as unknown as FilterSpecification,
       layout: {
         'symbol-placement': 'line',
@@ -941,6 +964,7 @@ export class LayerManager<
       id: ROUTES_CLICKAREA_LAYER,
       type: 'line',
       source: ROUTES_SOURCE,
+      'source-layer': ROUTES_SOURCE_LAYER,
       paint: {
         'line-color': 'transparent',
         'line-width': 15,
@@ -972,6 +996,8 @@ export class LayerManager<
       id: STOP_FOCUS_HALO_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       filter: TOP_LEVEL_STOPS_FILTER,
       paint: focusHaloPaint(this.accent),
     });
@@ -980,6 +1006,8 @@ export class LayerManager<
       id: STOP_FOCUS_RING_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       filter: TOP_LEVEL_STOPS_FILTER,
       paint: focusRingPaint(this.accent),
     });
@@ -988,6 +1016,8 @@ export class LayerManager<
       id: STOPS_BACKGROUND_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       filter: TOP_LEVEL_STOPS_FILTER,
       paint: stopsBackgroundPaint(this.stopStyle, this.stopFade(null)),
     });
@@ -996,6 +1026,8 @@ export class LayerManager<
       id: STOP_FOCUS_TOP_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       filter: TOP_LEVEL_STOPS_FILTER,
       paint: focusTopPaint(this.stopStyle),
     });
@@ -1004,6 +1036,8 @@ export class LayerManager<
       id: STOPS_STATION_DOT_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       // The viewer never expands a station, so the stop filter is always the
       // default one and the station-dot filter needs no composition.
       filter: stationDotFilter(null),
@@ -1018,6 +1052,8 @@ export class LayerManager<
       id: STOPS_CLICKAREA_LAYER,
       type: 'circle',
       source: STOPS_SOURCE,
+      'source-layer': STOPS_SOURCE_LAYER,
+      minzoom: this.stopsMinZoom(),
       filter: TOP_LEVEL_STOPS_FILTER,
       paint: {
         'circle-radius': this.clickAreaRadius(),
@@ -1292,86 +1328,6 @@ export class LayerManager<
 
   // ── GeoJSON builders ───────────────────────────────────────────────────────
 
-  private buildStops(feed: GTFSScheduled): GeoJSON.FeatureCollection {
-    const features: GeoJSON.Feature[] = [];
-    let missingId = 0;
-    let missingCoords = 0;
-
-    for (const stop of feed.stops.values()) {
-      // promoteId only works when the feature actually carries the property; a
-      // stop with no id is unaddressable by setFeatureState and could never
-      // highlight, so it is dropped here and counted in `issues`.
-      if (!stop.id) {
-        missingId++;
-        continue;
-      }
-      const position = feed.resolvedPosition(stop.id);
-      if (!position) {
-        missingCoords++;
-        continue;
-      }
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: position },
-        properties: {
-          stop_id: stop.id,
-          stop_name: stop.name,
-          location_type: stop.location_type,
-          parent_station: stop.parent_station,
-        },
-      });
-    }
-
-    this.issues.stopsMissingId = missingId;
-    this.issues.stopsMissingCoords = missingCoords;
-    return { type: 'FeatureCollection', features };
-  }
-
-  /**
-   * One feature per route, merging its distinct geometries into a
-   * MultiLineString. The worker dedupes them (each shape once, each stop-line
-   * fallback once): a high-frequency route has thousands of trips sharing a
-   * handful of shapes, and merging them all would mean heavy overdraw.
-   */
-  private buildRoutes(feed: GTFSScheduled): GeoJSON.FeatureCollection {
-    const features: GeoJSON.Feature[] = [];
-
-    for (const route of feed.routes.values()) {
-      const geo = feed.routeGeometry.get(route.id);
-      if (!geo || geo.lineStarts.length === 0) {
-        continue;
-      }
-      const lines: [number, number][][] = [];
-      const points = geo.coords.length / 2;
-      for (let l = 0; l < geo.lineStarts.length; l++) {
-        const end =
-          l + 1 < geo.lineStarts.length ? geo.lineStarts[l + 1] : points;
-        const line: [number, number][] = [];
-        for (let i = geo.lineStarts[l]; i < end; i++) {
-          line.push([geo.coords[2 * i], geo.coords[2 * i + 1]]);
-        }
-        lines.push(line);
-      }
-
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'MultiLineString', coordinates: lines },
-        properties: {
-          route_id: route.id,
-          color: route.color,
-          colorDark: casingColor(route.color),
-          // Paint order: mode rank blended with trip count. See route-sort.ts.
-          sortKey: routeSortKey(
-            route.type,
-            feed.tripCountByRoute.get(route.id) ?? 0
-          ),
-        },
-      });
-    }
-
-    return { type: 'FeatureCollection', features };
-  }
-
   private buildVehicles(positions: V[]): GeoJSON.FeatureCollection {
     const feed = this.feed;
     let unmatched = 0;
@@ -1453,6 +1409,14 @@ export class LayerManager<
   }
 }
 
+/** The source layer of a vector source, undefined for GeoJSON. */
+function sourceLayerOf(source: string): string | undefined {
+  if (source === ROUTES_SOURCE) {
+    return ROUTES_SOURCE_LAYER;
+  }
+  return source === STOPS_SOURCE ? STOPS_SOURCE_LAYER : undefined;
+}
+
 /** The source a focus kind's features live in. */
 function sourceFor(kind: 'stop' | 'route' | 'vehicle'): string {
   if (kind === 'route') {
@@ -1461,32 +1425,13 @@ function sourceFor(kind: 'stop' | 'route' | 'vehicle'): string {
   return kind === 'stop' ? STOPS_SOURCE : VEHICLES_SOURCE;
 }
 
-function boundsOf(
-  coords: [number, number][]
+function corners(
+  box: [number, number, number, number] | null
 ): [[number, number], [number, number]] | null {
-  if (coords.length === 0) {
-    return null;
-  }
-  let west = Infinity;
-  let south = Infinity;
-  let east = -Infinity;
-  let north = -Infinity;
-  for (const [lon, lat] of coords) {
-    if (lon < west) {
-      west = lon;
-    }
-    if (lon > east) {
-      east = lon;
-    }
-    if (lat < south) {
-      south = lat;
-    }
-    if (lat > north) {
-      north = lat;
-    }
-  }
-  return [
-    [west, south],
-    [east, north],
-  ];
+  return box
+    ? [
+        [box[0], box[1]],
+        [box[2], box[3]],
+      ]
+    : null;
 }

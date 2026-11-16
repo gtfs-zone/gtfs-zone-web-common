@@ -37,12 +37,7 @@ export type {
   StoreApi,
   SourceValidators,
 } from './store-worker-core';
-export type {
-  FeedSummary,
-  RouteGeometry,
-  RouteTrips,
-  TripsInfo,
-} from './feed-queries';
+export type { FeedSummary, RouteTrips, TripsInfo } from './feed-queries';
 export type { IdRow, Row, TripStop, StopTimesMode } from './feed-store';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,6 +154,10 @@ export class FeedStoreClient<A extends Api = StoreApi> extends EventTarget {
       const req: WorkerRequest = { type: 'call', id, method, args };
       this.worker.postMessage(req);
     });
+  }
+
+  get isReleased(): boolean {
+    return this.released;
   }
 
   /** Terminate the worker and drop the feed. Pending calls reject. */

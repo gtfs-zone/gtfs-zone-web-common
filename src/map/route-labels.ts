@@ -58,12 +58,19 @@ function labelImage(text: string, color: string): ImageData {
   return ctx.getImageData(0, 0, w * 2, h * 2);
 }
 
-/** The label layer on `source`, showing nothing until a filter is set. */
-export function routeLabelLayerSpec(source: string): SymbolLayerSpecification {
+/**
+ * The label layer on `source` (`sourceLayer` for a vector source), showing
+ * nothing until a filter is set.
+ */
+export function routeLabelLayerSpec(
+  source: string,
+  sourceLayer?: string
+): SymbolLayerSpecification {
   return {
     id: ROUTE_LABELS_LAYER,
     type: 'symbol',
     source,
+    ...(sourceLayer ? { 'source-layer': sourceLayer } : {}),
     minzoom: LABEL_ZOOM_MIN,
     filter: routeLabelFilter([]),
     layout: {

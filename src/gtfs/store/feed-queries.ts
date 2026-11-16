@@ -79,8 +79,13 @@ export interface RouteGeometry {
  * The distinct lines of every route: each shape once, and for trips with no
  * usable shape (missing or under two points) a straight line through their
  * stops, once per distinct stop list. Stops without coordinates are skipped.
+ * `simplify`, when given, is applied to each shape as it is read, so only
+ * the simplified points are kept.
  */
-export function routeGeometries(store: FeedStore): RouteGeometry[] {
+export function routeGeometries(
+  store: FeedStore,
+  simplify?: (coords: Float64Array) => Float64Array
+): RouteGeometry[] {
   const stopPos = new Map<string, [number, number]>();
   store.scan('stops', ['stop_id', 'stop_lon', 'stop_lat'], ([id, lon, lat]) => {
     const x = parseFloat(lon);
@@ -115,6 +120,9 @@ export function routeGeometries(store: FeedStore): RouteGeometry[] {
         let coords = shapeCache.get(shapeId);
         if (!coords) {
           coords = store.shapeCoords(shapeId);
+          if (simplify) {
+            coords = simplify(coords);
+          }
           shapeCache.set(shapeId, coords);
         }
         if (coords.length >= 4) {

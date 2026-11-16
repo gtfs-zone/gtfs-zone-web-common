@@ -1,9 +1,14 @@
-import { routeColor, routeTextColor, setFeedRouteColors } from './route-colors';
+import {
+  casingColor,
+  routeColor,
+  routeTextColor,
+  setFeedRouteColors,
+} from './route-colors';
+import { routeSortKey } from './route-sort';
 import {
   FeedStoreClient,
   type FeedSummary,
   type LoadProgress,
-  type RouteGeometry,
   type Row,
   type StopTimesMode,
   type StoreInput,
@@ -11,6 +16,7 @@ import {
 import { feedServiceDate, serviceDayStart } from './feed-time';
 import type { VehiclePosition } from './rt-types';
 import type { ServiceWindow } from './store/scheduled-vehicles';
+import type { BBox, RouteTileStyle, StopTilesIndexed } from './store/map-tiles';
 
 /** Verbatim CSV rows, kept so object pages can dump every column. */
 export type RawRow = Record<string, string>;
@@ -194,8 +200,20 @@ export class GTFSScheduled extends EventTarget {
   routesByStop = new Map<string, Set<string>>();
   tripCountByRoute = new Map<string, number>();
   tripCountByStop = new Map<string, number>();
-  /** Each route's distinct lines, shapes or stop-to-stop fallbacks. */
-  routeGeometry = new Map<string, RouteGeometry>();
+  /**
+   * Bounds of each drawn route's lines. The lines themselves stay in the
+   * worker as vector tiles (`map/store-tiles.ts`).
+   */
+  routeBounds = new Map<string, BBox>();
+  /** Bounds of every drawn route line and stop, or null when nothing is drawn. */
+  mapBounds: BBox | null = null;
+  /** The stop tiles' counts. */
+  stopTiles: StopTilesIndexed = {
+    stops: 0,
+    missingId: 0,
+    missingCoords: 0,
+    bbox: null,
+  };
 
   /** Direct children of each stop, keyed by parent `stop_id`. */
   childrenByParent = new Map<string, string[]>();
@@ -287,9 +305,7 @@ export class GTFSScheduled extends EventTarget {
     }
     this.tripCountByRoute = new Map(Object.entries(s.tripsPerRoute));
     this.tripCountByStop = new Map(Object.entries(s.tripsPerStop));
-    for (const g of await this.store.call('routeGeometries')) {
-      this.routeGeometry.set(g.routeId, g);
-    }
+    await this.indexMapTiles();
 
     if (this.tripsComplete) {
       for (const row of this.mirrorRows('trips')) {
@@ -618,6 +634,38 @@ export class GTFSScheduled extends EventTarget {
       current = stop.parent_station;
     }
     return null;
+  }
+
+  /** Cut the map's route and stop tiles in the worker; keep their bounds. */
+  private async indexMapTiles(): Promise<void> {
+    const styles: Record<string, RouteTileStyle> = {};
+    for (const route of this.routes.values()) {
+      styles[route.id] = {
+        color: route.color,
+        colorDark: casingColor(route.color),
+        // Paint order: mode rank blended with trip count. See route-sort.ts.
+        sortKey: routeSortKey(
+          route.type,
+          this.tripCountByRoute.get(route.id) ?? 0
+        ),
+      };
+    }
+    const routes = await this.store.call('indexRouteTiles', styles);
+    this.stopTiles = await this.store.call('indexStopTiles');
+    this.routeBounds = new Map(Object.entries(routes.bounds));
+    let bbox = routes.bbox;
+    const s = this.stopTiles.bbox;
+    if (s) {
+      bbox = bbox
+        ? [
+            Math.min(bbox[0], s[0]),
+            Math.min(bbox[1], s[1]),
+            Math.max(bbox[2], s[2]),
+            Math.max(bbox[3], s[3]),
+          ]
+        : s;
+    }
+    this.mapBounds = bbox;
   }
 
   private ingestAgencies(rows: RawRow[]): void {

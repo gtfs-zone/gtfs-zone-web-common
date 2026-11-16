@@ -24,12 +24,12 @@ import {
   allShapes,
   allStopTimes,
   feedSummary,
-  routeGeometries,
   routeTrips,
   tripsInfo,
   type FeedSummary,
 } from './feed-queries';
 import { scheduledVehicles, type ServiceWindow } from './scheduled-vehicles';
+import { MapTiles, type RouteTileStyle, type TileLayer } from './map-tiles';
 import { splitInnerZipPath } from '../feed-url-resolve';
 import { describeHttpError, describeNetworkError } from '../feed-selection';
 
@@ -177,6 +177,8 @@ const context: StoreContext = {
   },
 };
 
+const mapTiles = new MapTiles();
+
 const baseApi = {
   counts: () => requireStore().counts(),
   columns: (table: string) => requireStore().columns(table),
@@ -193,7 +195,13 @@ const baseApi = {
   shapeRows: (shapeId: string) => requireStore().shapeRows(shapeId),
   shapeCoords: (shapeId: string) => requireStore().shapeCoords(shapeId),
   summary: () => feedSummary(requireStore()),
-  routeGeometries: () => routeGeometries(requireStore()),
+  /** Index the route line tiles; routes missing from `styles` are not drawn. */
+  indexRouteTiles: (styles: Record<string, RouteTileStyle>) =>
+    mapTiles.buildRoutes(requireStore(), styles),
+  indexStopTiles: () => mapTiles.buildStops(requireStore()),
+  /** One map tile as MVT bytes, or null when empty. */
+  storeTile: (layer: TileLayer, z: number, x: number, y: number) =>
+    mapTiles.tile(layer, z, x, y),
   tripsInfo: (tripIds: string[]) => tripsInfo(requireStore(), tripIds),
   routeTrips: (routeId: string) => routeTrips(requireStore(), routeId),
   allStopTimes: () => allStopTimes(requireStore()),

@@ -14,6 +14,12 @@ importers:
       '@leeoniya/ufuzzy':
         specifier: ^1.0.19
         version: 1.0.19
+      '@maplibre/geojson-vt':
+        specifier: ^6.1.1
+        version: 6.1.1
+      '@maplibre/vt-pbf':
+        specifier: ^4.3.2
+        version: 4.3.2
       '@types/geojson':
         specifier: ^7946.0.16
         version: 7946.0.16

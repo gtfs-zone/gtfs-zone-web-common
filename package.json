@@ -23,6 +23,8 @@
   },
   "peerDependencies": {
     "@leeoniya/ufuzzy": "*",
+    "@maplibre/geojson-vt": "*",
+    "@maplibre/vt-pbf": "*",
     "fflate": "*",
     "gtfs-realtime-bindings": "*",
     "gtfs-zone-vocab": "*",
@@ -37,6 +39,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@leeoniya/ufuzzy": "^1.0.19",
+    "@maplibre/geojson-vt": "^6.1.1",
+    "@maplibre/vt-pbf": "^4.3.2",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.6.3",
     "@types/papaparse": "^5.5.2",
