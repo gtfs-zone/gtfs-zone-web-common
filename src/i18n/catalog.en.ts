@@ -30,8 +30,6 @@ export const en = {
   'color.custom': 'Custom…',
   'color.pick': 'Pick a color',
 
-  'issue.showAll': 'Show all {count}',
-
   'list.status': '{shown} of {total}',
   'list.noMatch': 'Nothing matches "{needle}"',
   'list.search': 'Search',

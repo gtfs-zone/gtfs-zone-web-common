@@ -33,8 +33,6 @@ export const de: Translation<typeof en> = {
   'color.custom': 'Eigene…',
   'color.pick': 'Farbe wählen',
 
-  'issue.showAll': 'Alle anzeigen ({count})',
-
   'list.status': '{shown} von {total}',
   'list.noMatch': 'Keine Treffer für „{needle}“',
   'list.search': 'Suchen',
