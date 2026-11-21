@@ -1,3 +1,14 @@
+## v7.0.0 (2026-11-21)
+
+### BREAKING CHANGE
+
+- IssueRow.items is { count, page(start, end) } and moreCount is gone. attachIssueCard mounts each row's list when it is opened. The data-issue-show-all button and the issue.showAll string are removed.
+
+### Feat
+
+- **ui**: issue card reads row items a page at a time into a lazy list
+- **ui**: lazy list that appends pages on scroll, with a debounced search input
+
 ## v6.4.0 (2026-11-21)
 
 ### Feat
