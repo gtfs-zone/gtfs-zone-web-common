@@ -1,3 +1,9 @@
+## v7.0.1 (2026-11-21)
+
+### Fix
+
+- **ui**: lazy list skips horizontal-only scroll wrappers when picking its root
+
 ## v7.0.0 (2026-11-21)
 
 ### BREAKING CHANGE
