@@ -32,6 +32,10 @@ export const en = {
 
   'issue.showAll': 'Show all {count}',
 
+  'list.status': '{shown} of {total}',
+  'list.noMatch': 'Nothing matches "{needle}"',
+  'list.search': 'Search',
+
   'progress.processing': 'Processing...',
   'progress.cancelling': 'Cancelling...',
   'load.chooseScheduled': 'Choose a scheduled feed',

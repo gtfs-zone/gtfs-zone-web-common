@@ -35,6 +35,10 @@ export const fr: Translation<typeof en> = {
 
   'issue.showAll': 'Tout afficher ({count})',
 
+  'list.status': '{shown} sur {total}',
+  'list.noMatch': 'Aucun résultat pour « {needle} »',
+  'list.search': 'Rechercher',
+
   'progress.processing': 'Traitement...',
   'progress.cancelling': 'Annulation...',
   'load.chooseScheduled': 'Choisissez un flux théorique',
