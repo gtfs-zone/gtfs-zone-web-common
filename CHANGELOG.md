@@ -1,3 +1,9 @@
+## v7.2.0 (2026-11-21)
+
+### Feat
+
+- **ui**: renderScrollbox for pages with several capped lists
+
 ## v7.1.0 (2026-11-21)
 
 ### Feat
