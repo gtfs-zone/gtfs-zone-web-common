@@ -58,9 +58,18 @@ export interface LazyList<T> {
   destroy(): void;
 }
 
+/**
+ * Whether `el` scrolls vertically. `overflow-x: auto` alone computes
+ * `overflow-y` to `auto` as well, so a horizontal-only wrapper (a wide
+ * table's) also needs a height cap or overflowing content to count.
+ */
 function isScrollable(el: Element): boolean {
-  const overflow = getComputedStyle(el).overflowY;
-  return overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay';
+  const style = getComputedStyle(el);
+  const overflow = style.overflowY;
+  if (overflow !== 'auto' && overflow !== 'scroll' && overflow !== 'overlay') {
+    return false;
+  }
+  return style.maxHeight !== 'none' || el.scrollHeight > el.clientHeight;
 }
 
 /** The nearest scrolling ancestor of `el`, or null for the viewport. */
@@ -112,17 +121,32 @@ export function mountLazyList<T>(
   sentinel.className = 'text-xs opacity-60 py-2';
   sentinel.dataset.lazyListStatus = '';
   block.after(sentinel);
-  const root = scrollRoot(block);
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        void loadNext();
-      }
-    },
-    { root, rootMargin: `0px 0px ${PRELOAD_MARGIN_PX}px 0px` }
-  );
-  observer.observe(sentinel);
+  const onIntersect = (entries: IntersectionObserverEntry[]): void => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      void loadNext();
+    }
+  };
+  let root: Element | null = null;
+  let observer: IntersectionObserver | null = null;
+  /**
+   * Observes against the nearest scrolling ancestor. Re-run after each
+   * render: an ancestor that had too little content to scroll may scroll now.
+   */
+  const observe = (): void => {
+    const next = scrollRoot(block);
+    if (observer && next === root) {
+      return;
+    }
+    observer?.disconnect();
+    root = next;
+    observer = new IntersectionObserver(onIntersect, {
+      root,
+      rootMargin: `0px 0px ${PRELOAD_MARGIN_PX}px 0px`,
+    });
+    observer.observe(sentinel);
+  };
+  observe();
 
   const updateStatus = (): void => {
     let text = '';
@@ -199,6 +223,7 @@ export function mountLazyList<T>(
     }
     shown = start + slice.length;
     updateStatus();
+    observe();
     console.log(`${tag} rows ${start}-${shown} of ${filtered.length}`);
     runAfterAppend([...target.children].slice(before), slice, start);
     return true;
@@ -239,7 +264,7 @@ export function mountLazyList<T>(
     }
     destroyed = true;
     generation += 1;
-    observer.disconnect();
+    observer?.disconnect();
     sentinel.remove();
   }
 
