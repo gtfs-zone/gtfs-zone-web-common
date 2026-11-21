@@ -59,11 +59,15 @@ export interface LazyList<T> {
 }
 
 /**
- * Whether `el` scrolls vertically. `overflow-x: auto` alone computes
+ * Whether `el` scrolls vertically. A `.scroll-rows` region always does, even
+ * before its first page overflows it. `overflow-x: auto` alone computes
  * `overflow-y` to `auto` as well, so a horizontal-only wrapper (a wide
  * table's) also needs a height cap or overflowing content to count.
  */
 function isScrollable(el: Element): boolean {
+  if (el.classList.contains('scroll-rows')) {
+    return true;
+  }
   const style = getComputedStyle(el);
   const overflow = style.overflowY;
   if (overflow !== 'auto' && overflow !== 'scroll' && overflow !== 'overlay') {

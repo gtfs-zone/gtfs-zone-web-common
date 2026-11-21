@@ -162,7 +162,7 @@ export function renderMonthGrid(
 
   return `
     <div class="grid grid-cols-7 gap-1">${header}</div>
-    <div class="grid grid-cols-7 gap-1 mt-1">${cells.join('')}</div>`;
+    <div class="scroll-rows grid grid-cols-7 gap-1 mt-1 content-start">${cells.join('')}</div>`;
 }
 
 function renderHeader(

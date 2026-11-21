@@ -103,7 +103,7 @@ function renderAppShell(opts: AppShellOptions): string {
         <div id="panel-resizer" class="hidden md:block absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-10 group">
           <div class="absolute inset-y-0 left-0.5 w-px bg-base-300 group-hover:bg-primary/50 transition-colors"></div>
         </div>
-        <div id="panel-content" class="panel-scroll flex-1 overflow-y-auto bg-base-100 p-4">
+        <div id="panel-content" class="panel-scroll scroll-host flex-1 overflow-y-auto bg-base-100 p-4">
           <p class="text-base-content/50 text-sm text-center py-8">${escapeHtml(opts.panelPlaceholder)}</p>
         </div>
       </div>

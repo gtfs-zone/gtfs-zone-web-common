@@ -147,6 +147,16 @@ The layout every app shares, in four parts that go together:
   `ui/panel-host.ts` (the `data-nav` dispatch, the breadcrumb header, and the
   scroll and `<details>` restore) sit on top of it. The app supplies the pages.
 
+### Rows-only scrolling
+
+The modal body (`showModal`) and `#panel-content` are `.scroll-host`s. A page
+that marks one element `.scroll-rows` (a list, a table wrapper) scrolls only
+that element: the host stops scrolling and every element between the host and
+the region becomes a flex column, so what sits above and below the rows stays
+in place. Mark one region per page; a page with none scrolls as a whole.
+`renderScrollableTable` and the month grid of `ui/calendar-modal` are regions
+already, and `ui/lazy-list` observes a region as its scroll root.
+
 ## Feed store
 
 `gtfs/store/` loads a GTFS zip in a worker and keeps it there, columnar:

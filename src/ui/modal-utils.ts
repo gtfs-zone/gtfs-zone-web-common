@@ -96,19 +96,18 @@ export function renderWarningIcon(sizeClass = 'h-4 w-4'): string {
 }
 
 /**
- * A modal list table whose body scrolls under a pinned header.
+ * A modal list table whose rows scroll under a pinned header.
  *
- * Keeps the column headers visible with hundreds of rows; anything that must
- * stay reachable (an upload/add button) belongs after the returned markup, not
- * inside it.
+ * The wrapper is the page's `.scroll-rows` region, so the modal body stops
+ * scrolling and gives the table the height left over: whatever sits before or
+ * after the returned markup (a search, an upload button) stays in place.
  */
 export function renderScrollableTable(
   headers: string[],
-  rowsHtml: string,
-  maxHeightClass = 'max-h-[55vh]'
+  rowsHtml: string
 ): string {
   return `
-    <div class="${maxHeightClass} overflow-y-auto">
+    <div class="scroll-rows">
       <table class="table table-sm table-pin-rows">
         <thead>
           <tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
@@ -211,7 +210,7 @@ export async function showModal(options: {
       <div class="modal-box relative max-h-[80vh] max-w-4xl w-11/12 flex flex-col outline-none focus:outline-none ${options.boxClassName ?? ''}" tabindex="-1">
         ${options.escapeAction !== undefined ? `<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-dismiss>${renderCloseIcon()}</button>` : ''}
         <h3 class="font-bold text-lg">${options.title}</h3>
-        <div class="flex-1 overflow-y-auto py-4">${options.body}</div>
+        <div class="scroll-host flex-1 min-h-0 overflow-y-auto py-4">${options.body}</div>
         <div class="modal-action">
           ${options.actionBarContent ? `<div class="flex items-center gap-2 flex-1">${options.actionBarContent}</div>` : ''}
           ${options.actions

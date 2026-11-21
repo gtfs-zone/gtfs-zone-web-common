@@ -155,6 +155,8 @@ export class PanelHost<S> {
     }
 
     const scroll = this.host.scrollTop;
+    // A page with a `.scroll-rows` region scrolls there, not on the host.
+    const rowsScroll = this.host.querySelector('.scroll-rows')?.scrollTop ?? 0;
     this.host.innerHTML = `
       <div class="space-y-4">
         ${renderBreadcrumbTrail(this.breadcrumbs, this.hooks.href)}
@@ -171,5 +173,9 @@ export class PanelHost<S> {
         }
       });
     this.host.scrollTop = resetScroll ? 0 : scroll;
+    const rows = this.host.querySelector('.scroll-rows');
+    if (rows) {
+      rows.scrollTop = resetScroll ? 0 : rowsScroll;
+    }
   }
 }

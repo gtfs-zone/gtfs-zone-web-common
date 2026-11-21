@@ -65,9 +65,38 @@ body {
   #right-panel.sheet-full .panel-scroll {
     overflow-y: auto;
   }
+
+  /* A rows region in the panel stays still in the peek state too */
+  #right-panel:not(.sheet-half):not(.sheet-full) .scroll-rows {
+    overflow: hidden;
+  }
 }
 
 @layer components {
+  /* A .scroll-host (modal body, #panel-content) holding a .scroll-rows region
+     stops scrolling as a whole: it and every element between it and the
+     region become flex columns, and the region takes the height left over,
+     so only its rows scroll. A host without a region scrolls as before. The
+     host keeps its own overflow, so on a very short screen where the region
+     reaches its minimum height the host scrolls instead of clipping. Being in
+     this layer, utilities on a chain element (hidden, md:flex-row) win. */
+  .scroll-host:has(.scroll-rows),
+  .scroll-host:has(.scroll-rows) :has(.scroll-rows) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .scroll-host:has(.scroll-rows) :has(.scroll-rows),
+  .scroll-rows {
+    flex: 1 1 0%;
+  }
+
+  .scroll-rows {
+    min-height: 10rem;
+    overflow: auto;
+  }
+
   #map-controls .btn {
     transition: all 0.2s ease;
   }
