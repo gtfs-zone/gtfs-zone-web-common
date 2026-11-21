@@ -153,7 +153,9 @@ The modal body (`showModal`) and `#panel-content` are `.scroll-host`s. A page
 that marks one element `.scroll-rows` (a list, a table wrapper) scrolls only
 that element: the host stops scrolling and every element between the host and
 the region becomes a flex column, so what sits above and below the rows stays
-in place. Mark one region per page; a page with none scrolls as a whole.
+in place. Mark one region per page; a page with none scrolls as a whole. A
+page with several lists caps each one with `renderScrollbox` (`ui/scrollbox`)
+instead.
 `renderScrollableTable` and the month grid of `ui/calendar-modal` are regions
 already, and `ui/lazy-list` observes a region as its scroll root.
 
