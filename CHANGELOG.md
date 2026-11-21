@@ -1,3 +1,9 @@
+## v7.1.0 (2026-11-21)
+
+### Feat
+
+- **ui**: rows-only scrolling through scroll-host and scroll-rows
+
 ## v7.0.1 (2026-11-21)
 
 ### Fix
