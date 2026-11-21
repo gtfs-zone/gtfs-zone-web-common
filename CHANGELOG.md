@@ -1,3 +1,9 @@
+## v6.4.0 (2026-11-21)
+
+### Feat
+
+- **map**: vehicles in a white and a dark ring, shrunk where they crowd
+
 ## v6.3.0 (2026-11-17)
 
 ### Feat
