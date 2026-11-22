@@ -520,9 +520,10 @@ export const TRIP_SCHEDULE_RELATIONSHIP_LABELS: Record<number, string> = {
   1: 'ADDED',
   2: 'UNSCHEDULED',
   3: 'CANCELED',
-  4: 'REPLACEMENT',
-  5: 'DUPLICATED',
-  6: 'DELETED',
+  5: 'REPLACEMENT',
+  6: 'DUPLICATED',
+  7: 'DELETED',
+  8: 'NEW',
 };
 
 export const STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS: Record<number, string> = {
@@ -598,9 +599,10 @@ const TRIP_RELATIONSHIP_TITLES: Record<number, string> = {
   1: 'The feed reports this trip as ADDED: it is not in the static schedule by design, not by omission.',
   2: 'The feed reports this trip as UNSCHEDULED: a frequency-based trip with exact_times=0.',
   3: 'The feed reports this trip as CANCELED: it will not run.',
-  4: 'The feed reports this trip as REPLACEMENT: it replaces a scheduled trip (experimental).',
-  5: 'The feed reports this trip as DUPLICATED: it duplicates a scheduled trip at a new time (experimental).',
-  6: 'The feed reports this trip as DELETED: the producer states it should not be shown to users (experimental).',
+  5: 'The feed reports this trip as REPLACEMENT: it replaces a scheduled trip (experimental).',
+  6: 'The feed reports this trip as DUPLICATED: it duplicates a scheduled trip at a new time (experimental).',
+  7: 'The feed reports this trip as DELETED: the producer states it should not be shown to users (experimental).',
+  8: 'The feed reports this trip as NEW: an extra trip unrelated to any scheduled trip (experimental).',
 };
 
 /** One explanation per stop-time relationship. */
