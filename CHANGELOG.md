@@ -1,3 +1,13 @@
+## v7.8.0 (2026-11-22)
+
+### Feat
+
+- **rt-panel**: render TreePages through a shared TreePageMounter
+- **list-box**: keep search, rows and scroll across a page re-render
+- **breadcrumbs**: realtime tree chain, node crumbs and validation
+- **tree-location**: TreeLocation union, TREE_PAGE_SPECS and trip key helpers
+- **page-state**: untypedPages and migrate schema options
+
 ## v7.7.0 (2026-11-22)
 
 ### Feat
