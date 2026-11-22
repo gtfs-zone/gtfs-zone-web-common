@@ -1,3 +1,9 @@
+## v7.5.1 (2026-11-22)
+
+### Fix
+
+- **gtfs**: match trip schedule_relationship codes to the spec
+
 ## v7.5.0 (2026-11-22)
 
 ### Feat
