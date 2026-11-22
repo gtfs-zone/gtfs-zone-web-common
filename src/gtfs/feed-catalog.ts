@@ -58,6 +58,14 @@ export const ROLE_SHORT: Record<Role, string> = {
   realtime: 'RT',
 };
 
+/** How another feed overlaps this one, from this feed's side. */
+export type OverlapKind = 'contains' | 'containedIn' | 'shares';
+
+export interface FeedOverlap {
+  feedId: string;
+  kind: OverlapKind;
+}
+
 export interface CatalogFeed {
   feedId: string;
   name: string;
@@ -85,6 +93,10 @@ export interface CatalogFeed {
   since?: string;
   /** Down, and no check has ever seen it up. */
   neverUp?: boolean;
+  /** Distinct agencies over every schedule URL; 0 when unknown. */
+  agencyCount: number;
+  /** Feeds sharing an agency in the same area: an aggregate contains a city feed. */
+  overlaps: FeedOverlap[];
 }
 
 /** One search.json entry, as published. */
@@ -105,6 +117,8 @@ interface SearchEntry {
   m?: string;
   since?: string;
   nu?: boolean;
+  ac?: number;
+  ov?: [string, OverlapKind][];
 }
 
 /** One feeds.json entry: only the fields read by the fallback. */
@@ -126,6 +140,8 @@ interface FeedsEntry {
   country_code?: string;
   lat?: number;
   lon?: number;
+  agencyCount?: number;
+  overlaps?: FeedOverlap[];
 }
 
 function fromSearchEntry(e: SearchEntry): CatalogFeed {
@@ -147,6 +163,8 @@ function fromSearchEntry(e: SearchEntry): CatalogFeed {
     lastModified: e.m,
     since: e.since,
     neverUp: e.nu,
+    agencyCount: e.ac ?? 0,
+    overlaps: (e.ov ?? []).map(([feedId, kind]) => ({ feedId, kind })),
   };
 }
 
@@ -171,6 +189,8 @@ function fromFeedsEntry(e: FeedsEntry): CatalogFeed {
     lastModified: e.lastModified?.slice(0, 10),
     since: e.since?.slice(0, 10),
     neverUp: e.neverUp,
+    agencyCount: e.agencyCount ?? 0,
+    overlaps: (e.overlaps ?? []).map(({ feedId, kind }) => ({ feedId, kind })),
   };
 }
 

@@ -11,6 +11,8 @@ const doc = {
       n: 'NVBW',
       p: ['Stuttgart', 'Germany'],
       pt: ['Switzerland', 'Bavaria'],
+      ac: 2,
+      ov: [['hsl', 'contains']],
       st: 'up',
       rs: {},
       u: {},
@@ -25,6 +27,13 @@ describe('place tags', () => {
   it('parses pt into placeTags, empty when absent', () => {
     assert.deepEqual(feeds[0].placeTags, ['Switzerland', 'Bavaria']);
     assert.deepEqual(feeds[1].placeTags, []);
+  });
+
+  it('parses ac and ov, empty when absent', () => {
+    assert.equal(feeds[0].agencyCount, 2);
+    assert.deepEqual(feeds[0].overlaps, [{ feedId: 'hsl', kind: 'contains' }]);
+    assert.equal(feeds[1].agencyCount, 0);
+    assert.deepEqual(feeds[1].overlaps, []);
   });
 
   it('puts place tags in the haystack', () => {
