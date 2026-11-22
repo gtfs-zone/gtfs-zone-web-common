@@ -25,6 +25,11 @@ export interface PanelHostHooks<S> {
   renderPage: (state: S) => string;
   /** Run a write named by a `data-action` button. */
   action?: (action: string, arg: string) => void;
+  /**
+   * Called before each render, while the previous page is still in the
+   * document. `reset` is true when a different page is about to show.
+   */
+  beforeRender?: (host: HTMLElement, reset: boolean) => void;
   /** Called after each render, to mount what needs a connected element. */
   afterRender?: (host: HTMLElement, state: S) => void;
   /** Called every second while a page shows, to refresh live text in place. */
@@ -156,6 +161,7 @@ export class PanelHost<S> {
       return;
     }
 
+    this.hooks.beforeRender?.(this.host, resetScroll);
     const scroll = this.host.scrollTop;
     // A page with a `.scroll-rows` region scrolls there, not on the host.
     const rowsScroll = this.host.querySelector('.scroll-rows')?.scrollTop ?? 0;

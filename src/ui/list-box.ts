@@ -40,9 +40,30 @@ export interface ListBoxOptions<T> {
   name?: string;
 }
 
+/** What a reader did to a box, carried over a re-render of its page. */
+export interface ListBoxSnapshot {
+  needle: string;
+  /** The search box had focus. */
+  focused: boolean;
+  /** Lazy rows drawn. */
+  rows: number;
+  scrollTop: number;
+  /** The scrollbox's height, held until the restored rows are drawn. */
+  height: number;
+}
+
 export interface ListBox {
+  snapshot(): ListBoxSnapshot;
   destroy(): void;
 }
+
+const EMPTY_SNAPSHOT: ListBoxSnapshot = {
+  needle: '',
+  focused: false,
+  rows: 0,
+  scrollTop: 0,
+  height: 0,
+};
 
 function isPaged<T>(
   items: readonly T[] | ListBoxPages<T>
@@ -62,9 +83,11 @@ function rowList(rows: string): string {
 function mountWhole<T>(
   target: HTMLElement,
   options: ListBoxOptions<T>,
-  tag: string
+  tag: string,
+  restore: ListBoxSnapshot
 ): ListBox {
   let destroyed = false;
+  let scroller: HTMLElement | null = null;
   const draw = (items: readonly T[]): void => {
     if (destroyed) {
       return;
@@ -72,6 +95,10 @@ function mountWhole<T>(
     target.innerHTML = renderScrollbox(
       rowList(items.map((item, i) => options.row(item, i)).join(''))
     );
+    scroller = target.firstElementChild as HTMLElement | null;
+    if (scroller) {
+      scroller.scrollTop = restore.scrollTop;
+    }
   };
   const items = options.items;
   if (isPaged(items)) {
@@ -82,6 +109,10 @@ function mountWhole<T>(
     draw(items);
   }
   return {
+    snapshot: () => ({
+      ...EMPTY_SNAPSHOT,
+      scrollTop: scroller?.scrollTop ?? restore.scrollTop,
+    }),
     destroy: () => {
       destroyed = true;
     },
@@ -92,7 +123,8 @@ function mountLazy<T>(
   target: HTMLElement,
   options: ListBoxOptions<T>,
   count: number,
-  tag: string
+  tag: string,
+  restore: ListBoxSnapshot
 ): ListBox {
   const source = options.items;
   const searchText = options.searchText;
@@ -111,6 +143,19 @@ function mountLazy<T>(
       : ''
   }${renderScrollbox(rowList(''))}`;
   const ul = target.querySelector<HTMLElement>('ul')!;
+  const scroller = ul.parentElement!;
+  const input = target.querySelector<HTMLInputElement>(
+    '[data-list-box-search]'
+  );
+  // A paged list can only filter once every item is read, so its needle is
+  // applied after that read instead of at mount.
+  const startNeedle = input && all ? restore.needle : '';
+  // Hold the old height so the panel's own scroll offset is not clamped
+  // while the first page renders.
+  let restorePending = restore.height > 0 || restore.scrollTop > 0;
+  if (restore.height > 0) {
+    scroller.style.minHeight = `${restore.height}px`;
+  }
 
   const lazy: LazyList<number> = mountLazyList<number>(ul, {
     name: options.name,
@@ -135,15 +180,26 @@ function mountLazy<T>(
           );
         }
       : undefined,
+    afterAppend: () => {
+      if (restorePending) {
+        restorePending = false;
+        scroller.style.minHeight = '';
+        scroller.scrollTop = restore.scrollTop;
+      }
+    },
     empty: options.empty,
+    initialNeedle: startNeedle,
+    initialRows: startNeedle === restore.needle ? restore.rows : 0,
   });
 
   let unbind: (() => void) | null = null;
-  const input = target.querySelector<HTMLInputElement>(
-    '[data-list-box-search]'
-  );
   if (input) {
-    unbind = bindListSearch(input, (needle) => {
+    input.value = restore.needle;
+    if (restore.focused) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    const onNeedle = (needle: string): void => {
       if (all || needle.trim() === '') {
         lazy.setNeedle(needle);
         return;
@@ -156,10 +212,21 @@ function mountLazy<T>(
         .catch((error: unknown) =>
           console.error(`${tag} reading items for search failed:`, error)
         );
-    });
+    };
+    unbind = bindListSearch(input, onNeedle);
+    if (restore.needle !== startNeedle) {
+      onNeedle(restore.needle);
+    }
   }
 
   return {
+    snapshot: () => ({
+      needle: input?.value ?? '',
+      focused: input !== null && document.activeElement === input,
+      rows: lazy.shown(),
+      scrollTop: scroller.scrollTop,
+      height: scroller.offsetHeight,
+    }),
     destroy: () => {
       unbind?.();
       lazy.destroy();
@@ -167,10 +234,14 @@ function mountLazy<T>(
   };
 }
 
-/** Mounts a list box on `target`, replacing its contents. */
+/**
+ * Mounts a list box on `target`, replacing its contents. `restore` is the
+ * snapshot of the same box before its page re-rendered.
+ */
 export function mountListBox<T>(
   target: HTMLElement,
-  options: ListBoxOptions<T>
+  options: ListBoxOptions<T>,
+  restore: ListBoxSnapshot = EMPTY_SNAPSHOT
 ): ListBox {
   const tag = `[ListBox ${options.name ?? 'list'}]`;
   const count = isPaged(options.items)
@@ -178,10 +249,10 @@ export function mountListBox<T>(
     : options.items.length;
   if (count === 0) {
     target.innerHTML = emptyLine(options.empty);
-    return { destroy: () => {} };
+    return { snapshot: () => restore, destroy: () => {} };
   }
   const lazy = options.lazy ?? count > LIST_BOX_LAZY_THRESHOLD;
   return lazy
-    ? mountLazy(target, options, count, tag)
-    : mountWhole(target, options, tag);
+    ? mountLazy(target, options, count, tag, restore)
+    : mountWhole(target, options, tag, restore);
 }

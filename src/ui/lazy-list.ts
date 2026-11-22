@@ -39,6 +39,10 @@ export interface LazyListOptions<T> {
   noMatch?(needle: string): string;
   /** Prefix of the `[LazyList]` log lines, to tell lists apart. */
   name?: string;
+  /** The needle to start with, as the reader typed it. */
+  initialNeedle?: string;
+  /** Render at least this many rows on the first page. */
+  initialRows?: number;
 }
 
 export interface SetItemsOptions {
@@ -109,7 +113,7 @@ export function mountLazyList<T>(
   const name = options.name ?? (target.id || 'list');
   const tag = `[LazyList ${name}]`;
   let items = options.items;
-  let needle = '';
+  let needle = options.initialNeedle?.trim().toLowerCase() ?? '';
   let filtered = items;
   let shown = 0;
   // Bumped by every reset; a page from an older generation is dropped.
@@ -273,7 +277,7 @@ export function mountLazyList<T>(
   }
 
   applyFilter();
-  reset(0);
+  reset(options.initialRows ?? 0);
 
   return {
     setNeedle(value: string): void {
