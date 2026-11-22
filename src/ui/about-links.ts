@@ -7,6 +7,7 @@ import { t } from '../i18n/messages';
 
 const SITE_URL = 'https://gtfs.zone';
 const MANAGER_URL = 'https://manage.rt.gtfs.zone';
+const DIFF_URL = 'https://diff.gtfs.zone';
 /** The gtfs-zone GitHub org; repos sit under it by name. */
 export const GITHUB_URL = 'https://github.com/gtfs-zone';
 const CONTACT_EMAIL = 'inquiry@gtfs.zone';
@@ -88,14 +89,16 @@ export function renderVersionAndSource(app: AboutApp, version: string): string {
 }
 
 export function renderProjectSection(app: AboutApp): string {
-  return (
-    divider(t('about.project')) +
-    list([
-      `${link(SITE_URL, 'gtfs.zone')}: ${t('about.siteNote')}`,
-      `${link(app.sibling.href, app.sibling.name)}: ${app.sibling.note}`,
-      `${link(MANAGER_URL, 'manage.rt.gtfs.zone')}: ${t('about.managerNote')}`,
-    ])
-  );
+  const items = [
+    `${link(SITE_URL, 'gtfs.zone')}: ${t('about.siteNote')}`,
+    `${link(app.sibling.href, app.sibling.name)}: ${app.sibling.note}`,
+    `${link(MANAGER_URL, 'manage.rt.gtfs.zone')}: ${t('about.managerNote')}`,
+  ];
+  // Not linked from its own About modal.
+  if (app.name !== 'diff.gtfs.zone') {
+    items.push(`${link(DIFF_URL, 'diff.gtfs.zone')}: ${t('about.diffNote')}`);
+  }
+  return divider(t('about.project')) + list(items);
 }
 
 export function renderResourcesSection(): string {

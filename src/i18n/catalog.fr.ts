@@ -82,6 +82,7 @@ export const fr: Translation<typeof en> = {
   'about.siteNote': 'le projet dont font partie ces outils',
   'about.managerNote':
     'publiez votre propre flux temps réel (compte nécessaire)',
+  'about.diffNote': 'comparer deux flux GTFS',
   'about.resources': 'Ressources',
   'about.specLabel': 'Référence de la spécification GTFS',
   'about.specNote': 'référence officielle des fichiers et des champs',

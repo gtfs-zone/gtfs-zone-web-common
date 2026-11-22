@@ -80,6 +80,7 @@ export const en = {
   'about.project': 'Project',
   'about.siteNote': 'the project these tools belong to',
   'about.managerNote': 'run your own realtime feed (needs an account)',
+  'about.diffNote': 'compare two GTFS feeds',
   'about.resources': 'Resources',
   'about.specLabel': 'GTFS Spec Reference',
   'about.specNote': 'official file format and field reference',
