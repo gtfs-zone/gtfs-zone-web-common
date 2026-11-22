@@ -1,3 +1,9 @@
+## v7.4.0 (2026-11-22)
+
+### Feat
+
+- **feed-catalog**: agencyCount and overlaps from search.json and feeds.json
+
 ## v7.3.0 (2026-11-22)
 
 ### Feat
