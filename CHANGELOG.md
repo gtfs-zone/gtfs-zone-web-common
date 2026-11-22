@@ -1,3 +1,9 @@
+## v7.5.0 (2026-11-22)
+
+### Feat
+
+- **about**: link diff.gtfs.zone from the project section
+
 ## v7.4.0 (2026-11-22)
 
 ### Feat
