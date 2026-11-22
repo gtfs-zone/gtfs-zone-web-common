@@ -4,8 +4,10 @@
  *
  * The app maps a page state to a `TreePage`; this module turns it into markup,
  * mounts each section's list box once the markup is in the document, and
- * destroys the boxes of the previous render. `extraSections` lets an app add
- * sections to a page it shares with another app.
+ * destroys the boxes of the previous render. A box keeps its search text, rows
+ * drawn and scroll offset across a re-render of the same page, matched by its
+ * section's `key` or title. `extraSections` lets an app add sections to a page
+ * it shares with another app.
  */
 
 import type { BreadcrumbItem } from '../ui/breadcrumb-trail';
@@ -14,11 +16,14 @@ import {
   mountListBox,
   type ListBox,
   type ListBoxOptions,
+  type ListBoxSnapshot,
 } from '../ui/list-box';
 import { PanelHost } from '../ui/panel-host';
 import { escapeHtml } from '../util/escape-html';
 
 export interface TreeSection {
+  /** Names the section's list box across re-renders; defaults to the title. */
+  key?: string;
   title?: string;
   /** Markup after the title, e.g. a status badge. */
   titleExtra?: string;
@@ -83,21 +88,82 @@ function renderSection(section: TreeSection, listIndex: number | null): string {
     </section>`;
 }
 
+/**
+ * Renders `TreePage`s to markup and mounts their list boxes, for a host that
+ * owns a `PanelHost`: call `capture` from `beforeRender`, `render` from
+ * `renderPage` and `mount` from `afterRender`.
+ */
+export class TreePageMounter {
+  /** List options of the markup last rendered, by placeholder index. */
+  private lists: { key: string; options: ListBoxOptions<unknown> }[] = [];
+  private boxes: { key: string; box: ListBox }[] = [];
+  private snapshots = new Map<string, ListBoxSnapshot>();
+
+  /** Snapshot the mounted boxes, or forget them when a new page shows. */
+  capture(reset: boolean): void {
+    this.snapshots.clear();
+    if (!reset) {
+      for (const { key, box } of this.boxes) {
+        this.snapshots.set(key, box.snapshot());
+      }
+    }
+  }
+
+  render(page: TreePage, extra: TreeSection[] = []): string {
+    this.lists = [];
+    const body = [...page.sections, ...extra]
+      .map((section, i) => {
+        if (!section.list) {
+          return renderSection(section, null);
+        }
+        const key = section.key ?? section.title ?? `#${i}`;
+        this.lists.push({ key, options: section.list });
+        return renderSection(section, this.lists.length - 1);
+      })
+      .join('');
+    return `<div class="space-y-4">${renderHeader(page)}${body}</div>`;
+  }
+
+  mount(host: HTMLElement): void {
+    this.destroy();
+    host.querySelectorAll<HTMLElement>('[data-list-box]').forEach((el) => {
+      const list = this.lists[Number(el.dataset.listBox)];
+      if (list) {
+        const box = mountListBox(
+          el,
+          list.options,
+          this.snapshots.get(list.key)
+        );
+        this.boxes.push({ key: list.key, box });
+      }
+    });
+    this.snapshots.clear();
+  }
+
+  destroy(): void {
+    for (const { box } of this.boxes) {
+      box.destroy();
+    }
+    this.boxes = [];
+  }
+}
+
 export class TreePageHost<S> {
   private panel: PanelHost<S>;
-  private hooks: TreePageHostHooks<S>;
-  /** List options of the markup last rendered, by placeholder index. */
-  private lists: ListBoxOptions<unknown>[] = [];
-  private boxes: ListBox[] = [];
+  private mounter = new TreePageMounter();
 
   constructor(host: HTMLElement, hooks: TreePageHostHooks<S>) {
-    this.hooks = hooks;
     this.panel = new PanelHost<S>(host, {
       navigate: hooks.navigate,
       href: hooks.href,
       action: hooks.action,
-      renderPage: (state) => this.renderPage(state),
-      afterRender: (el) => this.mountLists(el),
+      beforeRender: (_el, reset) => this.mounter.capture(reset),
+      renderPage: (state) =>
+        this.mounter.render(
+          hooks.page(state),
+          hooks.extraSections?.(state) ?? []
+        ),
+      afterRender: (el) => this.mounter.mount(el),
     });
   }
 
@@ -106,7 +172,7 @@ export class TreePageHost<S> {
   }
 
   destroy(): void {
-    this.destroyBoxes();
+    this.mounter.destroy();
     this.panel.destroy();
   }
 
@@ -128,43 +194,7 @@ export class TreePageHost<S> {
   }
 
   hide(): void {
-    this.destroyBoxes();
+    this.mounter.destroy();
     this.panel.hide();
-  }
-
-  private renderPage(state: S): string {
-    const page = this.hooks.page(state);
-    const sections = [
-      ...page.sections,
-      ...(this.hooks.extraSections?.(state) ?? []),
-    ];
-    this.lists = [];
-    const body = sections
-      .map((section) => {
-        if (!section.list) {
-          return renderSection(section, null);
-        }
-        this.lists.push(section.list);
-        return renderSection(section, this.lists.length - 1);
-      })
-      .join('');
-    return `<div class="space-y-4">${renderHeader(page)}${body}</div>`;
-  }
-
-  private destroyBoxes(): void {
-    for (const box of this.boxes) {
-      box.destroy();
-    }
-    this.boxes = [];
-  }
-
-  private mountLists(host: HTMLElement): void {
-    this.destroyBoxes();
-    host.querySelectorAll<HTMLElement>('[data-list-box]').forEach((el) => {
-      const options = this.lists[Number(el.dataset.listBox)];
-      if (options) {
-        this.boxes.push(mountListBox(el, options));
-      }
-    });
   }
 }

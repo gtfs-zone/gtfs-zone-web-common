@@ -5,7 +5,8 @@
  * Adds a re-render on each session event the app names, the `RtIndex` the
  * pages read (dropped on those same events and rebuilt on the next read), the
  * live `[data-since]` relative times, and the route-strip hover that lights a
- * stop on the map. The app supplies the page dispatcher.
+ * stop on the map. The app supplies the page dispatcher, which returns a
+ * `TreePage` or, for a page not yet on the tree, a markup string.
  */
 
 import type { BreadcrumbItem } from '../ui/breadcrumb-trail';
@@ -14,14 +15,15 @@ import { formatRelative } from './entity-render';
 import type { FeedSession } from './feed-session';
 import { RtIndex } from './rt-index';
 import type { VehiclePosition } from './rt-types';
+import { TreePageMounter, type TreePage } from './tree-page';
 
 export interface RtPanelHooks<S, V extends VehiclePosition> {
   /** Navigate to a page, as if the user had clicked it on the map. */
   navigate: (state: S) => void;
   /** The full hash for a page, so links are real links. */
   href: (state: S) => string;
-  /** The page body for a state, read off the current index. */
-  renderPage: (state: S, index: RtIndex<V>) => string;
+  /** The page for a state, read off the current index. */
+  renderPage: (state: S, index: RtIndex<V>) => TreePage | string;
   /** Light a stop on the map while its route-strip row is hovered. */
   hoverStop: (stop_id: string | null) => void;
   /** Run a write named by a `data-action` button. */
@@ -36,6 +38,7 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
   private events: readonly string[];
   private hooks: RtPanelHooks<S, V>;
   private panel: PanelHost<S>;
+  private mounter = new TreePageMounter();
 
   private hoveredStopId: string | null = null;
   private index: RtIndex<V> | null = null;
@@ -54,7 +57,13 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
     this.panel = new PanelHost<S>(host, {
       navigate: hooks.navigate,
       href: hooks.href,
-      renderPage: (state) => hooks.renderPage(state, this.rtIndex),
+      beforeRender: (_el, reset) => this.mounter.capture(reset),
+      renderPage: (state) => {
+        const page = hooks.renderPage(state, this.rtIndex);
+        return typeof page === 'string' ? page : this.mounter.render(page);
+      },
+      // A string page has no list placeholders, so this only clears boxes.
+      afterRender: (el) => this.mounter.mount(el),
       action: hooks.action,
       tick: (el) => {
         el.querySelectorAll<HTMLElement>('[data-since]').forEach((since) => {
@@ -81,6 +90,7 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
   }
 
   destroy(): void {
+    this.mounter.destroy();
     this.panel.destroy();
   }
 
@@ -98,6 +108,7 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
   /** Stop rendering; the app has handed the panel to something else. */
   hide(): void {
     this.clearHoveredStop();
+    this.mounter.destroy();
     this.panel.hide();
   }
 
