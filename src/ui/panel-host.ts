@@ -25,6 +25,8 @@ export interface PanelHostHooks<S> {
   renderPage: (state: S) => string;
   /** Run a write named by a `data-action` button. */
   action?: (action: string, arg: string) => void;
+  /** Called after each render, to mount what needs a connected element. */
+  afterRender?: (host: HTMLElement, state: S) => void;
   /** Called every second while a page shows, to refresh live text in place. */
   tick?: (host: HTMLElement) => void;
 }
@@ -177,5 +179,6 @@ export class PanelHost<S> {
     if (rows) {
       rows.scrollTop = resetScroll ? 0 : rowsScroll;
     }
+    this.hooks.afterRender?.(this.host, this.current);
   }
 }
