@@ -110,7 +110,6 @@ export const fr: Translation<typeof en> = {
   'load.kb': '{size} Ko',
   'load.mb': '{size} Mo',
   'load.catalogUnavailable': 'Catalogues de flux indisponibles - {reason}',
-  'load.urlScheduled': 'théorique',
   'load.selected': 'sélectionné',
   'load.customTitle': 'URL de flux personnalisées',
   'load.customRealtime':
@@ -118,7 +117,7 @@ export const fr: Translation<typeof en> = {
   'load.customScheduled':
     'Saisissez ou collez votre propre URL de flux ci-dessous',
   'load.showAllTip':
-    'Les flux du catalogue sont listés quand un horaire théorique a répondu au dernier contrôle quotidien. Tout afficher liste aussi les autres ; certains hôtes refusent un contrôle direct mais répondent via le proxy CORS.',
+    'Les flux du catalogue sont listés quand un horaire théorique a répondu au dernier contrôle quotidien, ou une source temps réel pour un flux sans horaire théorique. Tout afficher liste aussi les autres ; certains hôtes refusent un contrôle direct mais répondent via le proxy CORS.',
   'load.corsTip':
     "Fait passer les requêtes par cors.gtfs.zone quand le serveur du flux n'envoie pas d'en-têtes CORS.",
   'load.corsProxy': 'Proxy CORS',
@@ -153,6 +152,9 @@ export const fr: Translation<typeof en> = {
     'https://…/gtfs.zip  (ajoutez #inner.zip pour un flux imbriqué)',
   'load.uploadZip': 'Importer un ZIP',
   'load.searchPlaceholder': 'Rechercher par réseau, lieu ou URL...',
+  'load.realtimeOnly': 'Temps réel uniquement',
+  'load.realtimeOnlyTip':
+    'Ne liste que les flux du catalogue ayant au moins une source temps réel.',
   'load.showAll': 'Tout afficher',
   'load.loadingFeeds': 'Chargement des flux…',
   'load.loading': 'Chargement…',

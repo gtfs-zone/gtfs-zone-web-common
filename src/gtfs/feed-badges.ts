@@ -4,12 +4,9 @@
  */
 
 import type { CatalogFeed, FeedState, Role, RoleState } from './feed-catalog';
-import {
-  FEED_STATE_LABELS,
-  ROLE_LABELS,
-  ROLE_SHORT,
-  realtimeRoles,
-} from './feed-catalog';
+import { FEED_STATE_LABELS, ROLE_LABELS, realtimeRoles } from './feed-catalog';
+import type { NavIconName } from '../ui/nav-icons';
+import { renderNavIcon } from '../ui/nav-icons';
 
 type BadgeSize = 'xs' | 'sm' | 'md';
 
@@ -31,6 +28,20 @@ const ROLE_STATE_CLASS: Record<RoleState, string> = {
   up: 'badge-success',
   down: 'badge-error',
   unknown: 'badge-ghost',
+};
+
+const ROLE_ICON: Record<Role, NavIconName> = {
+  scheduled: 'calendar',
+  vehicles: 'browse',
+  trip_updates: 'history',
+  alerts: 'alerts',
+  realtime: 'signal',
+};
+
+const ICON_SIZE_CLASS: Record<BadgeSize, string> = {
+  xs: 'h-3 w-3',
+  sm: 'h-3.5 w-3.5',
+  md: 'h-4 w-4',
 };
 
 const ROLE_STATE_TEXT: Record<RoleState, string> = {
@@ -61,13 +72,18 @@ export function feedStateBadge(
   return `<span class="badge ${SIZE_CLASS[size]} ${FEED_STATE_CLASS[state]}" title="${feedStateText(state, since, neverUp)}">${FEED_STATE_LABELS[state]}</span>`;
 }
 
+/** The role's icon, titled with its full name. */
+export function roleIcon(role: Role, sizeClass = 'h-3 w-3'): string {
+  return `<span class="inline-flex shrink-0" title="${ROLE_LABELS[role]}" aria-label="${ROLE_LABELS[role]}">${renderNavIcon(ROLE_ICON[role], { sizeClass })}</span>`;
+}
+
 export function roleChip(
   role: Role,
   state: RoleState = 'unknown',
   size: BadgeSize = 'xs'
 ): string {
   const title = `${ROLE_LABELS[role]}: ${ROLE_STATE_TEXT[state]}`;
-  return `<span class="badge ${SIZE_CLASS[size]} ${ROLE_STATE_CLASS[state]} font-mono" title="${title}">${ROLE_SHORT[role]}</span>`;
+  return `<span class="badge ${SIZE_CLASS[size]} ${ROLE_STATE_CLASS[state]} px-1" title="${title}" aria-label="${title}">${renderNavIcon(ROLE_ICON[role], { sizeClass: ICON_SIZE_CLASS[size] })}</span>`;
 }
 
 /** One chip per realtime role the feed lists, in display order. */

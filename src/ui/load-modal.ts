@@ -37,19 +37,21 @@
  * catalog feed are simply not emitted. With it on they are, but realtime stays
  * optional: a schedule alone is always a complete selection. Catalog feeds
  * are listed by default when their schedule answered feed-catalog's last
- * check, in every app; "Show all" lifts the rule. Everything else, the
- * search, upload, CORS and seeding, is the same everywhere, which is the
- * whole reason this is one file.
+ * check, in every app; "Show all" lifts the rule. `options.realtimeOnly` adds
+ * a second, independent filter to feeds with a realtime endpoint. Everything
+ * else, the search, upload, CORS and seeding, is the same everywhere, which is
+ * the whole reason this is one file.
  */
 
 import type { CatalogFeed } from '../gtfs/feed-catalog';
 import {
+  RT_ROLES,
   loadFeedCatalog,
   placeLine,
   realtimeSlots,
   usableUrl,
 } from '../gtfs/feed-catalog';
-import { feedStateBadge, roleChips } from '../gtfs/feed-badges';
+import { feedStateBadge, roleChips, roleIcon } from '../gtfs/feed-badges';
 import { FeedMatcher } from '../gtfs/feed-search';
 import type { FeedSelection } from '../gtfs/feed-selection';
 import { describeMissing, isComplete } from '../gtfs/feed-selection';
@@ -103,6 +105,8 @@ interface FeedRow {
   rtCors: boolean;
   /** Passes the host app's rule, so it is listed without "show all". */
   valid: boolean;
+  /** Fills at least one realtime slot. */
+  hasRt: boolean;
 }
 
 /** One feed this browser stores, as a row under "Your feeds". */
@@ -186,6 +190,11 @@ export type LoadModalResult =
 export interface LoadModalOptions {
   /** Show the realtime section; realtime is optional either way. Default true. */
   realtime?: boolean;
+  /**
+   * Show the "Realtime only" toggle, starting in this state. Absent: no
+   * toggle and no filter. Ignored when `realtime` is false.
+   */
+  realtimeOnly?: boolean;
   /** Extra buttons in the action bar, e.g. "New Empty Feed". */
   extraActions?: ModalAction[];
   /** App rows listed first, each section under its heading. */
@@ -279,7 +288,14 @@ function feedRow(feed: CatalogFeed, realtime: boolean): FeedRow | null {
     // the ones that turn out not to.
     scheduledCors: true,
     rtCors: true,
-    valid: feed.roleState.scheduled === 'up',
+    // Without a usable schedule the row stands on its realtime check.
+    valid: scheduledUrl
+      ? feed.roleState.scheduled === 'up'
+      : RT_ROLES.some(
+          (role) =>
+            usableUrl(feed, role) !== undefined && feed.roleState[role] === 'up'
+        ),
+    hasRt,
   };
 }
 
@@ -311,12 +327,13 @@ function catalogNote(err: unknown): string {
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
+/** One URL of a row; `label` is HTML, usually a role icon. */
 function urlLine(label: string, url: string | undefined): string {
   if (!url) {
     return '';
   }
-  return `<p class="text-[11px] font-mono opacity-50 truncate" title="${escHtml(url)}">
-    <span class="opacity-70">${label}</span> ${escHtml(url)}
+  return `<p class="text-[11px] font-mono opacity-50 truncate flex items-center gap-1 min-w-0">
+    ${label ? `<span class="opacity-70 inline-flex shrink-0">${label}</span>` : ''}<span class="truncate" title="${escHtml(url)}">${escHtml(url)}</span>
   </p>`;
 }
 
@@ -332,10 +349,10 @@ function renderRow(row: FeedRow, selected: boolean, realtime: boolean): string {
           <span class="opacity-70 truncate">${row.meta}</span>
         </p>
         ${row.subtitle ? `<p class="text-xs opacity-60 truncate">${row.subtitle}</p>` : ''}
-        ${urlLine(realtime ? t('load.urlScheduled') : '', row.scheduledUrl)}
-        ${realtime ? urlLine('vp', row.vehiclesUrl) : ''}
-        ${realtime ? urlLine('tu', row.tripUpdatesUrl) : ''}
-        ${realtime ? urlLine('al', row.alertsUrl) : ''}
+        ${urlLine(realtime ? roleIcon('scheduled') : '', row.scheduledUrl)}
+        ${realtime ? urlLine(roleIcon('vehicles'), row.vehiclesUrl) : ''}
+        ${realtime ? urlLine(roleIcon('trip_updates'), row.tripUpdatesUrl) : ''}
+        ${realtime ? urlLine(roleIcon('alerts'), row.alertsUrl) : ''}
       </div>
       <div class="flex gap-1 shrink-0 pt-0.5 items-center">
         ${selected ? `<span class="text-xs opacity-60">${t('load.selected')}</span>` : ''}
@@ -586,10 +603,10 @@ function linkedCard(offer: LinkedOffer): string {
         <button type="button" id="load-linked" class="w-full text-left p-3">
           <p class="text-sm font-medium truncate">${t('load.linked')}</p>
           <p class="text-xs opacity-60 truncate">${escHtml(offer.label)}</p>
-          ${urlLine(t('load.urlScheduled'), offer.scheduledUrl)}
-          ${urlLine('vp', offer.vehiclesUrl)}
-          ${urlLine('tu', offer.tripUpdatesUrl)}
-          ${urlLine('al', offer.alertsUrl)}
+          ${urlLine(roleIcon('scheduled'), offer.scheduledUrl)}
+          ${urlLine(roleIcon('vehicles'), offer.vehiclesUrl)}
+          ${urlLine(roleIcon('trip_updates'), offer.tripUpdatesUrl)}
+          ${urlLine(roleIcon('alerts'), offer.alertsUrl)}
         </button>
         ${
           offer.canRetryWithCors
@@ -630,6 +647,7 @@ export async function showLoadModal(
   options: LoadModalOptions = {}
 ): Promise<LoadModalResult> {
   const realtime = options.realtime ?? true;
+  const realtimeOnlyToggle = realtime && options.realtimeOnly !== undefined;
 
   /** Every URL field on screen, so validation can name the one that is wrong. */
   const urlFields = realtime
@@ -731,6 +749,15 @@ export async function showLoadModal(
 
       <div class="flex shrink-0 items-center gap-3">
         <input type="text" id="load-search" class="input input-bordered input-sm min-w-0 flex-1" placeholder="${escHtml(t('load.searchPlaceholder'))}" autofocus />
+        ${
+          realtimeOnlyToggle
+            ? `<label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
+          <input type="checkbox" id="load-realtime-only" class="toggle toggle-xs"${options.realtimeOnly ? ' checked' : ''} />
+          ${t('load.realtimeOnly')}
+          ${renderTooltipTrigger(t('load.realtimeOnlyTip'), '<span class="opacity-60">?</span>')}
+        </label>`
+            : ''
+        }
         <label class="flex items-center gap-2 text-xs cursor-pointer font-normal shrink-0">
           <input type="checkbox" id="load-show-all" class="toggle toggle-xs" />
           ${t('load.showAll')} <span id="load-hidden-count" class="opacity-60"></span>
@@ -863,6 +890,9 @@ export async function showLoadModal(
         }
       });
       const showAllInput = input('load-show-all');
+      const realtimeOnlyInput = realtimeOnlyToggle
+        ? input('load-realtime-only')
+        : null;
       const hiddenCountEl = document.getElementById('load-hidden-count')!;
       const resultsEl = document.getElementById('load-results')!;
       const scheduledLabelEl = document.getElementById('load-scheduled-label')!;
@@ -1012,9 +1042,11 @@ export async function showLoadModal(
         // No query keeps catalog order, newest schedule first; a query ranks.
         const ranked = matcher.match(searchInput.value);
         const matched = ranked ? ranked.map((i) => rows[i]) : rows;
-        const listed = showAllInput.checked
-          ? matched
-          : matched.filter((r) => r.valid);
+        const realtimeOnly = realtimeOnlyInput?.checked ?? false;
+        const listed = matched.filter(
+          (r) => (showAllInput.checked || r.valid) && (!realtimeOnly || r.hasRt)
+        );
+        // Counts what both filters hide.
         const hidden = matched.length - listed.length;
         hiddenCountEl.textContent = hidden > 0 ? `(+${hidden})` : '';
         visible = listed.slice(0, DISPLAY_CAP);
@@ -1203,6 +1235,7 @@ export async function showLoadModal(
         filterAndRender();
       });
       showAllInput.addEventListener('change', filterAndRender);
+      realtimeOnlyInput?.addEventListener('change', filterAndRender);
 
       // Seed from what is loaded, so reopening the modal is how a feed is edited.
       if (current?.scheduled?.kind === 'url') {
