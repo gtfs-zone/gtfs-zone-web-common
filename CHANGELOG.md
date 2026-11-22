@@ -1,3 +1,16 @@
+## v7.7.0 (2026-11-22)
+
+### Feat
+
+- **breadcrumbs**: treeCrumbs over a label source, Agency step always
+- **tree-page**: page scaffold over PanelHost that mounts list boxes
+- **list-box**: scrollbox or lazy list with search, from an array or pages
+- **panel-host**: afterRender hook for mounting into the rendered page
+
+### Refactor
+
+- **entity-row**: take only the hash builder as link context
+
 ## v7.6.0 (2026-11-22)
 
 ### Feat
