@@ -12,7 +12,7 @@
  * an `<a>` may not contain a `<button>`.
  */
 
-import type { PageRef, RenderContext } from './entity-render';
+import type { LinkContext, PageRef } from './entity-render';
 import { entityLink, escHtml, section } from './entity-render';
 
 export interface EntityRow<S extends PageRef = PageRef> {
@@ -49,7 +49,7 @@ function dot(color: string | undefined): string {
 /** The two text lines. The sublabel is dropped rather than rendered empty. */
 function text<S extends PageRef>(
   row: EntityRow<S>,
-  ctx?: RenderContext<S>
+  ctx?: LinkContext<S>
 ): string {
   const label =
     ctx && row.state
@@ -85,7 +85,7 @@ function trailing(row: EntityRow<PageRef>): string {
  * plain text.
  */
 export function entityRow<S extends PageRef>(
-  ctx: RenderContext<S>,
+  ctx: LinkContext<S>,
   row: EntityRow<S>
 ): string {
   const titleAttr = row.title ? ` title="${escHtml(row.title)}"` : '';

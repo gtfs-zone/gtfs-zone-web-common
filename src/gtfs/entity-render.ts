@@ -65,6 +65,11 @@ export interface RenderContext<
   href: (state: S | RoutePageRef) => string;
 }
 
+/** The part of a `RenderContext` that links need: the hash builder alone. */
+export interface LinkContext<S extends PageRef = PageRef> {
+  href: (state: S | RoutePageRef) => string;
+}
+
 /**
  * A link that navigates the panel rather than reloading the page.
  *
@@ -72,8 +77,8 @@ export interface RenderContext<
  * inside the anchor. The label itself is always escaped.
  */
 export function entityLink<S extends PageRef>(
-  ctx: RenderContext<S>,
-  state: S,
+  ctx: LinkContext<S>,
+  state: S | RoutePageRef,
   label: string,
   className = 'link link-hover',
   iconHtml = ''
@@ -89,7 +94,7 @@ export function entityLink<S extends PageRef>(
  * badge carries a neutral hairline outline regardless of the color chosen.
  */
 export function routeBadge<S extends PageRef>(
-  ctx: RenderContext<S>,
+  ctx: LinkContext<S>,
   route: Route
 ): string {
   const label = route.short_name || route.long_name || route.id;
