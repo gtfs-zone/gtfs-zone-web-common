@@ -107,14 +107,13 @@ export const en = {
   'load.kb': '{size} KB',
   'load.mb': '{size} MB',
   'load.catalogUnavailable': 'Feed catalogs unavailable - {reason}',
-  'load.urlScheduled': 'scheduled',
   'load.selected': 'selected',
   'load.customTitle': 'Custom feed URLs',
   'load.customRealtime':
     'Type or paste your own scheduled and realtime URLs below',
   'load.customScheduled': 'Type or paste your own feed URL below',
   'load.showAllTip':
-    'Catalog feeds are listed when a schedule answered the last daily check. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.',
+    'Catalog feeds are listed when a schedule answered the last daily check, or a realtime endpoint did for a feed with no schedule. Show all lists the rest too; some hosts refuse a bare check but answer the CORS proxy.',
   'load.corsTip':
     "Routes requests through cors.gtfs.zone when the feed server doesn't send CORS headers.",
   'load.corsProxy': 'CORS proxy',
@@ -149,6 +148,9 @@ export const en = {
     'https://…/gtfs.zip  (append #inner.zip for a nested feed)',
   'load.uploadZip': 'Upload ZIP',
   'load.searchPlaceholder': 'Search by agency, place, or URL...',
+  'load.realtimeOnly': 'Realtime only',
+  'load.realtimeOnlyTip':
+    'Lists only catalog feeds with at least one realtime endpoint.',
   'load.showAll': 'Show all',
   'load.loadingFeeds': 'Loading feeds…',
   'load.loading': 'Loading…',

@@ -49,15 +49,6 @@ export const ROLE_LABELS: Record<Role, string> = {
   realtime: 'Realtime (type not declared)',
 };
 
-/** Chip text for a role. */
-export const ROLE_SHORT: Record<Role, string> = {
-  scheduled: 'GTFS',
-  vehicles: 'VP',
-  trip_updates: 'TU',
-  alerts: 'SA',
-  realtime: 'RT',
-};
-
 /** How another feed overlaps this one, from this feed's side. */
 export type OverlapKind = 'contains' | 'containedIn' | 'shares';
 

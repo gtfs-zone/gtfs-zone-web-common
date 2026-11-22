@@ -110,7 +110,6 @@ export const de: Translation<typeof en> = {
   'load.kb': '{size} KB',
   'load.mb': '{size} MB',
   'load.catalogUnavailable': 'Feed-Kataloge nicht verfügbar - {reason}',
-  'load.urlScheduled': 'Fahrplan',
   'load.selected': 'ausgewählt',
   'load.customTitle': 'Eigene Feed-URLs',
   'load.customRealtime':
@@ -118,7 +117,7 @@ export const de: Translation<typeof en> = {
   'load.customScheduled':
     'Geben Sie unten Ihre eigene Feed-URL ein oder fügen Sie sie ein',
   'load.showAllTip':
-    'Katalog-Feeds werden angezeigt, wenn ein Fahrplan bei der letzten täglichen Prüfung geantwortet hat. Alle anzeigen listet auch die übrigen; manche Server lehnen eine direkte Prüfung ab, antworten aber über den CORS-Proxy.',
+    'Katalog-Feeds werden angezeigt, wenn ein Fahrplan bei der letzten täglichen Prüfung geantwortet hat, oder bei einem Feed ohne Fahrplan eine Echtzeit-Quelle. Alle anzeigen listet auch die übrigen; manche Server lehnen eine direkte Prüfung ab, antworten aber über den CORS-Proxy.',
   'load.corsTip':
     'Leitet Anfragen über cors.gtfs.zone, wenn der Feed-Server keine CORS-Header sendet.',
   'load.corsProxy': 'CORS-Proxy',
@@ -153,6 +152,9 @@ export const de: Translation<typeof en> = {
     'https://…/gtfs.zip  (#inner.zip anhängen für einen verschachtelten Feed)',
   'load.uploadZip': 'ZIP hochladen',
   'load.searchPlaceholder': 'Nach Verkehrsunternehmen, Ort oder URL suchen...',
+  'load.realtimeOnly': 'Nur Echtzeit',
+  'load.realtimeOnlyTip':
+    'Listet nur Katalog-Feeds mit mindestens einer Echtzeit-Quelle.',
   'load.showAll': 'Alle anzeigen',
   'load.loadingFeeds': 'Feeds werden geladen…',
   'load.loading': 'Wird geladen…',
