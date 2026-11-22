@@ -1,3 +1,9 @@
+## v7.6.0 (2026-11-22)
+
+### Feat
+
+- **load-modal**: add a Realtime only toggle and role icons
+
 ## v7.5.1 (2026-11-22)
 
 ### Fix
