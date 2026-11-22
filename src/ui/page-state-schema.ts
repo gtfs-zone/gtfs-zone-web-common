@@ -8,7 +8,8 @@
  *
  * Hash layout: the page's params, then `modal=<type>` and the modal's params.
  * With `typeParam` set, the page type is written explicitly; without it, the
- * page is told apart by which params are present, in `pages` order.
+ * page is told apart by which params are present, in `pages` order. A typed
+ * schema can still read untyped hashes through `untypedPages`.
  */
 
 import type { PageStateCodec } from './page-state-manager';
@@ -22,7 +23,8 @@ type FieldSpec<V, K extends keyof V> = undefined extends V[K]
   ? { param: string; optional: true }
   : string;
 
-type VariantSpecs<U extends { type: string }, T extends string> = {
+/** The param specs of the variants of `U` named by `T`. */
+export type PageSpecs<U extends { type: string }, T extends string> = {
   [P in T]: {
     [K in FieldKey<Variant<U, P>>]-?: FieldSpec<Variant<U, P>, K>;
   };
@@ -36,11 +38,18 @@ export interface PageStateSchema<
   M extends { type: string },
 > {
   /** Every page but `home`, which names no object and is the fallback. */
-  pages: VariantSpecs<L, Exclude<L['type'], 'home'>>;
+  pages: PageSpecs<L, Exclude<L['type'], 'home'>>;
   /** Every modal that lives in the hash. */
-  modals: VariantSpecs<M, M['type']>;
+  modals: PageSpecs<M, M['type']>;
   /** Param naming the page type; omitted, the page is sniffed. */
   typeParam?: string;
+  /**
+   * With `typeParam`, the pages sniffed in this order when the hash has no
+   * type param, so links from before the type param still open.
+   */
+  untypedPages?: readonly Exclude<L['type'], 'home'>[];
+  /** Rewrites old params before decoding. Gets a copy it may change. */
+  migrate?: (params: URLSearchParams) => URLSearchParams;
 }
 
 type RuntimeField = string | { param: string; optional: true };
@@ -108,7 +117,11 @@ export function createPageStateCodec<
   type S = WithModal<L, M>;
   const pages = schema.pages as unknown as RuntimeSpecs;
   const modals = schema.modals as unknown as RuntimeSpecs;
-  const { typeParam } = schema;
+  const { typeParam, migrate } = schema;
+  const sniffed: string[] =
+    typeParam === undefined
+      ? Object.keys(pages)
+      : [...(schema.untypedPages ?? [])];
 
   const isModalState = (value: unknown): boolean => {
     if (!value || typeof value !== 'object') {
@@ -139,16 +152,15 @@ export function createPageStateCodec<
   };
 
   const readPage = (params: URLSearchParams): Record<string, string> => {
-    if (typeParam !== undefined) {
-      const type = params.get(typeParam);
-      const fields =
-        type !== null && Object.hasOwn(pages, type)
-          ? readFields(params, pages[type])
-          : null;
-      return fields ? { type: type!, ...fields } : { type: 'home' };
+    const type = typeParam === undefined ? null : params.get(typeParam);
+    if (type !== null) {
+      const fields = Object.hasOwn(pages, type)
+        ? readFields(params, pages[type])
+        : null;
+      return fields ? { type, ...fields } : { type: 'home' };
     }
-    for (const [type, spec] of Object.entries(pages)) {
-      const fields = readFields(params, spec);
+    for (const type of sniffed) {
+      const fields = readFields(params, pages[type]);
       if (fields && Object.keys(fields).length > 0) {
         return { type, ...fields };
       }
@@ -200,7 +212,8 @@ export function createPageStateCodec<
      * home. The modal is carried onto whichever page results: it names no
      * object, so nothing the page half fails to resolve can invalidate it.
      */
-    fromParams(params) {
+    fromParams(raw) {
+      const params = migrate ? migrate(new URLSearchParams(raw)) : raw;
       const page = readPage(params);
       const modal = readModal(params);
       return (modal ? { ...page, modal } : page) as unknown as S;
