@@ -1,3 +1,11 @@
+## v7.3.0 (2026-11-22)
+
+### Feat
+
+- **store**: pattern-level read API for stop_times
+- **zip-index**: read a zip's central directory without inflating
+- **spec**: GTFS spec layer with one primary key list
+
 ## v7.2.0 (2026-11-21)
 
 ### Feat
