@@ -14,6 +14,10 @@ export const en = {
   'shell.logoAlt': '{host} logo',
   'breadcrumb.label': 'Breadcrumb',
 
+  'crumb.agency': 'Agency',
+  'crumb.route': 'Route',
+  'crumb.trip': 'Trip',
+  'crumb.feedInfo': 'Feed info',
   'stopType.stop': 'Stop',
   'stopType.station': 'Station',
   'stopType.entrance': 'Entrance',

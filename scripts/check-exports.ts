@@ -33,6 +33,7 @@ const SIBLINGS = [
   'gtfs-zone-feed-list',
   'gtfs-zone-rt-accuracy',
   'gtfs-zone-wifi-viz',
+  'gtfs-zone-diff',
 ];
 
 /** Every `.ts` file under `dir`, recursively. */

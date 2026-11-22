@@ -17,6 +17,10 @@ export const de: Translation<typeof en> = {
   'shell.logoAlt': 'Logo von {host}',
   'breadcrumb.label': 'Navigationspfad',
 
+  'crumb.agency': 'Verkehrsunternehmen',
+  'crumb.route': 'Linie',
+  'crumb.trip': 'Fahrt',
+  'crumb.feedInfo': 'Feed-Info',
   'stopType.stop': 'Haltestelle',
   'stopType.station': 'Station',
   'stopType.entrance': 'Zugang',

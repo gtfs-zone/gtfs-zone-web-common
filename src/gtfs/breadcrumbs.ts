@@ -7,6 +7,7 @@
  * `route` and `stop` page states, which every app's union includes.
  */
 
+import { t } from '../i18n/messages';
 import type { BreadcrumbItem } from '../ui/breadcrumb-trail';
 import { stopTypeLabel } from '../ui/breadcrumb-trail';
 import type { RoutePageRef } from './entity-render';
@@ -46,7 +47,7 @@ export function routeCrumb(
   routeId: string
 ): BreadcrumbItem<RoutePageRef> {
   return {
-    typeLabel: 'Route',
+    typeLabel: t('crumb.route'),
     label: truncateCrumb(routeLabel(feed, routeId)),
     pageState: { type: 'route', route_id: routeId },
   };
@@ -114,4 +115,118 @@ export function rtAlertParent(
     }
   }
   return null;
+}
+
+/** The pages the shared tree chain knows about. */
+export type TreeCrumbLocation =
+  | { type: 'feed_info' }
+  | { type: 'agency'; agency_id: string }
+  | { type: 'route'; route_id: string }
+  | { type: 'trip'; trip_id: string }
+  | { type: 'stop'; stop_id: string };
+
+/**
+ * Labels and parents for the tree chain, from whatever holds the feed: the
+ * loaded schedule, or a read from a worker. A lookup that returns null leaves
+ * that crumb's label at the bare id and stops the chain above it.
+ */
+export interface TreeCrumbSource {
+  agency(agencyId: string): { label: string } | null;
+  /** `agency_id` is the route's agency, else the sole agency, else null. */
+  route(routeId: string): { label: string; agency_id: string | null } | null;
+  trip(tripId: string): { label: string; route_id: string } | null;
+  stop(stopId: string): {
+    label: string;
+    location_type?: number;
+    parent_station?: string;
+  } | null;
+}
+
+function agencyTreeCrumb(
+  source: TreeCrumbSource,
+  agencyId: string
+): BreadcrumbItem<TreeCrumbLocation> {
+  return {
+    typeLabel: t('crumb.agency'),
+    label: truncateCrumb(source.agency(agencyId)?.label || agencyId),
+    pageState: { type: 'agency', agency_id: agencyId },
+  };
+}
+
+/** Agency > Route; the Agency step is left out when it does not resolve. */
+function routeTreeCrumbs(
+  source: TreeCrumbSource,
+  routeId: string
+): BreadcrumbItem<TreeCrumbLocation>[] {
+  const route = source.route(routeId);
+  const crumb: BreadcrumbItem<TreeCrumbLocation> = {
+    typeLabel: t('crumb.route'),
+    label: truncateCrumb(route?.label || routeId),
+    pageState: { type: 'route', route_id: routeId },
+  };
+  const agencyId = route?.agency_id;
+  return agencyId !== null && agencyId !== undefined
+    ? [agencyTreeCrumb(source, agencyId), crumb]
+    : [crumb];
+}
+
+/** Ancestor stations, outermost first, then the stop. Guards against cycles. */
+function stopTreeCrumbs(
+  source: TreeCrumbSource,
+  stopId: string
+): BreadcrumbItem<TreeCrumbLocation>[] {
+  const chain: string[] = [stopId];
+  const seen = new Set<string>(chain);
+  let parent = source.stop(stopId)?.parent_station;
+  while (parent && !seen.has(parent) && source.stop(parent)) {
+    chain.unshift(parent);
+    seen.add(parent);
+    parent = source.stop(parent)?.parent_station;
+  }
+  return chain.map((id) => {
+    const stop = source.stop(id);
+    return {
+      typeLabel: stopTypeLabel(stop?.location_type),
+      label: truncateCrumb(stop?.label || id),
+      pageState: { type: 'stop', stop_id: id },
+    };
+  });
+}
+
+/**
+ * The shared chain below an app's root crumbs: Feed info; Agency; Agency >
+ * Route; Agency > Route > Trip; [stations] > Stop. The app prepends its own
+ * root (and, in the realtime apps, the Schedule crumb).
+ */
+export function treeCrumbs(
+  source: TreeCrumbSource,
+  location: TreeCrumbLocation
+): BreadcrumbItem<TreeCrumbLocation>[] {
+  switch (location.type) {
+    case 'feed_info':
+      return [
+        {
+          typeLabel: t('crumb.feedInfo'),
+          label: t('crumb.feedInfo'),
+          pageState: location,
+        },
+      ];
+    case 'agency':
+      return [agencyTreeCrumb(source, location.agency_id)];
+    case 'route':
+      return routeTreeCrumbs(source, location.route_id);
+    case 'trip': {
+      const trip = source.trip(location.trip_id);
+      const crumb: BreadcrumbItem<TreeCrumbLocation> = {
+        typeLabel: t('crumb.trip'),
+        label: truncateCrumb(trip?.label || location.trip_id),
+        pageState: location,
+      };
+      return trip
+        ? [...routeTreeCrumbs(source, trip.route_id), crumb]
+        : [crumb];
+    }
+    case 'stop':
+      return stopTreeCrumbs(source, location.stop_id);
+  }
 }

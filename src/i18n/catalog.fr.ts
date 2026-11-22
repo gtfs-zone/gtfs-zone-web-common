@@ -17,6 +17,10 @@ export const fr: Translation<typeof en> = {
   'shell.logoAlt': 'Logo {host}',
   'breadcrumb.label': "Fil d'Ariane",
 
+  'crumb.agency': 'Opérateur',
+  'crumb.route': 'Ligne',
+  'crumb.trip': 'Course',
+  'crumb.feedInfo': 'Infos du flux',
   'stopType.stop': 'Arrêt',
   'stopType.station': 'Station',
   'stopType.entrance': 'Accès',
