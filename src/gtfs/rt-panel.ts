@@ -3,8 +3,8 @@
  * needs around it.
  *
  * Adds a re-render on each session event the app names, the `RtIndex` the
- * pages read (dropped on those same events and rebuilt on the next read), the
- * live `[data-since]` relative times, and the route-strip hover that lights a
+ * pages read (built on a page's first read and reused until the session data
+ * it was built from changes), the live `[data-since]` relative times, and the route-strip hover that lights a
  * stop on the map. The app supplies the page dispatcher, which returns a
  * `TreePage` or, for a page not yet on the tree, a markup string.
  */
@@ -22,8 +22,11 @@ export interface RtPanelHooks<S, V extends VehiclePosition> {
   navigate: (state: S) => void;
   /** The full hash for a page, so links are real links. */
   href: (state: S) => string;
-  /** The page for a state, read off the current index. */
-  renderPage: (state: S, index: RtIndex<V>) => TreePage | string;
+  /**
+   * The page for a state. `rt` returns the current index, building it on the
+   * first call; a page that reads no realtime data should not call it.
+   */
+  renderPage: (state: S, rt: () => RtIndex<V>) => TreePage | string;
   /** Light a stop on the map while its route-strip row is hovered. */
   hoverStop: (stop_id: string | null) => void;
   /** Run a write named by a `data-action` button. */
@@ -42,6 +45,11 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
 
   private hoveredStopId: string | null = null;
   private index: RtIndex<V> | null = null;
+  /** The session data `index` was built from, compared by identity. */
+  private indexInputs: readonly unknown[] = [];
+  /** Bumped on `scheduledata`, which fills the feed's maps in place. */
+  private scheduleData = 0;
+  private readonly rt = (): RtIndex<V> => this.rtIndex;
 
   /** `events` are the session events that change what a page can resolve. */
   constructor(
@@ -59,7 +67,7 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
       href: hooks.href,
       beforeRender: (_el, reset) => this.mounter.capture(reset),
       renderPage: (state) => {
-        const page = hooks.renderPage(state, this.rtIndex);
+        const page = hooks.renderPage(state, this.rt);
         return typeof page === 'string' ? page : this.mounter.render(page);
       },
       // A string page has no list placeholders, so this only clears boxes.
@@ -77,13 +85,14 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
   }
 
   initialize(): void {
-    // `scheduledata`: the feed fetched data a page was waiting for.
-    for (const event of [...this.events, 'scheduledata']) {
-      this.session.addEventListener(event, () => {
-        this.index = null;
-        this.panel.queueRender();
-      });
+    for (const event of this.events) {
+      this.session.addEventListener(event, () => this.panel.queueRender());
     }
+    // The feed fetched data a page was waiting for.
+    this.session.addEventListener('scheduledata', () => {
+      this.scheduleData++;
+      this.panel.queueRender();
+    });
 
     this.panel.initialize();
     // pointerover/out bubble, unlike pointerenter/leave, so they can be
@@ -115,9 +124,26 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
     this.panel.hide();
   }
 
-  /** The realtime read-model for the current payloads, built on demand. */
+  /**
+   * The realtime read-model for the current payloads, built on demand.
+   * Sessions replace `vehicles`, `tripUpdates` and `scheduledFeed` rather
+   * than mutate them, so an unchanged identity means unchanged data.
+   */
   get rtIndex(): RtIndex<V> {
-    return (this.index ??= new RtIndex(this.session));
+    const inputs = [
+      this.session.vehicles,
+      this.session.tripUpdates,
+      this.session.scheduledFeed,
+      this.scheduleData,
+    ];
+    if (
+      this.index === null ||
+      inputs.some((input, i) => input !== this.indexInputs[i])
+    ) {
+      this.index = new RtIndex(this.session);
+      this.indexInputs = inputs;
+    }
+    return this.index;
   }
 
   /**
