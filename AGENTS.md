@@ -27,8 +27,9 @@ The public surface, the app shell and the four edits a consumer needs are in
 - **Nothing app-specific belongs here.** If it only makes sense for one app, it
   stays in that app.
 - **Peer dependencies stay peers.** A second copy of maplibre is a broken map.
-  `gtfs-realtime-bindings` is an optional peer imported as a type only, so
-  nothing here pulls protobufjs into a bundle.
+  `gtfs-realtime-bindings` is an optional peer. `gtfs/rt-poller.ts` is its one
+  value import; everything else imports it as a type, so only an app that
+  imports the poller pulls protobufjs into its bundle.
 - The feed catalog is not source here: `gtfs/feed-catalog.ts` fetches it from
   `https://data.gtfs.zone`, published by feed-catalog.
 

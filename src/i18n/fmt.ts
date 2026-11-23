@@ -59,6 +59,26 @@ export function formatNumber(
   ).format(value);
 }
 
+/**
+ * A speed given in metres per second (the GTFS-RT unit), shown in km/h with
+ * one decimal.
+ */
+export function formatSpeed(
+  metresPerSecond: number,
+  locale: Locale = getLocale()
+): string {
+  return formatNumber(
+    metresPerSecond * 3.6,
+    {
+      style: 'unit',
+      unit: 'kilometer-per-hour',
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    },
+    locale
+  );
+}
+
 /** A weekday's name, 0 for Sunday through 6 for Saturday. */
 export function weekdayName(
   day: number,
