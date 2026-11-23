@@ -79,6 +79,37 @@ export function formatSpeed(
   );
 }
 
+const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
+
+/**
+ * An instant relative to now, in the largest whole unit: "12 seconds ago",
+ * "2 minutes ago", "in 12 seconds", "now".
+ */
+export function formatRelativeTime(
+  ms: number,
+  now: number = Date.now(),
+  locale: Locale = getLocale()
+): string {
+  const format = cached(
+    relativeFormats,
+    locale,
+    { numeric: 'auto' },
+    () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  );
+  const secs = Math.round((ms - now) / 1000);
+  const abs = Math.abs(secs);
+  if (abs < 60) {
+    return format.format(secs, 'second');
+  }
+  if (abs < 3600) {
+    return format.format(Math.trunc(secs / 60), 'minute');
+  }
+  if (abs < 86400) {
+    return format.format(Math.trunc(secs / 3600), 'hour');
+  }
+  return format.format(Math.trunc(secs / 86400), 'day');
+}
+
 /** A weekday's name, 0 for Sunday through 6 for Saturday. */
 export function weekdayName(
   day: number,

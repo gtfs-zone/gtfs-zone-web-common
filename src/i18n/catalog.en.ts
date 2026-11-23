@@ -171,4 +171,44 @@ export const en = {
   'load.loadingFeeds': 'Loading feeds…',
   'load.loading': 'Loading…',
   'load.noResults': 'No results.',
+
+  'prediction.sequence': 'Stop sequence',
+  'prediction.stop': 'Stop',
+  'prediction.scheduled': 'Scheduled',
+  'prediction.expected': 'Expected',
+  'prediction.delay': 'Delay',
+  'prediction.arrival': 'Arrival',
+  'prediction.departure': 'Departure',
+  'prediction.uncertainty': 'Uncertainty',
+  'prediction.zone': 'Times are in {zone}.',
+  'prediction.tipScheduled':
+    'Scheduled time from <code>stop_times.txt</code>, matched by <code>stop_sequence</code>. Struck through when the feed marks the stop SKIPPED.',
+  'prediction.tipExpected':
+    'Expected time. Plain when the feed sent <code>time</code>. <i>Italic</i> when the feed sent only <code>delay</code> and the time was calculated as scheduled + delay.',
+  'prediction.tipDelay':
+    'Delay, + late and - early, never rounded. Plain when the feed sent <code>delay</code>. <i>Italic</i> when the feed sent only <code>time</code> and the delay was calculated as expected - scheduled.',
+  'prediction.delayColours':
+    '<span class="text-success">Green</span> under 1 minute either way, <span class="text-warning">yellow</span> 1 to 5 minutes late, <span class="text-error">red</span> 5 minutes or more late, <span class="text-info">blue</span> 1 minute or more early.',
+
+  'vehicleProps.position': 'Position',
+  'vehicleProps.bearing': 'Bearing',
+  'vehicleProps.speed': 'Speed',
+  'vehicleProps.status': 'Status',
+  'vehicleProps.occupancy': 'Occupancy',
+  'vehicleProps.timestamp': 'Timestamp',
+  'vehicleProps.notReported': 'not reported',
+
+  'endpoint.notSet': 'not set',
+  'endpoint.viaProxy': 'via cors.gtfs.zone',
+  'endpoint.localUrl':
+    'local URL: CORS proxy not applied (it cannot reach this machine)',
+  'endpoint.never': 'never',
+  'endpoint.notReported': 'not reported',
+  'endpoint.error': 'error',
+  'endpoint.lastFetched': 'Last fetched',
+  'endpoint.feedTimestamp': 'Feed timestamp',
+  'endpoint.dataAge': '(data age)',
+  'endpoint.entities': 'Entities',
+  'endpoint.nextRefresh': 'Next refresh',
+  'endpoint.errorAt': 'at {time}',
 } as const;

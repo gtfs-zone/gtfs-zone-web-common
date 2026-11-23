@@ -175,4 +175,44 @@ export const de: Translation<typeof en> = {
   'load.loadingFeeds': 'Feeds werden geladen…',
   'load.loading': 'Wird geladen…',
   'load.noResults': 'Keine Treffer.',
+
+  'prediction.sequence': 'Reihenfolge der Haltestelle',
+  'prediction.stop': 'Haltestelle',
+  'prediction.scheduled': 'Geplant',
+  'prediction.expected': 'Erwartet',
+  'prediction.delay': 'Verspätung',
+  'prediction.arrival': 'Ankunft',
+  'prediction.departure': 'Abfahrt',
+  'prediction.uncertainty': 'Unsicherheit',
+  'prediction.zone': 'Zeiten in {zone}.',
+  'prediction.tipScheduled':
+    'Geplante Zeit aus <code>stop_times.txt</code>, zugeordnet über <code>stop_sequence</code>. Durchgestrichen, wenn der Feed den Halt als SKIPPED markiert.',
+  'prediction.tipExpected':
+    'Erwartete Zeit. Normal, wenn der Feed <code>time</code> gesendet hat. <i>Kursiv</i>, wenn der Feed nur <code>delay</code> gesendet hat und die Zeit als geplant + Verspätung berechnet wurde.',
+  'prediction.tipDelay':
+    'Verspätung, + verspätet und - verfrüht, nie gerundet. Normal, wenn der Feed <code>delay</code> gesendet hat. <i>Kursiv</i>, wenn der Feed nur <code>time</code> gesendet hat und die Verspätung als erwartet - geplant berechnet wurde.',
+  'prediction.delayColours':
+    '<span class="text-success">Grün</span> unter 1 Minute Abweichung, <span class="text-warning">gelb</span> 1 bis 5 Minuten verspätet, <span class="text-error">rot</span> 5 Minuten oder mehr verspätet, <span class="text-info">blau</span> 1 Minute oder mehr verfrüht.',
+
+  'vehicleProps.position': 'Position',
+  'vehicleProps.bearing': 'Kurs',
+  'vehicleProps.speed': 'Geschwindigkeit',
+  'vehicleProps.status': 'Status',
+  'vehicleProps.occupancy': 'Auslastung',
+  'vehicleProps.timestamp': 'Zeitstempel',
+  'vehicleProps.notReported': 'nicht angegeben',
+
+  'endpoint.notSet': 'nicht gesetzt',
+  'endpoint.viaProxy': 'über cors.gtfs.zone',
+  'endpoint.localUrl':
+    'Lokale URL: CORS-Proxy nicht verwendet (er kann diesen Rechner nicht erreichen)',
+  'endpoint.never': 'nie',
+  'endpoint.notReported': 'nicht angegeben',
+  'endpoint.error': 'Fehler',
+  'endpoint.lastFetched': 'Zuletzt abgerufen',
+  'endpoint.feedTimestamp': 'Zeitstempel des Feeds',
+  'endpoint.dataAge': '(Alter der Daten)',
+  'endpoint.entities': 'Entitäten',
+  'endpoint.nextRefresh': 'Nächste Aktualisierung',
+  'endpoint.errorAt': 'um {time}',
 };

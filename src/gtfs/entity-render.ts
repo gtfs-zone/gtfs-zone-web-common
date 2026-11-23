@@ -22,9 +22,8 @@ import {
 } from './feed-time';
 import { escapeHtml } from '../util/escape-html';
 import { routeTypeInfo } from 'gtfs-zone-vocab/route-types';
-import { formatDate } from '../i18n/fmt';
+import { formatDate, formatRelativeTime } from '../i18n/fmt';
 import { getLocale, type Locale } from '../i18n/index';
-import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 
 /**
  * The escaper every renderer here goes through, under the short name the pages
@@ -195,16 +194,9 @@ export function formatAbsolute(seconds: number | undefined): string {
   return `${formatDate(ms, { dateStyle: 'short', timeStyle: 'medium', timeZone: feedTimezone() ?? undefined })} ${zoneLabel(ms)}`;
 }
 
-/** "12s ago" / "3m ago" — driven by the panel's shared ticker. */
+/** "12 seconds ago" / "in 3 minutes", driven by the panel's shared ticker. */
 export function formatRelative(ms: number): string {
-  const secs = Math.round((Date.now() - ms) / 1000);
-  if (secs < 0) {
-    return `in ${formatDuration(-secs)}`;
-  }
-  if (secs < 60) {
-    return `${secs}s ago`;
-  }
-  return `${formatDuration(secs)} ago`;
+  return formatRelativeTime(ms);
 }
 
 export function formatDuration(secs: number): string {
@@ -279,7 +271,7 @@ function exactDelay(seconds: number): string {
  * sent nothing for departure. Both when the feed sent both and they differ.
  * With nothing sent at all, the one carrying a schedule.
  */
-function shownEvents(p: Prediction): ResolvedEvent[] {
+export function shownEvents(p: Prediction): ResolvedEvent[] {
   const a = p.arrivalEvent;
   const d = p.departureEvent;
   if (a.reported && d.reported && (a.time !== d.time || a.delay !== d.delay)) {
@@ -303,77 +295,6 @@ export function primaryEvent(p: Prediction): ResolvedEvent {
 /** Classes marking a value as calculated rather than sent. */
 export function derivedClass(from: ResolvedEvent['timeFrom']): string {
   return from === 'derived' ? ' italic opacity-70' : '';
-}
-
-const DELAY_COLOURS =
-  '<span class="text-success">green</span> under 1m either way, <span class="text-warning">yellow</span> 1m to 5m late, <span class="text-error">red</span> 5m or more late, <span class="text-info">blue</span> 1m or more early';
-
-const HEADER_TIPS = {
-  sched:
-    'Scheduled time from <code>stop_times.txt</code>, matched by <code>stop_sequence</code>. Struck through when the feed marks the stop SKIPPED.',
-  pred: 'Predicted time. Plain when the feed sent <code>time</code>. <i>Italic</i> when the feed sent only <code>delay</code> and the time was calculated as scheduled + delay.',
-  delay: `Delay, + late and - early, never rounded. Plain when the feed sent <code>delay</code>. <i>Italic</i> when the feed sent only <code>time</code> and the delay was calculated as predicted - scheduled.<br>${DELAY_COLOURS}.`,
-};
-
-function headerCell(label: string, tip: string): string {
-  return `<th class="text-right"><span class="${TOOLTIP_TRIGGER_CLASS}" tabindex="0" ${tooltipContentAttr(tip)}>${escHtml(label)}</span></th>`;
-}
-
-/** The three header cells matching `predictionCells`, each explaining its column on hover. */
-export function predictionHeaders(): string {
-  const zone = zoneLabel();
-  return [
-    headerCell(`Sched ${zone}`, HEADER_TIPS.sched),
-    headerCell(`Pred ${zone}`, HEADER_TIPS.pred),
-    headerCell('Delay', HEADER_TIPS.delay),
-  ].join('');
-}
-
-/**
- * One prediction as three table cells: scheduled, predicted, delay. Calculated
- * values are italic; skipped and no-data stops carry their badge in the delay
- * cell. All three cells open the same tooltip (`predictionTooltip`).
- */
-export function predictionCells(p: Prediction): string {
-  const skipped = p.scheduleRelationship === 1;
-  const events = shownEvents(p);
-  const label = (ev: ResolvedEvent) =>
-    events.length > 1
-      ? `<span class="opacity-50 mr-1">${ev.kind === 'arrival' ? 'arr' : 'dep'}</span>`
-      : '';
-  const lines = (render: (ev: ResolvedEvent) => string) =>
-    events.map((ev) => `<div>${render(ev)}</div>`).join('');
-
-  const sched = lines(
-    (ev) =>
-      `${label(ev)}<span class="opacity-50${skipped ? ' line-through' : ''}">${escHtml(
-        ev.scheduledText ? formatScheduleTime(ev.scheduledText) : '—'
-      )}</span>`
-  );
-  const pred = skipped
-    ? ''
-    : lines((ev) =>
-        ev.time === undefined
-          ? '<span class="opacity-30">—</span>'
-          : `<span class="${derivedClass(ev.timeFrom).trim()}">${escHtml(clockAt(ev.time))}</span>`
-      );
-  const delay = skipped
-    ? ''
-    : lines(
-        (ev) =>
-          `<span class="${derivedClass(ev.delayFrom).trim()}">${formatDelay(ev.delay)}</span>${
-            ev.uncertainty
-              ? ` <span class="opacity-60">+/-${escHtml(formatDuration(ev.uncertainty))}</span>`
-              : ''
-          }`
-      );
-  const mark = stopTimeRelationshipMark(p.scheduleRelationship);
-
-  const tip = TOOLTIP_TRIGGER_CLASS;
-  const attr = tooltipContentAttr(predictionTooltip(p));
-  const cell = (body: string) =>
-    `<td class="text-right whitespace-nowrap tabular-nums align-top ${tip}" ${attr}>${body}</td>`;
-  return cell(sched) + cell(pred) + cell(`${delay}${mark}`);
 }
 
 function originNote(from: ResolvedEvent['timeFrom'], how: string): string {
