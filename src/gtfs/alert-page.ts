@@ -16,28 +16,61 @@ import {
   selectorLevel,
   translations,
 } from './alerts';
-import type { RenderContext } from './entity-render';
+import type { LinkContext, RenderContext } from './entity-render';
 import {
   entityLink,
   escHtml,
   formatAbsolute,
   formatDuration,
   missing,
-  pageHeader,
   prop,
   propList,
   renderRawJson,
-  section,
 } from './entity-render';
 import { entityRow, entityRowList, rowSection } from './entity-row';
 import type { RtPageRef } from './rt-page';
+import { TreePageMounter, type TreePage, type TreeSection } from './tree-page';
+import type { ListBoxOptions } from '../ui/list-box';
+import { t } from '../i18n/messages';
 
 type EntitySelector = NonNullable<ServiceAlert['informedEntity']>[number];
 
 function statusBadge(record: AlertRecord): string {
   return isActiveNow(record.alert)
-    ? '<span class="badge badge-warning badge-xs">active</span>'
-    : '<span class="badge badge-ghost badge-xs">not active</span>';
+    ? `<span class="badge badge-warning badge-xs">${escHtml(t('alerts.active'))}</span>`
+    : `<span class="badge badge-ghost badge-xs">${escHtml(t('alerts.notActive'))}</span>`;
+}
+
+function alertHeader(record: AlertRecord): string {
+  return (
+    preferredText(record.alert.headerText) ||
+    t('alerts.fallback', { id: record.id })
+  );
+}
+
+/** Alerts as a list box, active ones first. */
+export function alertListOptions(
+  ctx: LinkContext<RtPageRef>,
+  records: readonly AlertRecord[],
+  empty: string
+): ListBoxOptions<AlertRecord> {
+  const active = records.filter((r) => isActiveNow(r.alert));
+  const rest = records.filter((r) => !isActiveNow(r.alert));
+  return {
+    name: 'alerts',
+    items: [...active, ...rest],
+    row: (record) =>
+      entityRow<RtPageRef>(ctx, {
+        state: { type: 'alert', alert_id: record.id },
+        leadHtml: statusBadge(record),
+        label: alertHeader(record),
+        sublabel: preferredText(record.alert.descriptionText),
+        badge: ALERT_LEVEL_LABELS[alertLevel(record)],
+      }),
+    searchText: (record) =>
+      `${alertHeader(record)} ${preferredText(record.alert.descriptionText)} ${record.id}`,
+    empty,
+  };
 }
 
 /**
@@ -60,7 +93,7 @@ export function renderAlertList(
         entityRow<RtPageRef>(ctx, {
           state: { type: 'alert', alert_id: record.id },
           leadHtml: statusBadge(record),
-          label: preferredText(record.alert.headerText) || `Alert ${record.id}`,
+          label: alertHeader(record),
           badge: ALERT_LEVEL_LABELS[alertLevel(record)],
         })
       ),
@@ -254,75 +287,90 @@ function renderInformedEntity(
 }
 
 /** The live payload's alert by its feed entity id, or a note saying it is gone. */
+export function alertPage(
+  ctx: RenderContext<RtPageRef>,
+  alertId: string
+): TreePage {
+  const record = ctx.session.alerts.get(alertId);
+  if (!record) {
+    return {
+      eyebrow: t('crumb.alert'),
+      title: t('alerts.fallback', { id: alertId }),
+      sections: [
+        {
+          body: `${missing(`Alert ${alertId}`)}
+      <p class="text-xs opacity-50 mt-2">GTFS-RT alerts are keyed on the feed entity id, and some
+      producers regenerate those between polls - the same disruption may now be under a different id.</p>`,
+        },
+      ],
+    };
+  }
+  const alert = record.alert;
+  const url = preferredText(alert.url);
+  const sections: TreeSection[] = [
+    { body: renderOtherTranslations('Header', alert.headerText) },
+    {
+      body: alert.descriptionText
+        ? renderTranslations('Description', alert.descriptionText)
+        : '',
+    },
+    {
+      body: url
+        ? `<p class="text-xs"><a href="${escHtml(url)}" target="_blank" rel="noopener" class="link">${escHtml(url)}</a></p>`
+        : '',
+    },
+    {
+      title: 'Properties',
+      body: propList([
+        prop(
+          'Status',
+          `${statusBadge(record)} ${escHtml(activeWindow(alert))}`
+        ),
+        prop('Level', escHtml(ALERT_LEVEL_LABELS[alertLevel(record)])),
+        prop(
+          'Cause',
+          escHtml(
+            CAUSE_LABELS[alert.cause as number] ?? String(alert.cause ?? '-')
+          )
+        ),
+        prop(
+          'Effect',
+          escHtml(
+            EFFECT_LABELS[alert.effect as number] ?? String(alert.effect ?? '-')
+          )
+        ),
+        prop(
+          'Severity',
+          escHtml(
+            SEVERITY_LABELS[alert.severityLevel as number] ??
+              String(alert.severityLevel ?? '-')
+          )
+        ),
+      ]),
+    },
+    { title: 'Active periods', body: renderActivePeriods(alert) },
+    {
+      title: 'Informed entities',
+      body: (alert.informedEntity ?? []).length
+        ? `<ul class="space-y-1">${alert
+            .informedEntity!.map((e) => renderInformedEntity(ctx, e))
+            .join('')}</ul>`
+        : '<p class="text-xs opacity-60">No informed entities - the alert applies to the whole feed.</p>',
+    },
+    { body: renderRawJson('Alert (decoded)', record.raw) },
+  ];
+  return {
+    eyebrow: t('crumb.alert'),
+    title: alertHeader(record),
+    id: record.id,
+    sections: sections.filter((section) => section.body),
+  };
+}
+
+/** `alertPage` as markup, for a host that renders strings. */
 export function renderAlertPage(
   ctx: RenderContext<RtPageRef>,
   alertId: string
 ): string {
-  const record = ctx.session.alerts.get(alertId);
-  if (!record) {
-    return `${missing(`Alert ${alertId}`)}
-      <p class="text-xs opacity-50 mt-2">GTFS-RT alerts are keyed on the feed entity id, and some
-      producers regenerate those between polls - the same disruption may now be under a different id.</p>`;
-  }
-  const alert = record.alert;
-  const url = preferredText(alert.url);
-
-  return `
-    <div class="space-y-4">
-      <div class="space-y-1">
-        ${pageHeader(preferredText(alert.headerText) || record.id, record.id)}
-        ${renderOtherTranslations('Header', alert.headerText)}
-      </div>
-
-      ${alert.descriptionText ? renderTranslations('Description', alert.descriptionText) : ''}
-      ${
-        url
-          ? `<p class="text-xs"><a href="${escHtml(url)}" target="_blank" rel="noopener" class="link">${escHtml(url)}</a></p>`
-          : ''
-      }
-
-      ${section(
-        'Properties',
-        propList([
-          prop(
-            'Status',
-            `${statusBadge(record)} ${escHtml(activeWindow(alert))}`
-          ),
-          prop('Level', escHtml(ALERT_LEVEL_LABELS[alertLevel(record)])),
-          prop(
-            'Cause',
-            escHtml(
-              CAUSE_LABELS[alert.cause as number] ?? String(alert.cause ?? '-')
-            )
-          ),
-          prop(
-            'Effect',
-            escHtml(
-              EFFECT_LABELS[alert.effect as number] ??
-                String(alert.effect ?? '-')
-            )
-          ),
-          prop(
-            'Severity',
-            escHtml(
-              SEVERITY_LABELS[alert.severityLevel as number] ??
-                String(alert.severityLevel ?? '-')
-            )
-          ),
-        ])
-      )}
-
-      ${section('Active periods', renderActivePeriods(alert))}
-
-      ${section(
-        'Informed entities',
-        (alert.informedEntity ?? []).length
-          ? `<ul class="space-y-1">${alert
-              .informedEntity!.map((e) => renderInformedEntity(ctx, e))
-              .join('')}</ul>`
-          : '<p class="text-xs opacity-60">No informed entities - the alert applies to the whole feed.</p>'
-      )}
-
-      ${renderRawJson('Alert (decoded)', record.raw)}
-    </div>`;
+  return new TreePageMounter().render(alertPage(ctx, alertId));
 }

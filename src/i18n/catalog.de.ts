@@ -215,4 +215,94 @@ export const de: Translation<typeof en> = {
   'endpoint.entities': 'Entitäten',
   'endpoint.nextRefresh': 'Nächste Aktualisierung',
   'endpoint.errorAt': 'um {time}',
+
+  'alerts.none': 'Keine Betriebsmeldungen.',
+  'alerts.activeOf': '{active} von {total} im Feed aktiv.',
+  'alerts.fallback': 'Meldung {id}',
+  'alerts.active': 'aktiv',
+  'alerts.notActive': 'inaktiv',
+  'node.idTrip': 'abgeleitet aus vehicle.id + trip_id + start_date',
+  'node.idEntity': 'abgeleitet aus vehicle.id + trip + entity.id',
+  'node.idIndex':
+    'keine brauchbare Kennung: abgeleitet aus dem Index der Entität',
+  'node.empty': '(leer)',
+  'node.dupVehicles_one': '{count} Fahrzeug',
+  'node.dupVehicles_other': '{count} Fahrzeuge',
+  'node.idNotUnique': 'vehicle.id ist nicht je Fahrzeug eindeutig',
+  'node.idNotUniqueText':
+    'GTFS-RT legt fest, dass {field} „should be unique per vehicle, and is used for tracking the vehicle as it proceeds through the system“. Dieser Feed verwendet es mehrfach, daher wurde ein Instanzschlüssel ({strategy}) abgeleitet, um die Fahrzeuge zu unterscheiden.',
+  'node.gapsOptional':
+    'GTFS-RT macht dieses Feld optional: {missing} von {total} Fahrzeugen geben es nicht an.',
+  'node.gapsStopId':
+    '{count} haben die Haltestelle stattdessen über {field} angegeben, was die Spezifikation ebenso erlaubt; ihre Position ergibt sich daraus.',
+  'node.gapsDerived':
+    '{count} haben keine Haltestelle angegeben: Verwendet wurde die nächste noch ausstehende {field} derselben Fahrt; sie sind überall, wo sie erscheinen, als „abgeleitet“ markiert.',
+  'node.gapsUnplaced':
+    '{count} konnten auf keine dieser Arten platziert werden und bleiben in der Liste der nicht platzierten Fahrzeuge im Linienbanner.',
+  'node.gaps': 'Lücken in den Feed-Daten',
+  'node.gapsNeutral': 'Wie dieser Feed die Position angibt',
+  'node.gapsRow': 'Fahrzeuge ohne {field}',
+  'node.relVehicles_one': '{count} Fahrzeug meldet die Fahrt als {label}',
+  'node.relVehicles_other': '{count} Fahrzeuge melden die Fahrt als {label}',
+  'node.relUpdates_one':
+    '{count} Fahrtaktualisierung meldet die Fahrt als {label}',
+  'node.relUpdates_other':
+    '{count} Fahrtaktualisierungen melden die Fahrt als {label}',
+  'node.relStopTimes_one': '{count} Haltezeit meldet {label}',
+  'node.relStopTimes_other': '{count} Haltezeiten melden {label}',
+  'node.relTitle': 'Fahrten außerhalb des Fahrplans',
+  'node.relNote':
+    'Dies sind Angaben des Feeds zu bestimmten Fahrten, keine Lücken in dem, was er übermittelt hat. CANCELED und SKIPPED bedeuten, dass die angezeigten Fahrplanzeiten von niemandem genutzt werden können.',
+  'vehicle.notReported': 'nicht angegeben',
+  'vehicle.seqFromStopId':
+    'stop_id {stop} ist die stop_sequence {sequence} dieser Fahrt',
+  'vehicle.seqDerived': '{sequence} aus den Fahrtaktualisierungen abgeleitet',
+  'vehicle.route': 'Linie',
+  'vehicle.notInSchedule': 'Fahrt nicht im Fahrplan',
+  'vehicle.noRouteId': 'keine route_id angegeben',
+  'vehicle.trip': 'Fahrt',
+  'vehicle.noTripId': 'Keine trip_id angegeben.',
+  'vehicle.loadingStops': 'Haltestellen der Fahrt werden geladen…',
+  'vehicle.at': 'bei',
+  'vehicle.headsign': 'Ziel',
+  'vehicle.currently': 'Derzeit {status}',
+  'vehicle.progress': 'Fortschritt',
+  'vehicle.progressValue': '{n} von {total} Haltestellen',
+  'vehicle.tripStart': 'Beginn der Fahrt',
+  'vehicle.predictions': 'Prognosen',
+  'vehicle.noPredictions':
+    'Keine Fahrtaktualisierung im Feed passt zu dieser Fahrt.',
+  'vehicle.missing': 'Fahrzeug {id} ist nicht im aktuellen Echtzeit-Feed.',
+  'vehicle.sharedId':
+    'Im Feed bezeichnet {field} {id} {count} Fahrzeuge. GTFS-RT legt fest, dass {descriptor} „should be unique per vehicle“; dieser Feed verwendet sie mehrfach.',
+  'vehicle.sharedIdTrip':
+    'Diese Instanz unterscheidet sich durch die Fahrt {trip}.',
+  'vehicle.sharedIdTripDate':
+    'Diese Instanz unterscheidet sich durch die Fahrt {trip} am {date}.',
+  'vehicle.gone':
+    'Seit {time} nicht mehr im Feed. Alle folgenden Angaben stammen aus dem letzten Abruf, der es enthielt.',
+  'vehicle.scheduled': 'Laut Fahrplan',
+  'vehicle.scheduledBanner':
+    'Laut Fahrplan, nicht live. Diese Position ist aus dem Fahrplan berechnet, nicht von einem Fahrzeug gemeldet.',
+  'vehicle.scheduledGone':
+    'Seit {time} laut Fahrplan nicht mehr unterwegs. Alle folgenden Angaben sind die letzte Fahrplanposition.',
+  'vehicle.rawScheduled': 'Fahrzeug laut Fahrplan (simuliert)',
+  'vehicle.live': 'Live',
+  'vehicle.emptyId': 'leer im Feed',
+  'vehicle.entityId': 'Entitäts-ID im Feed',
+  'vehicle.alerts': 'Meldungen',
+  'vehicle.raw': 'VehiclePosition (dekodiert)',
+  'node.endpoint': 'Endpunkt',
+  'node.notConfigured': 'Für diesen Feed ist kein Endpunkt konfiguriert.',
+  'node.vehicles': 'Fahrzeuge',
+  'node.noVehicles': 'Keine Fahrzeuge im letzten Abruf.',
+  'node.updates': 'Fahrtaktualisierungen',
+  'node.noUpdates': 'Keine Fahrtaktualisierungen im letzten Abruf.',
+  'node.updateFallback': 'Fahrtaktualisierung {n}',
+  'node.alerts': 'Meldungen',
+  'node.stateNotConfigured': 'Nicht konfiguriert',
+  'node.stateError': 'Fehler: {message}',
+  'node.stateFetched': 'Abgerufen',
+  'node.stateWaiting': 'Noch nicht abgerufen',
+  'alerts.noneHere': 'Keine Meldungen betreffen dies.',
 };

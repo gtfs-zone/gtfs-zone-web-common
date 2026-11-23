@@ -215,4 +215,94 @@ export const fr: Translation<typeof en> = {
   'endpoint.entities': 'Entités',
   'endpoint.nextRefresh': 'Prochain rafraîchissement',
   'endpoint.errorAt': 'à {time}',
+
+  'alerts.none': 'Aucune alerte de service.',
+  'alerts.activeOf': '{active} active(s) sur {total} dans le flux.',
+  'alerts.fallback': 'Alerte {id}',
+  'alerts.active': 'active',
+  'alerts.notActive': 'inactive',
+  'node.idTrip': 'dérivée de vehicle.id + trip_id + start_date',
+  'node.idEntity': 'dérivée de vehicle.id + trip + entity.id',
+  'node.idIndex': "aucune identité utilisable : dérivée de l'index de l'entité",
+  'node.empty': '(vide)',
+  'node.dupVehicles_one': '{count} véhicule',
+  'node.dupVehicles_other': '{count} véhicules',
+  'node.idNotUnique': "vehicle.id n'est pas unique par véhicule",
+  'node.idNotUniqueText':
+    "GTFS-RT précise que {field} « should be unique per vehicle, and is used for tracking the vehicle as it proceeds through the system ». Ce flux le réutilise : une clé d'instance ({strategy}) a donc été dérivée pour désigner les véhicules.",
+  'node.gapsOptional':
+    "GTFS-RT rend ce champ facultatif : {missing} véhicules sur {total} ne l'indiquent pas.",
+  'node.gapsStopId':
+    "{count} ont désigné l'arrêt par {field} à la place, ce que la spécification autorise tout autant ; leur position en découle.",
+  'node.gapsDerived':
+    "{count} n'ont désigné aucun arrêt : le plus proche {field} encore à venir de la même course a été utilisé ; ils sont marqués « dérivé » partout où ils apparaissent.",
+  'node.gapsUnplaced':
+    "{count} n'ont pu être placés par aucun de ces moyens et restent dans la liste des non placés du bandeau de ligne.",
+  'node.gaps': 'Lacunes des données du flux',
+  'node.gapsNeutral': 'Comment ce flux indique la position',
+  'node.gapsRow': 'Véhicules sans {field}',
+  'node.relVehicles_one': '{count} véhicule indiquant la course {label}',
+  'node.relVehicles_other': '{count} véhicules indiquant la course {label}',
+  'node.relUpdates_one':
+    '{count} mise à jour de course indiquant la course {label}',
+  'node.relUpdates_other':
+    '{count} mises à jour de course indiquant la course {label}',
+  'node.relStopTimes_one': '{count} horaire de passage indiquant {label}',
+  'node.relStopTimes_other': '{count} horaires de passage indiquant {label}',
+  'node.relTitle': 'Courses hors horaires',
+  'node.relNote':
+    "Ce sont des déclarations du flux sur des courses précises, pas des lacunes dans ce qu'il a transmis. CANCELED et SKIPPED signifient que les horaires affichés ne peuvent être pris par personne.",
+  'vehicle.notReported': 'non indiqué',
+  'vehicle.seqFromStopId':
+    'stop_id {stop} est le stop_sequence {sequence} de cette course',
+  'vehicle.seqDerived': '{sequence} dérivé des mises à jour de courses',
+  'vehicle.route': 'Ligne',
+  'vehicle.notInSchedule': 'course absente des horaires',
+  'vehicle.noRouteId': 'aucun route_id indiqué',
+  'vehicle.trip': 'Course',
+  'vehicle.noTripId': 'Aucun trip_id indiqué.',
+  'vehicle.loadingStops': 'Chargement des arrêts de la course…',
+  'vehicle.at': 'à',
+  'vehicle.headsign': 'Destination',
+  'vehicle.currently': 'Actuellement {status}',
+  'vehicle.progress': 'Progression',
+  'vehicle.progressValue': '{n} arrêts sur {total}',
+  'vehicle.tripStart': 'Début de la course',
+  'vehicle.predictions': 'Prévisions',
+  'vehicle.noPredictions':
+    'Aucune mise à jour de course du flux ne correspond à cette course.',
+  'vehicle.missing':
+    "Le véhicule {id} n'est pas dans le flux temps réel actuel.",
+  'vehicle.sharedId':
+    'Le {field} {id} du flux désigne {count} véhicules de ce flux. GTFS-RT précise que {descriptor} « should be unique per vehicle » ; ce flux le réutilise.',
+  'vehicle.sharedIdTrip': 'Cette instance se distingue par la course {trip}.',
+  'vehicle.sharedIdTripDate':
+    'Cette instance se distingue par la course {trip} du {date}.',
+  'vehicle.gone':
+    "N'est plus dans le flux depuis {time}. Tout ce qui suit provient du dernier relevé qui le contenait.",
+  'vehicle.scheduled': 'Théorique',
+  'vehicle.scheduledBanner':
+    "Théorique, pas en direct. Cette position est calculée à partir de l'horaire, elle n'est pas transmise par un véhicule.",
+  'vehicle.scheduledGone':
+    "Ne circule plus selon l'horaire depuis {time}. Tout ce qui suit est sa dernière position théorique.",
+  'vehicle.rawScheduled': 'Véhicule théorique (simulé)',
+  'vehicle.live': 'En direct',
+  'vehicle.emptyId': 'vide dans le flux',
+  'vehicle.entityId': "Identifiant d'entité du flux",
+  'vehicle.alerts': 'Alertes',
+  'vehicle.raw': 'VehiclePosition (décodé)',
+  'node.endpoint': 'Point de terminaison',
+  'node.notConfigured':
+    "Aucun point de terminaison n'est configuré pour ce flux.",
+  'node.vehicles': 'Véhicules',
+  'node.noVehicles': 'Aucun véhicule dans le dernier relevé.',
+  'node.updates': 'Mises à jour de course',
+  'node.noUpdates': 'Aucune mise à jour de course dans le dernier relevé.',
+  'node.updateFallback': 'Mise à jour de course {n}',
+  'node.alerts': 'Alertes',
+  'node.stateNotConfigured': 'Non configuré',
+  'node.stateError': 'Erreur : {message}',
+  'node.stateFetched': 'Récupéré',
+  'node.stateWaiting': 'Pas encore récupéré',
+  'alerts.noneHere': "Aucune alerte ne s'applique.",
 };
