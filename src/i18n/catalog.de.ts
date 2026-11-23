@@ -305,4 +305,65 @@ export const de: Translation<typeof en> = {
   'node.stateFetched': 'Abgerufen',
   'node.stateWaiting': 'Noch nicht abgerufen',
   'alerts.noneHere': 'Keine Meldungen betreffen dies.',
+
+  'schedule.uploaded':
+    'Aus der hochgeladenen Datei {name} geladen: nicht per Link reproduzierbar.',
+  'schedule.source': 'Fahrplanfeed',
+  'schedule.mapIssues': 'Probleme mit den Kartendaten',
+  'schedule.stopsNoId': 'Verworfene Haltestellen (ohne stop_id)',
+  'schedule.stopsNoIdNote': 'Können weder gezeichnet noch verknüpft werden.',
+  'schedule.stopsNoCoords': 'Verworfene Haltestellen (ohne Koordinaten)',
+  'schedule.stopsNoCoordsNote':
+    'stop_lat / stop_lon fehlen oder sind unlesbar.',
+  'schedule.vehiclesUnmatched': 'Fahrzeuge ohne passende Linie',
+  'schedule.vehiclesUnmatchedNote':
+    'In der neutralen Farbe statt in einer Linienfarbe gezeichnet.',
+  'schedule.vehiclesCollapsed':
+    'Zu einem Kartenobjekt zusammengefasste Fahrzeuge',
+  'schedule.vehiclesCollapsedNote':
+    'Sollte 0 sein; ein Wert ungleich null bedeutet, dass die Ableitung des Fahrzeugschlüssels fehlerhaft ist.',
+  'schedule.stationIssues': 'Probleme in der Stationshierarchie',
+  'schedule.danglingParent':
+    'parent_station verweist auf eine fehlende Haltestelle',
+  'schedule.danglingParentNote':
+    'Die angegebene übergeordnete Station ist nicht in stops.txt enthalten.',
+  'schedule.wrongParent': 'parent_station verweist auf einen falschen Typ',
+  'schedule.wrongParentNote':
+    'Ein Bahnsteig, Zugang oder Knoten muss auf eine Station verweisen, ein Einstiegsbereich auf einen Bahnsteig.',
+  'schedule.cycle': 'Haltestellen in einem parent_station-Zyklus',
+  'schedule.cycleNote':
+    'Die Verfolgung wird abgebrochen, um eine Endlosschleife zu vermeiden.',
+  'schedule.padded': 'Von Leerzeichen umgebene Spalten',
+  'schedule.paddedNote':
+    '{rows} Zeilen hatten Leerzeichen am Anfang oder Ende. Die GTFS-Referenz verbietet das; sie wurden entfernt. Andernfalls würde keine Echtzeit-{column} zu diesem Feed passen.',
+  'schedule.metadata': 'Metadaten des Feeds',
+  'schedule.restored':
+    'Aus der in diesem Browser gespeicherten Kopie wiederhergestellt, nicht erneut heruntergeladen. Der Server meldete dieselbe Version, oder der Feed wurde unter Ihre Feeds geöffnet.',
+  'schedule.none':
+    'Kein Fahrplan geladen. Linien, Haltestellen und Fahrpläne stammen aus einem GTFS-Fahrplanfeed.',
+  'schedule.noFeedInfo': 'Keine {file} in diesem Feed.',
+  'schedule.agencies': 'Verkehrsunternehmen',
+  'schedule.noAgencies': 'Keine Verkehrsunternehmen in agency.txt.',
+  'schedule.stops': 'Haltestellen und Stationen',
+  'schedule.noStops': 'Keine Haltestellen in stops.txt.',
+  'schedule.station': 'Station',
+  'feedInfo.publisher': 'Herausgeber',
+  'feedInfo.website': 'Website',
+  'feedInfo.language': 'Sprache',
+  'feedInfo.defaultLanguage': 'Standardsprache',
+  'feedInfo.start': 'Gültig ab',
+  'feedInfo.end': 'Gültig bis',
+  'feedInfo.version': 'Version',
+  'feedInfo.contactEmail': 'Kontakt-E-Mail',
+  'feedInfo.contactUrl': 'Kontaktseite',
+  'agency.missing': 'Verkehrsunternehmen {id} ist nicht im geladenen Fahrplan.',
+  'agency.website': 'Website',
+  'agency.timezone': 'Zeitzone',
+  'agency.phone': 'Telefon',
+  'agency.fares': 'Tarife',
+  'agency.language': 'Sprache',
+  'agency.email': 'E-Mail',
+  'agency.routes': 'Linien',
+  'agency.noRoutes': 'Keine Linien für dieses Verkehrsunternehmen.',
+  'agency.alerts': 'Meldungen',
 };

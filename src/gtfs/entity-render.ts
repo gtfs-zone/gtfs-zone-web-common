@@ -493,6 +493,19 @@ export function prop(label: string, valueHtml: string): string {
     </div>`;
 }
 
+/** A link opening outside the app, or nothing for an empty value. */
+export function externalLink(url: string | undefined, label = url): string {
+  if (!url) {
+    return '';
+  }
+  return `<a href="${escHtml(url)}" target="_blank" rel="noopener" class="link break-all">${escHtml(label ?? url)}</a>`;
+}
+
+/** A property row, dropped when its value is empty. */
+export function optionalProp(label: string, valueHtml: string): string {
+  return valueHtml ? prop(label, valueHtml) : '';
+}
+
 export function propList(rows: string[]): string {
   const body = rows.filter(Boolean).join('');
   return body ? `<dl class="text-xs space-y-1">${body}</dl>` : '';

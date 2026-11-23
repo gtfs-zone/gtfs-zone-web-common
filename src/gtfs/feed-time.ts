@@ -202,3 +202,16 @@ export function feedServiceDate(ms: number, offsetDays = 0): string {
   const shifted = new Date(Date.UTC(y, m - 1, d + offsetDays));
   return `${shifted.getUTCFullYear()}${String(shifted.getUTCMonth() + 1).padStart(2, '0')}${String(shifted.getUTCDate()).padStart(2, '0')}`;
 }
+
+/** A `YYYYMMDD` date in the active locale, or the raw text when it does not parse. */
+export function formatServiceDate(value: string): string {
+  const match = /^(\d{4})(\d{2})(\d{2})$/.exec(value);
+  if (!match) {
+    return value;
+  }
+  const [, y, m, d] = match;
+  return formatDate(Date.UTC(Number(y), Number(m) - 1, Number(d)), {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  });
+}
