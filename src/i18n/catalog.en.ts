@@ -9,6 +9,12 @@ export const en = {
 
   'locale.label': 'Language',
   'nav.github': 'Source code on GitHub',
+  'nav.alerts': 'Service alerts',
+  'nav.theme': 'Toggle theme',
+  'shortcut.focusSearch': 'Focus map search',
+  'shortcut.clearSearch': 'Clear the search',
+  'shortcut.showGuide': 'Show the guide',
+  'load.decodeFailed': 'Decode failed: {message}',
 
   'shell.search': 'Search',
   'shell.logoAlt': '{host} logo',

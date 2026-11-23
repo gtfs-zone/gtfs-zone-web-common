@@ -16,9 +16,9 @@ pnpm add "gtfs-zone-web-common@github:gtfs-zone/gtfs-zone-web-common#vX.Y.Z"
 `maplibre-gl`, `@leeoniya/ufuzzy`, `fflate` and `papaparse` are peer
 dependencies. Every consumer carries all four, and a second copy of
 maplibre is a broken map rather than a duplicate. `gtfs-realtime-bindings` is
-an optional peer: `gtfs/rt-types.ts` imports its namespace as a type and
-nothing here pulls protobufjs into a bundle, so only the apps that read GTFS-RT
-need it installed.
+an optional peer: `gtfs/rt-poller.ts` is its one value import and the rest
+import its namespace as a type, so only the apps that poll GTFS-RT pull
+protobufjs into a bundle or need it installed.
 
 `gtfs-zone-vocab` (route type labels and families) is a peer too: pnpm blocks
 git-hosted subdependencies, so each consumer pins it by tag itself:

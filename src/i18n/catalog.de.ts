@@ -12,6 +12,12 @@ export const de: Translation<typeof en> = {
 
   'locale.label': 'Sprache',
   'nav.github': 'Quellcode auf GitHub',
+  'nav.alerts': 'Betriebsmeldungen',
+  'nav.theme': 'Design wechseln',
+  'shortcut.focusSearch': 'Zur Kartensuche springen',
+  'shortcut.clearSearch': 'Suche leeren',
+  'shortcut.showGuide': 'Anleitung anzeigen',
+  'load.decodeFailed': 'Dekodierung fehlgeschlagen: {message}',
 
   'shell.search': 'Suchen',
   'shell.logoAlt': 'Logo von {host}',
