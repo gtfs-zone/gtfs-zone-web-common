@@ -143,10 +143,29 @@ export function formatScheduleTime(value: string | undefined): string {
   return dayOffset > 0 ? `${clock} (+${dayOffset}d)` : clock;
 }
 
+/** Formatters by zone (`''` for browser-local); building one costs far more than using it. */
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function zoneFormatter(
+  cache: Map<string, Intl.DateTimeFormat>,
+  options: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const zone = shared.displayZone ?? '';
+  let format = cache.get(zone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', {
+      ...options,
+      timeZone: zone || undefined,
+    });
+    cache.set(zone, format);
+  }
+  return format;
+}
+
 /** Calendar date parts of an instant, read in the feed's zone. */
 function feedDateParts(ms: number): { y: number; m: number; d: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: shared.displayZone ?? undefined,
+  const parts = zoneFormatter(dateFormatters, {
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
@@ -158,8 +177,7 @@ function feedDateParts(ms: number): { y: number; m: number; d: number } {
 
 /** Wall clock minus UTC, in ms, for the feed's zone at an instant. */
 function zoneOffsetMs(ms: number): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: shared.displayZone ?? undefined,
+  const parts = zoneFormatter(offsetFormatters, {
     hourCycle: 'h23',
     year: 'numeric',
     month: 'numeric',
@@ -187,6 +205,22 @@ function zoneOffsetMs(ms: number): number {
  * Takes a `YYYYMMDD` date; null if it does not parse.
  */
 export function serviceDayStart(date: string): number | null {
+  const key = `${shared.displayZone ?? ''}|${date}`;
+  let start = dayStarts.get(key);
+  if (start === undefined) {
+    start = computeServiceDayStart(date);
+    dayStarts.set(key, start);
+  }
+  return start;
+}
+
+/**
+ * `serviceDayStart` by zone and date. The realtime index asks for the same two
+ * or three dates once per stop time update.
+ */
+const dayStarts = new Map<string, number | null>();
+
+function computeServiceDayStart(date: string): number | null {
   const m = /^(\d{4})(\d{2})(\d{2})$/.exec(date.trim());
   if (!m) {
     return null;
