@@ -1,3 +1,9 @@
+## v7.10.1 (2026-11-24)
+
+### Perf
+
+- **rt**: build the panel's RtIndex lazily and only when its inputs change
+
 ## v7.10.0 (2026-11-23)
 
 ### Feat
