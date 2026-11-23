@@ -14,8 +14,12 @@ import { LoadCancelledError } from '../feed-download';
 export interface TableSink {
   /** The header, trimmed and without a BOM. Called once, before any rows. */
   header(cols: string[]): void;
-  /** One parsed batch. A row may be shorter than the header. */
-  rows(batch: string[][]): void;
+  /**
+   * One parsed batch. A row may be shorter than the header. `lines` holds
+   * each row's first line in the file (1-based) when `StreamOptions.lines`
+   * is set.
+   */
+  rows(batch: string[][], lines?: Uint32Array): void;
   end(): void;
 }
 
@@ -24,6 +28,8 @@ export interface StreamOptions {
   innerPaths?: string[];
   /** Strip leading/trailing whitespace from every value (and count it). */
   trim?: boolean;
+  /** Pass each row's source line number to `TableSink.rows`. */
+  lines?: boolean;
   signal?: AbortSignal;
   /** Compressed bytes read from the source so far. */
   onBytes?: (read: number) => void;
@@ -128,6 +134,8 @@ export async function streamGtfsZip(
     result.rows[table] = 0;
     let read = 0;
     let header: string[] | null = null;
+    /** The next row's first line, when counting lines. */
+    let line = 1;
     const decoder = new TextDecoder('utf-8');
     const stream = new PushStream();
     let resolve!: () => void;
@@ -158,9 +166,44 @@ export async function streamGtfsZip(
       }
     };
 
+    /**
+     * Drops rows with no content, as `skipEmptyLines: 'greedy'` does, and
+     * numbers the rest. A row spans one line plus each line break inside
+     * its quoted cells.
+     */
+    const numberRows = (
+      data: string[][],
+      linebreak: string
+    ): { data: string[][]; lines: Uint32Array } => {
+      const kept: string[][] = [];
+      const lines = new Uint32Array(data.length);
+      for (const row of data) {
+        const start = line;
+        line++;
+        let blank = true;
+        for (const cell of row) {
+          if (blank && cell.trim() !== '') {
+            blank = false;
+          }
+          for (
+            let at = cell.indexOf(linebreak);
+            at >= 0;
+            at = cell.indexOf(linebreak, at + linebreak.length)
+          ) {
+            line++;
+          }
+        }
+        if (!blank) {
+          lines[kept.length] = start;
+          kept.push(row);
+        }
+      }
+      return { data: kept, lines: lines.subarray(0, kept.length) };
+    };
+
     Papa.parse(stream as unknown as File, {
       header: false,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: options.lines ? false : 'greedy',
       chunk: (res: Papa.ParseResult<string[]>) =>
         guard(() => {
           if (res.errors.length) {
@@ -172,12 +215,17 @@ export async function streamGtfsZip(
             }
           }
           let data = res.data;
+          let lines: Uint32Array | undefined;
+          if (options.lines) {
+            ({ data, lines } = numberRows(data, res.meta.linebreak || '\n'));
+          }
           if (!header && data.length) {
             header = data[0].map((h, i) =>
               (i === 0 ? h.replace(/^\uFEFF/, '') : h).trim()
             );
             sink.header(header);
             data = data.slice(1);
+            lines = lines?.subarray(1);
           }
           if (!data.length) {
             return;
@@ -186,7 +234,7 @@ export async function streamGtfsZip(
             trimBatch(data);
           }
           result.rows[table] += data.length;
-          sink.rows(data);
+          sink.rows(data, lines);
         }),
       complete: () =>
         guard(() => {

@@ -30,6 +30,8 @@ export class ShapeTable {
   runStart = new Grow(Uint32Array);
   runSeq0 = new Grow(Int32Array);
   seq: Col | null = null;
+  /** Each row's first line in the file, when the parser counted lines. */
+  lines: Grow<Uint32Array> | null = null;
   /** Run indexes sorted by shape_id intern id. */
   sortedKeys: Uint32Array = new Uint32Array(0);
   sortedRuns: Uint32Array = new Uint32Array(0);
@@ -91,7 +93,10 @@ export class ShapeTable {
     }
   }
 
-  pushRow(r: string[]): void {
+  pushRow(r: string[], line?: number): void {
+    if (line !== undefined) {
+      (this.lines ??= new Grow(Uint32Array)).push(line);
+    }
     const key = this.pool.id(r[this.idI] ?? '');
     const s = this.seqI < 0 ? '' : (r[this.seqI] ?? '');
     const sv = INT_RE.test(s) ? +s : NaN;
@@ -148,6 +153,7 @@ export class ShapeTable {
       c.trim();
     }
     this.seq?.trim();
+    this.lines?.trim();
     const keys = this.runKey.trim();
     this.runStart.trim();
     this.runSeq0.trim();
@@ -194,6 +200,9 @@ export class ShapeTable {
       this.data.set(name, permuteCol(c));
     }
     this.seq = permuteCol(this.seq!);
+    if (this.lines) {
+      this.lines = Grow.from(Uint32Array, permute(this.lines.a, perm));
+    }
     const runKey = new Grow(Uint32Array);
     const runStart = new Grow(Uint32Array);
     const runSeq0 = new Grow(Int32Array);
@@ -261,6 +270,19 @@ export class ShapeTable {
     return order.map((r) => this.row(r));
   }
 
+  /**
+   * Source lines of one shape's rows, in `shapeRows` order, or null when
+   * lines were not counted.
+   */
+  shapeLines(shapeId: string): Uint32Array | null {
+    const lines = this.lines;
+    if (!lines) {
+      return null;
+    }
+    const [a, b] = this.range(shapeId);
+    return Uint32Array.from(this.orderedRows(a, b), (r) => lines.at(r));
+  }
+
   /** [lon, lat, lon, lat, ...] of one shape, sorted by shape_pt_sequence. */
   coords(shapeId: string): Float64Array {
     const [a, b] = this.range(shapeId);
@@ -311,7 +333,8 @@ export class ShapeTable {
       this.runStart.a.byteLength +
       this.runSeq0.a.byteLength +
       this.sortedKeys.byteLength +
-      this.sortedRuns.byteLength;
+      this.sortedRuns.byteLength +
+      (this.lines?.a.byteLength ?? 0);
     for (const c of this.data.values()) {
       b += c.bytes();
     }

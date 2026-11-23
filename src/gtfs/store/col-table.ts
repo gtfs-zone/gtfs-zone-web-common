@@ -1,6 +1,13 @@
 /** A whole table stored column by column, in file order. */
 
-import { Col, CSR, kindFor, type Encoded, type Interner } from './columns';
+import {
+  Col,
+  CSR,
+  Grow,
+  kindFor,
+  type Encoded,
+  type Interner,
+} from './columns';
 
 export type Row = Record<string, string>;
 
@@ -8,6 +15,8 @@ export class ColTable {
   cols: string[] = [];
   data: Col[] = [];
   n = 0;
+  /** Each row's first line in the file, when the parser counted lines. */
+  lines: Grow<Uint32Array> | null = null;
   private scratch: Encoded = { v: 0, d: 0, x: undefined };
   private indexes = new Map<string, CSR>();
 
@@ -21,7 +30,10 @@ export class ColTable {
     this.data = cols.map((c) => new Col(kindFor(c), this.pool));
   }
 
-  pushRow(r: string[]): void {
+  pushRow(r: string[], line?: number): void {
+    if (line !== undefined) {
+      (this.lines ??= new Grow(Uint32Array)).push(line);
+    }
     const d = this.data;
     for (let c = 0; c < d.length; c++) {
       d[c].push(r[c] ?? '', this.scratch);
@@ -33,6 +45,12 @@ export class ColTable {
     for (const c of this.data) {
       c.trim();
     }
+    this.lines?.trim();
+  }
+
+  /** Row `r`'s first line in the file, or null when lines were not counted. */
+  line(r: number): number | null {
+    return this.lines && r < this.lines.n ? this.lines.at(r) : null;
   }
 
   col(name: string): Col | undefined {
@@ -89,6 +107,7 @@ export class ColTable {
     for (const i of this.indexes.values()) {
       b += i.bytes();
     }
+    b += this.lines?.a.byteLength ?? 0;
     return b;
   }
 

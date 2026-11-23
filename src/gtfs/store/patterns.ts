@@ -60,7 +60,11 @@ export class Patterns {
     readonly rowPattern: Uint32Array,
     /** Trip indexes by pattern. */
     readonly patternTrips: CSR,
-    private pool: Interner
+    private pool: Interner,
+    /** Source line of each row, trip by trip; null when not counted. */
+    readonly lines: Uint32Array | null = null,
+    /** First index of trip t's rows in `lines`. */
+    readonly tripLineStart: Uint32Array | null = null
   ) {}
 
   get patternCount(): number {
@@ -84,6 +88,18 @@ export class Patterns {
   tripLength(t: number): number {
     const p = this.tripPattern[t];
     return this.patStart[p + 1] - this.patStart[p];
+  }
+
+  /**
+   * Source lines of trip `t`'s rows, in stop_sequence order, or null when
+   * lines were not counted. A view: do not write to it.
+   */
+  tripLines(t: number): Uint32Array | null {
+    if (!this.lines || !this.tripLineStart) {
+      return null;
+    }
+    const start = this.tripLineStart[t];
+    return this.lines.subarray(start, start + this.tripLength(t));
   }
 
   /** Fresh row objects for trip index `t`, in stop_sequence order. */
@@ -234,6 +250,10 @@ export class PatternBuilder {
   private tripTimeStart = new Grow(Uint32Array);
   private byHash = new Map<number, number | number[]>();
   private buf: string[][] = [];
+  private bufLines: number[] = [];
+  /** Source lines, trip by trip, once the parser passes any. */
+  private lines: Grow<Uint32Array> | null = null;
+  private tripLineStart = new Grow(Uint32Array);
   private cur: string | null = null;
   private timeN = 0;
   private enc: Encoded = { v: 0, d: 0, x: undefined };
@@ -243,6 +263,7 @@ export class PatternBuilder {
   private sx: (string | undefined)[] = [];
   private tv: number[] = [];
   private tx: (string | undefined)[] = [];
+  private sl: number[] = [];
   /** Trips whose rows arrived in more than one run. */
   fragmentedTrips = 0;
 
@@ -272,13 +293,17 @@ export class PatternBuilder {
     this.rows.setHeader(this.patCols);
   }
 
-  push(r: string[]): void {
+  push(r: string[], line?: number): void {
     const t = r[this.tripI] ?? '';
     if (t !== this.cur) {
       this.flush();
       this.cur = t;
     }
     this.buf.push(r);
+    if (line !== undefined) {
+      this.lines ??= new Grow(Uint32Array);
+      this.bufLines.push(line);
+    }
   }
 
   private clearScratch(): void {
@@ -287,6 +312,7 @@ export class PatternBuilder {
     this.sx.length = 0;
     this.tv.length = 0;
     this.tx.length = 0;
+    this.sl.length = 0;
   }
 
   private flush(): void {
@@ -295,12 +321,17 @@ export class PatternBuilder {
       return;
     }
     const si = this.seqI;
+    const order = buf.map((_, i) => i);
     if (si >= 0) {
-      buf.sort((a, b) => seqKey(a[si]) - seqKey(b[si]) || 0);
+      order.sort((x, y) => seqKey(buf[x][si]) - seqKey(buf[y][si]) || x - y);
     }
     this.clearScratch();
     const enc = this.enc;
-    for (const r of buf) {
+    for (const i of order) {
+      const r = buf[i];
+      if (this.lines) {
+        this.sl.push(this.bufLines[i] ?? 0);
+      }
       for (let c = 0; c < this.patIdx.length; c++) {
         encode(this.kinds[c], this.pool, r[this.patIdx[c]] ?? '', enc);
         this.sv.push(enc.v);
@@ -317,6 +348,7 @@ export class PatternBuilder {
     }
     this.commit(this.pool.id(this.cur!), buf.length);
     this.buf = [];
+    this.bufLines = [];
   }
 
   /** Add one trip from the scratch arrays, reusing an identical pattern. */
@@ -356,6 +388,12 @@ export class PatternBuilder {
         this.dep.pushEncoded(this.tv[2 * i + 1], 0, this.tx[2 * i + 1]);
       }
       this.timeN += len;
+    }
+    if (this.lines) {
+      this.tripLineStart.push(this.lines.n);
+      for (let i = 0; i < len; i++) {
+        this.lines.push(this.sl[i]);
+      }
     }
   }
 
@@ -426,6 +464,7 @@ export class PatternBuilder {
           x: (string | undefined)[];
           t: number[];
           tx: (string | undefined)[];
+          line: number;
         };
         const rows: Frag[] = [];
         for (let f = i; f < j; f++) {
@@ -434,9 +473,18 @@ export class PatternBuilder {
           const p = this.tripPattern.at(trip);
           const base = this.patStart.at(p);
           const ts = this.tripTimeStart.at(trip);
+          const ls = this.lines ? this.tripLineStart.at(trip) : 0;
           const len = this.patternEnd(p) - base;
           for (let k = 0; k < len; k++) {
-            const row: Frag = { seq: 0, v: [], d: [], x: [], t: [], tx: [] };
+            const row: Frag = {
+              seq: 0,
+              v: [],
+              d: [],
+              x: [],
+              t: [],
+              tx: [],
+              line: this.lines ? this.lines.at(ls + k) : 0,
+            };
             for (let c = 0; c < nc; c++) {
               row.v.push(cols[c].data.at(base + k));
               row.d.push(cols[c].dec ? cols[c].dec!.at(base + k) : 0);
@@ -460,6 +508,7 @@ export class PatternBuilder {
           this.sx.push(...r.x);
           this.tv.push(...r.t);
           this.tx.push(...r.tx);
+          this.sl.push(r.line);
         }
         this.commit(keys[perm[i]], rows.length);
       }
@@ -480,10 +529,13 @@ export class PatternBuilder {
     let tk = this.tripKeys.trim();
     let tp = this.tripPattern.trim();
     let tt = this.tripTimeStart.trim();
+    const lines = this.lines?.trim() ?? null;
+    let tl = lines ? this.tripLineStart.trim() : null;
     if (dropped) {
       const keep = (a: Uint32Array) =>
         a.filter((_, i) => i >= dropped.length || !dropped[i]);
       [tk, tp, tt] = [keep(tk), keep(tp), keep(tt)];
+      tl = tl && keep(tl);
       console.log(
         `[Patterns] merged ${this.fragmentedTrips} trips split over several runs`
       );
@@ -492,6 +544,7 @@ export class PatternBuilder {
     const tripKeys = permute(tk, perm);
     const tripPattern = permute(tp, perm);
     const tripTimeStart = permute(tt, perm);
+    const tripLineStart = tl && permute(tl, perm);
     const rowPattern = new Uint32Array(this.rows.n);
     for (let p = 0; p + 1 < patStart.length; p++) {
       rowPattern.fill(p, patStart[p], patStart[p + 1]);
@@ -520,7 +573,9 @@ export class PatternBuilder {
       stopRows,
       rowPattern,
       patternTrips,
-      this.pool
+      this.pool,
+      lines,
+      tripLineStart
     );
   }
 }
