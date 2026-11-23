@@ -1,3 +1,10 @@
+## v7.9.0 (2026-11-23)
+
+### Feat
+
+- **rt**: shared endpoint status, prediction table and vehicle props
+- **rt**: move the realtime poller, routed help, shortcut and navbar lists here
+
 ## v7.8.0 (2026-11-22)
 
 ### Feat
