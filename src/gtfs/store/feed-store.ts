@@ -248,9 +248,9 @@ export class FeedStore {
           }
           this.stopTimesCols = cols;
         },
-        rows: (batch) => {
-          for (const r of batch) {
-            b.push(r);
+        rows: (batch, lines) => {
+          for (let i = 0; i < batch.length; i++) {
+            b.push(batch[i], lines?.[i]);
           }
         },
         end: () => {
@@ -271,9 +271,9 @@ export class FeedStore {
           }
           this.shapeCols = cols;
         },
-        rows: (batch) => {
-          for (const r of batch) {
-            s.pushRow(r);
+        rows: (batch, lines) => {
+          for (let i = 0; i < batch.length; i++) {
+            s.pushRow(batch[i], lines?.[i]);
           }
         },
         end: () => {
@@ -288,9 +288,9 @@ export class FeedStore {
     this.loading.set(table, t);
     return {
       header: (cols) => t.setHeader(cols),
-      rows: (batch) => {
-        for (const r of batch) {
-          t.pushRow(r);
+      rows: (batch, lines) => {
+        for (let i = 0; i < batch.length; i++) {
+          t.pushRow(batch[i], lines?.[i]);
         }
       },
       end: () => t.end(),
@@ -465,6 +465,18 @@ export class FeedStore {
 
   row(table: string, id: number): Row | null {
     return this.ordinary(table).row(id);
+  }
+
+  /**
+   * Row `id`'s first line in the loaded file, or null when the parser did
+   * not count lines or the row was added or edited since.
+   */
+  line(table: string, id: number): number | null {
+    const t = this.ordinary(table);
+    if (id >= t.base.n || t.updated.has(id) || !t.exists(id)) {
+      return null;
+    }
+    return t.base.line(id);
   }
 
   find(table: string, col: string, value: string): IdRow[] {
@@ -799,6 +811,18 @@ export class FeedStore {
       }
     }
     return out;
+  }
+
+  /**
+   * Source lines of a shape's points, in `shapeRows` order, or null when the
+   * parser did not count lines or the shape was edited.
+   */
+  shapeLines(shapeId: string): Uint32Array | null {
+    this.ready();
+    if (this.shapeOverrides.has(shapeId)) {
+      return null;
+    }
+    return this.shapes?.shapeLines(shapeId) ?? null;
   }
 
   /** A shape's points, sorted by shape_pt_sequence. */

@@ -204,6 +204,54 @@ describe('streamGtfsZip + FeedStore', () => {
     );
   });
 
+  it('numbers source lines past blank lines and quoted line breaks', async () => {
+    const files = {
+      'stops.txt':
+        '\r\nstop_id,stop_name\r\nS1,"Two\r\nlines"\r\n\r\n , \r\nS2,Two\r\n',
+      'stop_times.txt': [
+        'trip_id,arrival_time,departure_time,stop_id,stop_sequence',
+        'T1,08:10:00,08:10:00,S3,3',
+        'T2,08:30:00,08:30:00,S1,1',
+        '',
+        'T1,08:00:00,08:00:00,S1,1',
+        'T1,08:05:00,08:05:00,S2,2',
+      ].join('\n'),
+      'shapes.txt': [
+        'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence',
+        'A,1.0,2.0,2',
+        'B,3.0,4.0,1',
+        'A,1.5,2.5,1',
+      ].join('\n'),
+    };
+    const store = new FeedStore();
+    const result = await streamGtfsZip(streamOf(zip(files)), store.sinkFor, {
+      lines: true,
+    });
+    store.finish();
+    assert.equal(result.rows.stops, 2);
+    assert.deepEqual(
+      store
+        .rows('stops')
+        .map((r) => [r.row.stop_name, store.line('stops', r.id)]),
+      [
+        ['Two\r\nlines', 3],
+        ['Two', 7],
+      ]
+    );
+    const p = store.patternReader()!;
+    assert.deepEqual(Array.from(p.tripLines(p.tripIndex('T1'))!), [5, 6, 2]);
+    assert.deepEqual(Array.from(p.tripLines(p.tripIndex('T2'))!), [3]);
+    assert.deepEqual(Array.from(store.shapeLines('A')!), [4, 2]);
+    assert.deepEqual(Array.from(store.shapeLines('B')!), [3]);
+  });
+
+  it('counts no lines unless asked', async () => {
+    const { store } = await load(BASE);
+    assert.equal(store.line('stops', 0), null);
+    assert.equal(store.shapeLines('SH1'), null);
+    assert.equal(store.patternReader()!.tripLines(0), null);
+  });
+
   it('trims padded values and counts them', async () => {
     const files = {
       'stops.txt': 'stop_id , stop_name\n  5,Main St \n6,Elm\n',

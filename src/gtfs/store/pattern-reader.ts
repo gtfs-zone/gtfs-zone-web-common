@@ -78,6 +78,14 @@ export class PatternReader {
     return this.edited.size > 0 && this.edited.has(this.p.tripId(t));
   }
 
+  /**
+   * Source lines of trip `t`'s rows, in stop_sequence order, or null when
+   * the parser did not count lines or the trip was edited.
+   */
+  tripLines(t: number): Uint32Array | null {
+    return this.isEdited(t) ? null : this.p.tripLines(t);
+  }
+
   tripPattern(t: number): number {
     return this.p.tripPattern[t];
   }
