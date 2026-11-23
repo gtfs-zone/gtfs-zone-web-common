@@ -1,3 +1,9 @@
+## v7.11.0 (2026-11-24)
+
+### Feat
+
+- **store**: count source lines per row when the stream is asked to
+
 ## v7.10.1 (2026-11-24)
 
 ### Perf
