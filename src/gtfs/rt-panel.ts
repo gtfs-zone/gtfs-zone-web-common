@@ -69,6 +69,9 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
         el.querySelectorAll<HTMLElement>('[data-since]').forEach((since) => {
           since.textContent = formatRelative(Number(since.dataset.since));
         });
+        el.querySelectorAll<HTMLElement>('[data-until]').forEach((until) => {
+          until.textContent = formatRelative(Number(until.dataset.until));
+        });
       },
     });
   }

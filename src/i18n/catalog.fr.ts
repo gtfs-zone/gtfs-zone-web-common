@@ -175,4 +175,44 @@ export const fr: Translation<typeof en> = {
   'load.loadingFeeds': 'Chargement des flux…',
   'load.loading': 'Chargement…',
   'load.noResults': 'Aucun résultat.',
+
+  'prediction.sequence': "Ordre de l'arrêt",
+  'prediction.stop': 'Arrêt',
+  'prediction.scheduled': 'Prévu',
+  'prediction.expected': 'Estimé',
+  'prediction.delay': 'Retard',
+  'prediction.arrival': 'Arrivée',
+  'prediction.departure': 'Départ',
+  'prediction.uncertainty': 'Incertitude',
+  'prediction.zone': 'Heures en {zone}.',
+  'prediction.tipScheduled':
+    "Heure prévue dans <code>stop_times.txt</code>, appariée par <code>stop_sequence</code>. Barrée quand le flux marque l'arrêt SKIPPED.",
+  'prediction.tipExpected':
+    "Heure estimée. Normale quand le flux a envoyé <code>time</code>. En <i>italique</i> quand le flux n'a envoyé que <code>delay</code> et que l'heure a été calculée comme prévu + retard.",
+  'prediction.tipDelay':
+    "Retard, + en retard et - en avance, jamais arrondi. Normal quand le flux a envoyé <code>delay</code>. En <i>italique</i> quand le flux n'a envoyé que <code>time</code> et que le retard a été calculé comme estimé - prévu.",
+  'prediction.delayColours':
+    '<span class="text-success">Vert</span> moins d\'une minute d\'écart, <span class="text-warning">jaune</span> 1 à 5 minutes de retard, <span class="text-error">rouge</span> 5 minutes de retard ou plus, <span class="text-info">bleu</span> 1 minute d\'avance ou plus.',
+
+  'vehicleProps.position': 'Position',
+  'vehicleProps.bearing': 'Cap',
+  'vehicleProps.speed': 'Vitesse',
+  'vehicleProps.status': 'Statut',
+  'vehicleProps.occupancy': 'Affluence',
+  'vehicleProps.timestamp': 'Horodatage',
+  'vehicleProps.notReported': 'non indiqué',
+
+  'endpoint.notSet': 'non défini',
+  'endpoint.viaProxy': 'via cors.gtfs.zone',
+  'endpoint.localUrl':
+    'URL locale : proxy CORS non appliqué (il ne peut pas atteindre cette machine)',
+  'endpoint.never': 'jamais',
+  'endpoint.notReported': 'non indiqué',
+  'endpoint.error': 'erreur',
+  'endpoint.lastFetched': 'Dernière récupération',
+  'endpoint.feedTimestamp': 'Horodatage du flux',
+  'endpoint.dataAge': '(âge des données)',
+  'endpoint.entities': 'Entités',
+  'endpoint.nextRefresh': 'Prochain rafraîchissement',
+  'endpoint.errorAt': 'à {time}',
 };
