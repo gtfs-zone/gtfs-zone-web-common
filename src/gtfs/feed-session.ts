@@ -36,6 +36,9 @@ import { t } from '../i18n/messages';
  * reads; rt-manager's names the tracker a vehicle reports under. It is a
  * parameter rather than a widening so `rt-index.ts` can hand the app's own
  * vehicles back out of its indexes.
+ *
+ * `scheduledFeed`, `vehicles` and `tripUpdates` are replaced, never mutated in
+ * place: `RtPanel` reuses its `RtIndex` while their identities are unchanged.
  */
 export interface FeedSession<V extends VehiclePosition = VehiclePosition> {
   /** The parsed schedule, or null before one has loaded. */

@@ -238,6 +238,8 @@ export class GTFSScheduled extends EventTarget {
   private fetched = new Set<string>();
   /** The fetched trips whose stop_times were fetched too. */
   private timesFetched = new Set<string>();
+  /** `loadTripTimes` fetches in flight, by trip_id. */
+  private tripTimesLoading = new Map<string, Promise<void>>();
   private summary: FeedSummary;
 
   private constructor(
@@ -428,13 +430,26 @@ export class GTFSScheduled extends EventTarget {
     return this.stopTimesComplete || this.timesFetched.has(tripId);
   }
 
-  /** Fetch one trip with its stop_times, then fire `dataloaded`. */
-  async loadTripTimes(tripId: string): Promise<void> {
+  /**
+   * Fetch one trip with its stop_times, then fire `dataloaded`. A call while
+   * that trip is already loading shares the pending fetch.
+   */
+  loadTripTimes(tripId: string): Promise<void> {
     if (this.tripTimesLoaded(tripId)) {
-      return;
+      return Promise.resolve();
     }
-    await this.loadTrips([tripId]);
-    this.dispatchEvent(new Event('dataloaded'));
+    let pending = this.tripTimesLoading.get(tripId);
+    if (!pending) {
+      pending = this.loadTrips([tripId])
+        .then(() => {
+          this.dispatchEvent(new Event('dataloaded'));
+        })
+        .finally(() => {
+          this.tripTimesLoading.delete(tripId);
+        });
+      this.tripTimesLoading.set(tripId, pending);
+    }
+    return pending;
   }
 
   /**

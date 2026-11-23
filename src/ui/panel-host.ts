@@ -46,7 +46,7 @@ export class PanelHost<S> {
   private breadcrumbs: BreadcrumbItem<S>[] = [];
   private openDetails = new Set<string>();
   private tickerId: ReturnType<typeof setInterval> | null = null;
-  private renderQueued = false;
+  private frame: number | null = null;
 
   constructor(host: HTMLElement, hooks: PanelHostHooks<S>) {
     this.host = host;
@@ -66,6 +66,7 @@ export class PanelHost<S> {
   }
 
   destroy(): void {
+    this.cancelQueuedRender();
     if (this.tickerId !== null) {
       clearInterval(this.tickerId);
     }
@@ -101,14 +102,16 @@ export class PanelHost<S> {
     this.current = null;
   }
 
-  /** Re-render the current page once, at the end of this task. */
+  /**
+   * Re-render the current page once, on the next animation frame, so a burst
+   * of events across several tasks renders once.
+   */
   queueRender(): void {
-    if (this.current === null || this.renderQueued) {
+    if (this.current === null || this.frame !== null) {
       return;
     }
-    this.renderQueued = true;
-    queueMicrotask(() => {
-      this.renderQueued = false;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = null;
       this.render(false);
     });
   }
@@ -156,7 +159,16 @@ export class PanelHost<S> {
     }
   }
 
+  private cancelQueuedRender(): void {
+    if (this.frame !== null) {
+      cancelAnimationFrame(this.frame);
+      this.frame = null;
+    }
+  }
+
   private render(resetScroll: boolean): void {
+    // This render covers whatever was queued.
+    this.cancelQueuedRender();
     if (this.current === null) {
       return;
     }
