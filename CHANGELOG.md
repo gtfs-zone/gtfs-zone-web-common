@@ -1,3 +1,9 @@
+## v7.11.1 (2026-11-24)
+
+### Perf
+
+- **gtfs**: cache feed-zone formatters and memoize serviceDayStart
+
 ## v7.11.0 (2026-11-24)
 
 ### Feat
