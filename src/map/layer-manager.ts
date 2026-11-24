@@ -17,12 +17,12 @@
  * vehicle dropping out of the latest positions.
  */
 
-import type * as maplibregl from 'maplibre-gl';
 import type {
   ExpressionSpecification,
   FilterSpecification,
   GeoJSONSource,
   Map as MapLibreMap,
+  MapGeoJSONFeature,
 } from 'maplibre-gl';
 import type { GTFSScheduled } from '../gtfs/scheduled';
 import type { VehiclePosition } from '../gtfs/rt-types';
@@ -37,6 +37,7 @@ import {
   useTileFeed,
 } from './store-tiles';
 import { clearThemeColorCache, resolveThemeColor } from '../util/theme-color';
+import { onMapClick } from './click-away';
 import { ensureMapIcons } from './icons';
 import {
   ROUTE_LABELS_LAYER,
@@ -1503,48 +1504,41 @@ export class LayerManager<
    * vehicle parked on its own stop) would otherwise fire two selections.
    */
   attachInteraction(): void {
-    this.map.on('click', (e) => {
-      const hit = this.queryTop(e.point);
-      if (hit) {
-        this.onSelect?.(hit);
-      } else {
-        this.onEmptySelect?.();
-      }
-    });
-
-    this.map.on('mousemove', (e) => {
-      this.map.getCanvas().style.cursor = this.queryTop(e.point)
-        ? 'pointer'
-        : '';
+    onMapClick(this.map, {
+      layers: HIT_LAYERS,
+      onFeature: (features) => {
+        const hit = this.topTarget(features);
+        if (hit) {
+          this.onSelect?.(hit);
+        } else {
+          this.onEmptySelect?.();
+        }
+      },
+      onEmpty: () => this.onEmptySelect?.(),
     });
   }
 
-  private queryTop(point: maplibregl.Point): MapFocusTarget<X> | null {
-    const available = HIT_LAYERS.filter((id) => this.map.getLayer(id));
-    if (available.length === 0) {
-      return null;
-    }
-
-    for (const layer of available) {
-      const [feature] = this.map.queryRenderedFeatures(point, {
-        layers: [layer],
-      });
-      if (!feature) {
-        continue;
-      }
-      const props = feature.properties ?? {};
-      if (layer === VEHICLES_CLICKAREA_LAYER && props.vehicle_id) {
-        return {
-          ...(this.vehicleExtra?.target(props) ?? ({} as X)),
-          kind: 'vehicle',
-          id: String(props.vehicle_id),
-        };
-      }
-      if (layer === STOPS_CLICKAREA_LAYER && props.stop_id) {
-        return { kind: 'stop', id: String(props.stop_id) };
-      }
-      if (layer === ROUTES_CLICKAREA_LAYER && props.route_id) {
-        return { kind: 'route', id: String(props.route_id) };
+  /** The hit feature of the highest-priority layer in `HIT_LAYERS`. */
+  private topTarget(features: MapGeoJSONFeature[]): MapFocusTarget<X> | null {
+    for (const layer of HIT_LAYERS) {
+      for (const feature of features) {
+        if (feature.layer.id !== layer) {
+          continue;
+        }
+        const props = feature.properties ?? {};
+        if (layer === VEHICLES_CLICKAREA_LAYER && props.vehicle_id) {
+          return {
+            ...(this.vehicleExtra?.target(props) ?? ({} as X)),
+            kind: 'vehicle',
+            id: String(props.vehicle_id),
+          };
+        }
+        if (layer === STOPS_CLICKAREA_LAYER && props.stop_id) {
+          return { kind: 'stop', id: String(props.stop_id) };
+        }
+        if (layer === ROUTES_CLICKAREA_LAYER && props.route_id) {
+          return { kind: 'route', id: String(props.route_id) };
+        }
       }
     }
     return null;
