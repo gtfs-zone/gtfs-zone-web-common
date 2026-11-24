@@ -24,6 +24,7 @@ import {
   allShapes,
   allStopTimes,
   feedSummary,
+  routeDayTrips,
   routeTrips,
   tripsInfo,
   type FeedSummary,
@@ -205,6 +206,8 @@ const baseApi = {
   tripsInfo: (tripIds: string[], stopTimes?: boolean) =>
     tripsInfo(requireStore(), tripIds, stopTimes),
   routeTrips: (routeId: string) => routeTrips(requireStore(), routeId),
+  routeDayTrips: (routeId: string, date: string) =>
+    routeDayTrips(requireStore(), routeId, date),
   allStopTimes: () => allStopTimes(requireStore()),
   scheduledVehicles: (windows: ServiceWindow[], cap?: number) =>
     scheduledVehicles(requireStore(), windows, cap),

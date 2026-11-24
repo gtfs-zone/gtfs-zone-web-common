@@ -5,6 +5,7 @@ import { strToU8, zipSync } from 'fflate';
 import { streamGtfsZip } from '../src/gtfs/store/csv-stream';
 import { FeedStore } from '../src/gtfs/store/feed-store';
 import { scheduledVehicles } from '../src/gtfs/store/scheduled-vehicles';
+import { routeDayTrips } from '../src/gtfs/store/feed-queries';
 
 const FEED: Record<string, string> = {
   'stops.txt': [
@@ -273,5 +274,24 @@ describe('scheduledVehicles along the shape', () => {
     const v = await at(12, 5);
     near(v.lon, 0.05);
     near(v.lat, 0.05);
+  });
+});
+
+describe('routeDayTrips', () => {
+  it('lists the trips running on a date by first departure', async () => {
+    const store = await load();
+    assert.deepEqual(routeDayTrips(store, 'R1', '20261118'), [
+      { trip_id: 'T1', departure: '08:00:00' },
+      { trip_id: 'T3', departure: '10:05:00' },
+      { trip_id: 'T2', departure: '23:50:00' },
+    ]);
+  });
+
+  it('applies calendar_dates removals and additions', async () => {
+    const store = await load();
+    assert.deepEqual(routeDayTrips(store, 'R1', '20261116'), []);
+    assert.deepEqual(routeDayTrips(store, 'R2', '20261117'), [
+      { trip_id: 'F1', departure: '06:00:00' },
+    ]);
   });
 });

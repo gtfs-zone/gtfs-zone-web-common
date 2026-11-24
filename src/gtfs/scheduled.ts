@@ -16,6 +16,7 @@ import {
 import { feedServiceDate, serviceDayStart } from './feed-time';
 import type { VehiclePosition } from './rt-types';
 import type { ServiceWindow } from './store/scheduled-vehicles';
+import type { DayTrip } from './store/feed-queries';
 import type { BBox, RouteTileStyle, StopTilesIndexed } from './store/map-tiles';
 
 /** Verbatim CSV rows, kept so object pages can dump every column. */
@@ -160,6 +161,9 @@ const MIRRORED: Record<MirrorLevel, string[]> = {
 /** Trips whose stop_times `loadTrips` keeps before the oldest are dropped. */
 const TRIP_CACHE_LIMIT = 20_000;
 
+/** Route service days kept by `loadRouteDay`. */
+const ROUTE_DAY_CACHE = 16;
+
 const DAY_FIELDS = [
   'monday',
   'tuesday',
@@ -240,6 +244,9 @@ export class GTFSScheduled extends EventTarget {
   private timesFetched = new Set<string>();
   /** `loadTripTimes` fetches in flight, by trip_id. */
   private tripTimesLoading = new Map<string, Promise<void>>();
+  /** `loadRouteDay` results by route and date, oldest first. */
+  private routeDays = new Map<string, DayTrip[]>();
+  private routeDaysLoading = new Map<string, Promise<void>>();
   private summary: FeedSummary;
 
   private constructor(
@@ -531,6 +538,68 @@ export class GTFSScheduled extends EventTarget {
       `[GTFSScheduled] route ${routeId}: ${trips.length} trips loaded`
     );
     this.dispatchEvent(new Event('dataloaded'));
+  }
+
+  /**
+   * A trip from `trips`, else from the routes `loadRoute` fetched, looking in
+   * `routeId` first.
+   */
+  findTrip(tripId: string, routeId?: string): Trip | undefined {
+    const trip = this.trips.get(tripId);
+    if (trip || this.tripsComplete) {
+      return trip;
+    }
+    const inRoute = (trips: Trip[] | undefined): Trip | undefined =>
+      trips?.find((t) => t.trip_id === tripId);
+    if (routeId !== undefined) {
+      const hit = inRoute(this.tripsByRoute.get(routeId));
+      if (hit) {
+        return hit;
+      }
+    }
+    for (const trips of this.tripsByRoute.values()) {
+      const hit = inRoute(trips);
+      if (hit) {
+        return hit;
+      }
+    }
+    return undefined;
+  }
+
+  /** A route's trips running on a `YYYYMMDD` date, once `loadRouteDay` has read them. */
+  routeDay(routeId: string, date: string): DayTrip[] | undefined {
+    return this.routeDays.get(`${routeId}|${date}`);
+  }
+
+  /**
+   * Read a route's trips running on a date, by first departure, then fire
+   * `dataloaded`. A call while that read is in flight shares it.
+   */
+  loadRouteDay(routeId: string, date: string): Promise<void> {
+    const key = `${routeId}|${date}`;
+    if (this.routeDays.has(key)) {
+      return Promise.resolve();
+    }
+    let pending = this.routeDaysLoading.get(key);
+    if (!pending) {
+      pending = this.store
+        .call('routeDayTrips', routeId, date)
+        .then((trips) => {
+          this.routeDays.set(key, trips);
+          for (const old of this.routeDays.keys()) {
+            if (this.routeDays.size <= ROUTE_DAY_CACHE) {
+              break;
+            }
+            this.routeDays.delete(old);
+          }
+          this.dispatchEvent(new Event('dataloaded'));
+        })
+        .finally(() => {
+          this.routeDaysLoading.delete(key);
+        });
+      this.routeDaysLoading.set(key, pending);
+    }
+    return pending;
   }
 
   /**
