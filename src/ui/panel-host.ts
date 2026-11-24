@@ -183,8 +183,9 @@ export class PanelHost<S> {
         ${this.hooks.renderPage(this.current)}
       </div>`;
 
-    // Re-open what the reader had opened, then restore the scroll, in that
-    // order, since opening a `<details>` changes the scroll height.
+    // Re-open what the reader had opened and mount what `afterRender` adds
+    // before restoring the scroll: both change the scroll height, and an
+    // offset set on the shorter page would be clamped.
     this.host
       .querySelectorAll<HTMLDetailsElement>('[data-detail]')
       .forEach((el) => {
@@ -192,11 +193,11 @@ export class PanelHost<S> {
           el.open = true;
         }
       });
+    this.hooks.afterRender?.(this.host, this.current);
     this.host.scrollTop = resetScroll ? 0 : scroll;
     const rows = this.host.querySelector('.scroll-rows');
     if (rows) {
       rows.scrollTop = resetScroll ? 0 : rowsScroll;
     }
-    this.hooks.afterRender?.(this.host, this.current);
   }
 }

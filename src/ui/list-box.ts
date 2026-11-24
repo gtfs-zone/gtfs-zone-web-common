@@ -92,6 +92,7 @@ function mountWhole<T>(
     if (destroyed) {
       return;
     }
+    target.style.minHeight = '';
     target.innerHTML = renderScrollbox(
       rowList(items.map((item, i) => options.row(item, i)).join(''))
     );
@@ -102,6 +103,11 @@ function mountWhole<T>(
   };
   const items = options.items;
   if (isPaged(items)) {
+    // Hold the old height while the read runs, so the panel's own scroll
+    // offset is not clamped.
+    if (restore.height > 0) {
+      target.style.minHeight = `${restore.height}px`;
+    }
     Promise.resolve(items.page(0, items.count))
       .then(draw)
       .catch((error: unknown) => console.error(`${tag} read failed:`, error));
@@ -112,6 +118,7 @@ function mountWhole<T>(
     snapshot: () => ({
       ...EMPTY_SNAPSHOT,
       scrollTop: scroller?.scrollTop ?? restore.scrollTop,
+      height: scroller?.offsetHeight ?? restore.height,
     }),
     destroy: () => {
       destroyed = true;
