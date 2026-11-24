@@ -137,7 +137,11 @@ export interface TreeCrumbSource {
   agency(agencyId: string): { label: string } | null;
   /** `agency_id` is the route's agency, else the sole agency, else null. */
   route(routeId: string): { label: string; agency_id: string | null } | null;
-  trip(tripId: string): { label: string; route_id: string } | null;
+  /** `routeId` is a hint where to look first. */
+  trip(
+    tripId: string,
+    routeId?: string
+  ): { label: string; route_id: string } | null;
   stop(stopId: string): {
     label: string;
     location_type?: number;
@@ -204,7 +208,7 @@ function tripRouteId(
   source: TreeCrumbSource,
   loc: TripLocation
 ): string | null {
-  const scheduled = loc.trip_id ? source.trip(loc.trip_id) : null;
+  const scheduled = loc.trip_id ? source.trip(loc.trip_id, loc.route_id) : null;
   if (scheduled) {
     return scheduled.route_id;
   }
@@ -237,7 +241,7 @@ export function treeCrumbs<L extends TreeCrumbLocation>(
       return routeTreeCrumbs(source, loc.route_id);
     case 'trip': {
       const label =
-        (loc.trip_id && source.trip(loc.trip_id)?.label) ||
+        (loc.trip_id && source.trip(loc.trip_id, loc.route_id)?.label) ||
         loc.trip_id ||
         loc.start_time ||
         loc.entity_id ||
@@ -360,7 +364,8 @@ export function validateTreeLocation(
     case 'trip':
       return (
         tripLocationValid(loc) &&
-        ((loc.trip_id !== undefined && source.trip(loc.trip_id) !== null) ||
+        ((loc.trip_id !== undefined &&
+          source.trip(loc.trip_id, loc.route_id) !== null) ||
           source.realtimeTrip(loc))
       );
     case 'stop':
@@ -393,8 +398,8 @@ export function scheduledCrumbSource(feed: Feed): TreeCrumbSource {
         agency_id: known ? route.agency_id : soleAgency(),
       };
     },
-    trip(tripId) {
-      const trip = feed?.trips.get(tripId);
+    trip(tripId, routeId) {
+      const trip = feed?.findTrip(tripId, routeId);
       return trip
         ? { label: trip.headsign || trip.trip_id, route_id: trip.route_id }
         : null;

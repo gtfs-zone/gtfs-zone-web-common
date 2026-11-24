@@ -11,14 +11,15 @@
  * as ellipses under that scale, which is why the dots are HTML spans.
  */
 
-import type { AlertRecord, VehiclePosition } from './rt-types';
-import type { Route } from './scheduled';
+import type { AlertRecord, TripUpdate, VehiclePosition } from './rt-types';
+import { presentNumber } from './rt-types';
+import type { GTFSScheduled, Route, Trip } from './scheduled';
 import { alertsForRoute, alertsForRouteStop, feedWideAlerts } from './alerts';
 import { renderTriangleIcon, renderWarningIcon } from '../ui/modal-utils';
 import { GTFSScheduledRouteSource } from './scheduled-route-source';
 import { routeGraph } from './route-graph';
 import type { Prediction, RtIndex, VehicleStopSequence } from './rt-index';
-import type { RouteSequence, StopStats } from './route-sequence';
+import type { DirectionInfo, RouteSequence, StopStats } from './route-sequence';
 import { directionsForRoute, routeSequence } from './route-sequence';
 import {
   endpointNote,
@@ -45,8 +46,7 @@ import {
   formatDelay,
   formatDuration,
   formatEpochTime,
-  missing,
-  pageHeader,
+  formatScheduledTime,
   predictionTooltip,
   primaryEvent,
   prop,
@@ -54,33 +54,40 @@ import {
   renderRawFields,
   routeBadge,
   routeTypeLabel,
-  section,
   stopSequenceMark,
   tripRelationshipMark,
   vehicleDisplayName,
 } from './entity-render';
-import { entityRow, entityRowList, rowSection } from './entity-row';
-import { renderAlertList } from './alert-page';
+import { entityRow, entityRowList } from './entity-row';
+import { alertListOptions } from './alert-page';
 import type { RtPageHooks, RtPageRef } from './rt-page';
-import { vehiclesTitle } from './rt-page';
+import { feedServiceDate, formatServiceDate } from './feed-time';
+import {
+  descriptorFields,
+  tripLocationFor,
+  updateTripLocation,
+  type TripLocation,
+} from './tree-location';
+import { listSection, type TreePage, type TreeSection } from './tree-page';
+import { t } from '../i18n/messages';
 
-export interface RoutePageHooks<
+export interface RoutePageOptions<
   S extends PageRef,
   V extends VehiclePosition,
 > extends RtPageHooks<S, V> {
-  /** Appended to each direction section, after the strip. */
+  /** The page the route's agency links to; plain text when absent. */
+  agencyLink?: (agencyId: string) => S;
+  /** Appended to each direction's strip. */
   directionExtra?: (routeId: string, directionId: string) => string;
-  /** Sections between the direction sections and the route's properties. */
-  routeExtra?: (route: Route) => string;
-  /** The label on the route's live vehicle count. */
-  vehicleCountLabel?: string;
+  /** Sections inserted before the raw dump. */
+  extraSections?: (route: Route) => TreeSection[];
 }
 
 /** The context every renderer here shares. */
 interface Page<S extends PageRef, V extends VehiclePosition> {
   ctx: RenderContext<S | RtPageRef>;
   rt: RtIndex<V>;
-  hooks: RoutePageHooks<S, V>;
+  hooks: RoutePageOptions<S, V>;
 }
 
 /** A vehicle that could not be put on the strip, and why not. */
@@ -136,18 +143,21 @@ function placeVehicles<S extends PageRef, V extends VehiclePosition>(
       // A vehicle whose trip we cannot resolve might belong to either
       // direction, so it is listed rather than guessed onto this one.
       const relationship = vehicle.scheduleRelationship;
-      const reasonSuffix =
+      const reported =
         relationship !== undefined && relationship !== 0
-          ? `; the feed reports it as ${
-              TRIP_SCHEDULE_RELATIONSHIP_LABELS[relationship] ??
-              String(relationship)
-            }`
+          ? (TRIP_SCHEDULE_RELATIONSHIP_LABELS[relationship] ??
+            String(relationship))
           : '';
       unplaced.push({
         vehicle,
-        reason: vehicle.tripId
-          ? `trip ${vehicle.tripId} is not in the schedule${reasonSuffix}`
-          : 'no trip_id reported',
+        reason: !vehicle.tripId
+          ? t('route.unplacedNoTrip')
+          : reported
+            ? t('route.unplacedTripReported', {
+                trip: vehicle.tripId,
+                relationship: reported,
+              })
+            : t('route.unplacedTrip', { trip: vehicle.tripId }),
         relationship,
       });
       continue;
@@ -157,8 +167,7 @@ function placeVehicles<S extends PageRef, V extends VehiclePosition>(
     if (!current) {
       unplaced.push({
         vehicle,
-        reason:
-          'no current_stop_sequence, and no future prediction to derive one from',
+        reason: t('route.unplacedNoSequence'),
       });
       continue;
     }
@@ -170,7 +179,7 @@ function placeVehicles<S extends PageRef, V extends VehiclePosition>(
     if (stopIndex < 0) {
       unplaced.push({
         vehicle,
-        reason: `stop_sequence ${current.sequence} is not in this trip's stop_times`,
+        reason: t('route.unplacedSequence', { sequence: current.sequence }),
       });
       continue;
     }
@@ -179,7 +188,7 @@ function placeVehicles<S extends PageRef, V extends VehiclePosition>(
     if (position === null) {
       unplaced.push({
         vehicle,
-        reason: "this trip's stop pattern is not among those shown",
+        reason: t('route.unplacedPattern'),
       });
       continue;
     }
@@ -232,7 +241,7 @@ function eta(prediction: Prediction | undefined): string {
     const cls = `tabular-nums${derivedClass(ev.timeFrom)}`;
     parts.push(
       secs < 0
-        ? `<span class="${cls} opacity-60">${escHtml(formatDuration(secs))} ago</span>`
+        ? `<span class="${cls} opacity-60">${escHtml(t('route.ago', { duration: formatDuration(secs) }))}</span>`
         : secs < 3600
           ? `<span class="${cls}">${escHtml(formatDuration(secs))}</span>`
           : `<span class="${cls}">${escHtml(formatEpochTime(ev.time))}</span>`
@@ -285,7 +294,7 @@ function alertPips(
     return '';
   }
   const first = alerts[0];
-  const label = alerts.length === 1 ? '1 alert' : `${alerts.length} alerts`;
+  const label = t('route.alertCount', { count: alerts.length });
   return entityLink(
     ctx,
     { type: 'alert', alert_id: first.id },
@@ -312,7 +321,7 @@ function renderStrip<S extends PageRef, V extends VehiclePosition>(
   const { ctx, rt } = page;
   const feed = ctx.session.scheduledFeed;
   if (sequence.stops.length === 0) {
-    return '<p class="text-sm opacity-60">No trips with stop times for this direction.</p>';
+    return `<p class="text-sm opacity-60">${t('route.noStripTrips')}</p>`;
   }
 
   const before = new Map<number, PlacedVehicle<V>[]>();
@@ -385,7 +394,10 @@ function renderStrip<S extends PageRef, V extends VehiclePosition>(
         leadOut: chipsAt.length > 0,
       }),
       content: `<div class="flex items-center gap-2" title="${escHtml(
-        `Served by ${stats.serves} of ${sequence.totalTrips} trips`
+        t('route.servedBy', {
+          serves: stats.serves,
+          total: sequence.totalTrips,
+        })
       )}">
         <span class="flex-1 min-w-0 truncate text-sm${minority ? ' opacity-60' : ''}">${entityLink(
           ctx,
@@ -393,14 +405,17 @@ function renderStrip<S extends PageRef, V extends VehiclePosition>(
           name
         )}${
           stop.occurrence > 0
-            ? `<span class="opacity-50 text-xs ml-1">(visit ${stop.occurrence + 1})</span>`
+            ? `<span class="opacity-50 text-xs ml-1">${escHtml(t('route.visit', { n: stop.occurrence + 1 }))}</span>`
             : ''
         }</span>
         ${endpointNoteHtml(stats, threshold)}
         ${
           minority
             ? `<span class="text-xs opacity-50 tabular-nums shrink-0">${escHtml(
-                `${stats.serves} of ${sequence.totalTrips} trips`
+                t('route.servesOf', {
+                  serves: stats.serves,
+                  total: sequence.totalTrips,
+                })
               )}</span>`
             : ''
         }
@@ -443,21 +458,182 @@ function renderUnplaced<S extends PageRef, V extends VehiclePosition>(
   if (unplaced.length === 0) {
     return '';
   }
-  return rowSection(
-    `Unplaced ${vehiclesTitle(hooks.vehicleNoun).toLowerCase()}`,
-    unplaced.length,
-    `<p class="text-xs opacity-60">On this route but not positionable on the strip.</p>
-     ${entityRowList(
-       unplaced.map((u) =>
-         entityRow(ctx, {
-           state: hooks.vehicleLink(u.vehicle),
-           label: vehicleDisplayName(ctx.session.scheduledFeed, u.vehicle),
-           sublabel: u.reason,
-           badgeHtml: tripRelationshipMark(u.relationship),
-         })
-       ),
-       ''
-     )}`
+  return `<div class="space-y-1">
+    <p class="text-xs opacity-60">${t('route.unplaced')}</p>
+    ${entityRowList(
+      unplaced.map((u) =>
+        entityRow(ctx, {
+          state: hooks.vehicleLink(u.vehicle),
+          label: vehicleDisplayName(ctx.session.scheduledFeed, u.vehicle),
+          sublabel: u.reason,
+          badgeHtml: tripRelationshipMark(u.relationship),
+        })
+      ),
+      ''
+    )}
+  </div>`;
+}
+
+// --- Trips --------------------------------------------------------------------
+
+/** One row of a direction's Trips list. */
+interface TripRow {
+  tripId: string;
+  trip?: Trip;
+  /** First departure, `HH:MM:SS`; empty for a trip outside the schedule. */
+  departure: string;
+  update?: TripUpdate;
+  loc?: TripLocation;
+}
+
+/** The update for a trip on `date`: an undated update counts for any day. */
+function updateOn(
+  rt: RtIndex,
+  tripId: string,
+  date: string
+): TripUpdate | undefined {
+  const update = rt.updateByTrip.get(tripId);
+  const startDate = update?.trip?.startDate;
+  return update && (!startDate || startDate === date) ? update : undefined;
+}
+
+/** The trip-level delay, else the delay at the trip's next predicted stop. */
+function tripDelay(
+  rt: RtIndex,
+  tripId: string,
+  update: TripUpdate
+): number | undefined {
+  const delay = presentNumber(update, 'delay');
+  if (delay !== undefined) {
+    return delay;
+  }
+  const now = Date.now() / 1000;
+  for (const p of rt.predictionsByTrip.get(tripId) ?? []) {
+    if (p.update !== update) {
+      continue;
+    }
+    const ev = primaryEvent(p);
+    if (ev.delay !== undefined && (ev.time === undefined || ev.time >= now)) {
+      return ev.delay;
+    }
+  }
+  return undefined;
+}
+
+/** Canceled, added and the like, then the delay. */
+function realtimeMark(rt: RtIndex, row: TripRow): string {
+  if (!row.update) {
+    return '';
+  }
+  const relationship = presentNumber(row.update.trip, 'scheduleRelationship');
+  const delay =
+    relationship === CANCELED
+      ? undefined
+      : tripDelay(rt, row.tripId, row.update);
+  return `<span class="flex items-center gap-1 text-xs whitespace-nowrap">${tripRelationshipMark(
+    relationship
+  )}${formatDelay(delay)}</span>`;
+}
+
+/** TripDescriptor.ScheduleRelationship CANCELED. */
+const CANCELED = 3;
+
+/**
+ * The route's trips on the service day, per direction, plus the trip updates
+ * on the route whose trip the schedule does not have (added trips).
+ */
+function tripRows(
+  feed: GTFSScheduled,
+  rt: RtIndex,
+  route: Route,
+  date: string,
+  directions: DirectionInfo[]
+): Map<string, TripRow[]> | null {
+  const day = feed.routeDay(route.id, date);
+  if (!day) {
+    return null;
+  }
+  const byDirection = new Map<string, TripRow[]>(
+    directions.map((d) => [d.direction_id, []])
+  );
+  const fallback = directions[0]?.direction_id ?? '';
+  const push = (directionId: string, row: TripRow): void => {
+    let list = byDirection.get(directionId) ?? byDirection.get(fallback);
+    if (!list) {
+      byDirection.set(fallback, (list = []));
+    }
+    list.push(row);
+  };
+  for (const { trip_id, departure } of day) {
+    const trip = feed.findTrip(trip_id, route.id);
+    push(trip?.direction_id ?? '', {
+      tripId: trip_id,
+      trip,
+      departure,
+      update: updateOn(rt, trip_id, date),
+      loc: tripLocationFor({ tripId: trip_id, startDate: date }, route.id),
+    });
+  }
+  for (const update of rt.updateByTrip.values()) {
+    const desc = descriptorFields(update.trip);
+    if (
+      desc.routeId !== route.id ||
+      !desc.tripId ||
+      feed.findTrip(desc.tripId, route.id)
+    ) {
+      continue;
+    }
+    push(
+      desc.directionId === undefined || desc.directionId === null
+        ? fallback
+        : String(desc.directionId),
+      {
+        tripId: desc.tripId,
+        departure: '',
+        update,
+        loc: updateTripLocation(feed, update),
+      }
+    );
+  }
+  return byDirection;
+}
+
+function loadingLine(text: string): string {
+  return `<div class="flex items-center gap-2 text-xs opacity-70">
+      <span class="loading loading-spinner loading-xs"></span>
+      ${escHtml(text)}
+    </div>`;
+}
+
+function tripListSection<S extends PageRef, V extends VehiclePosition>(
+  { ctx, rt, hooks }: Page<S, V>,
+  title: string,
+  key: string,
+  rows: TripRow[] | null
+): TreeSection {
+  if (rows === null) {
+    return { key, title, body: loadingLine(t('route.loadingTrips')) };
+  }
+  return listSection(
+    title,
+    {
+      name: 'route-trips',
+      items: rows,
+      row: (row) =>
+        entityRow<S>(ctx, {
+          state: row.loc ? hooks.tripLink?.(row.loc) : undefined,
+          leadHtml: `<span class="text-xs tabular-nums opacity-70 w-10 shrink-0">${escHtml(
+            row.departure ? formatScheduledTime(row.departure, false) : ''
+          )}</span>`,
+          label: row.trip?.headsign || row.tripId,
+          sublabel: row.trip?.raw.trip_short_name?.trim() || undefined,
+          badgeHtml: realtimeMark(rt, row) || undefined,
+        }),
+      searchText: (row) =>
+        `${row.departure} ${row.trip?.headsign ?? ''} ${row.trip?.raw.trip_short_name ?? ''} ${row.tripId}`,
+      empty: t('route.noTrips'),
+    },
+    { key }
   );
 }
 
@@ -470,61 +646,70 @@ function modeLabel(routeType: number): string {
     console.warn(
       `[RoutePage] Unknown route_type ${routeType}, showing the raw code`
     );
-    return `route_type ${routeType}`;
+    return t('route.typeCode', { code: routeType });
   }
   return label;
 }
 
-export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
+/** Alerts on the route, then those naming no route, stop or trip. */
+function routeAlerts<S extends PageRef>(
+  ctx: RenderContext<S | RtPageRef>,
+  routeId: string
+): AlertRecord[] {
+  const own = alertsForRoute(ctx.session, routeId);
+  const ids = new Set(own.map((r) => r.id));
+  return [...own, ...feedWideAlerts(ctx.session).filter((r) => !ids.has(r.id))];
+}
+
+/** A route: its strip with live vehicles, the day's trips, vehicles and alerts. */
+export function routePage<S extends PageRef, V extends VehiclePosition>(
   ctx: RenderContext<S | RtPageRef>,
   rt: RtIndex<V>,
   routeId: string,
-  hooks: RoutePageHooks<S, V>
-): string {
+  options: RoutePageOptions<S, V>
+): TreePage {
   const feed = ctx.session.scheduledFeed;
   const route = feed?.routes.get(routeId);
+  const eyebrow = t('crumb.route');
   if (!feed || !route) {
-    return missing(`Route ${routeId}`);
+    return {
+      eyebrow,
+      title: routeId,
+      sections: [
+        {
+          body: `<p class="text-sm opacity-60">${escHtml(t('route.missing', { id: routeId }))}</p>`,
+        },
+      ],
+    };
   }
-  const page: Page<S, V> = { ctx, rt, hooks };
+  const page: Page<S, V> = { ctx, rt, hooks: options };
+  const date = feedServiceDate(Date.now());
 
-  // The page re-renders on the feed's `dataloaded` once the route arrives.
-  if (!feed.routeLoaded(route.id)) {
+  // Both reads fire `dataloaded`, which re-renders the page.
+  const loaded = feed.routeLoaded(route.id);
+  if (!loaded) {
     feed.loadRoute(route.id).catch((err) => {
       console.error(`[RoutePage] loading route ${route.id} failed`, err);
     });
-    return `
-    <div class="space-y-4">
-      ${pageHeader(
-        route.long_name || route.short_name || route.id,
-        route.id,
-        routeBadge(ctx, route)
-      )}
-      <div class="flex items-center gap-2 opacity-70">
-        <span class="loading loading-spinner loading-sm"></span>
-        Loading trips…
-      </div>
-    </div>`;
+  }
+  if (!feed.routeDay(route.id, date)) {
+    feed.loadRouteDay(route.id, date).catch((err) => {
+      console.error(
+        `[RoutePage] loading route ${route.id} trips on ${date} failed`,
+        err
+      );
+    });
   }
 
-  const source = new GTFSScheduledRouteSource(feed);
-  const directions = directionsForRoute(source, route.id);
-
   const agency =
-    feed.agencies.find((a) => a.id === route.agency_id) ?? feed.agencies[0];
+    feed.agencies.find((a) => a.id === route.agency_id) ??
+    (feed.agencies.length === 1 ? feed.agencies[0] : undefined);
+  const agencyName = agency ? agency.name || agency.id : '';
 
-  return `
-    <div class="space-y-4">
-      ${pageHeader(
-        route.long_name || route.short_name || route.id,
-        route.id,
-        routeBadge(ctx, route)
-      )}
-
-      ${renderAlertList(ctx, feedWideAlerts(ctx.session), 'Feed-wide alerts')}
-      ${renderAlertList(ctx, alertsForRoute(ctx.session, route.id), 'Route alerts')}
-
-      ${renderDirectionSections(directions, (d) => {
+  const source = new GTFSScheduledRouteSource(feed);
+  const directions = loaded ? directionsForRoute(source, route.id) : [];
+  const strip = loaded
+    ? renderDirectionSections(directions, (d) => {
         const sequence = routeSequence(source, route.id, d.direction_id);
         const { placed, unplaced } = placeVehicles(
           page,
@@ -536,23 +721,78 @@ export function renderRoutePage<S extends PageRef, V extends VehiclePosition>(
           ${renderCoverage(sequence)}
           ${renderStrip(page, route, sequence, d.direction_id, placed)}
           ${renderUnplaced(page, unplaced)}
-          ${hooks.directionExtra?.(route.id, d.direction_id) ?? ''}`;
-      })}
-      ${hooks.routeExtra?.(route) ?? ''}
+          ${options.directionExtra?.(route.id, d.direction_id) ?? ''}`;
+      })
+    : loadingLine(t('route.loadingStops'));
 
-      ${section(
-        'Route',
-        propList([
-          prop('Mode', escHtml(modeLabel(route.type))),
-          agency?.name ? prop('Agency', escHtml(agency.name)) : '',
-          prop('Trips', String(feed.tripCountByRoute.get(route.id) ?? 0)),
-          prop(
-            hooks.vehicleCountLabel ??
-              `${vehiclesTitle(hooks.vehicleNoun)} in feed`,
-            String((rt.vehiclesByRoute.get(route.id) ?? []).length)
+  const rows = loaded ? tripRows(feed, rt, route, date, directions) : null;
+  const tripsTitle = t('route.tripsOn', { date: formatServiceDate(date) });
+  const tripSections =
+    rows === null || directions.length <= 1
+      ? [
+          tripListSection(
+            page,
+            tripsTitle,
+            'route-trips',
+            rows && [...rows.values()].flat()
           ),
-        ])
-      )}
-      ${renderRawFields('routes.txt', route.raw)}
-    </div>`;
+        ]
+      : directions.map((d) =>
+          tripListSection(
+            page,
+            `${tripsTitle} - ${d.label}`,
+            `route-trips-${d.direction_id}`,
+            rows.get(d.direction_id) ?? []
+          )
+        );
+
+  const vehicles = rt.vehiclesByRoute.get(route.id) ?? [];
+
+  return {
+    eyebrow,
+    title: route.long_name || route.short_name || route.id,
+    id: route.id,
+    titleExtra: routeBadge(ctx, route),
+    sections: [
+      {
+        body: propList([
+          prop(t('route.mode'), escHtml(modeLabel(route.type))),
+          agency
+            ? prop(
+                t('route.agency'),
+                options.agencyLink
+                  ? entityLink(ctx, options.agencyLink(agency.id), agencyName)
+                  : escHtml(agencyName)
+              )
+            : '',
+        ]),
+      },
+      { title: t('route.stops'), body: strip },
+      ...tripSections,
+      listSection(t('route.vehicles'), {
+        name: 'route-vehicles',
+        items: vehicles,
+        row: (v) =>
+          entityRow<S>(ctx, {
+            state: options.vehicleLink(v),
+            label: vehicleDisplayName(feed, v),
+            sublabel: v.tripId
+              ? feed.findTrip(v.tripId, route.id)?.headsign || v.tripId
+              : undefined,
+            badge:
+              v.currentStatus === undefined
+                ? undefined
+                : VEHICLE_STATUS_LABELS[v.currentStatus],
+            leadHtml: tripRelationshipMark(v.scheduleRelationship) || undefined,
+          }),
+        empty: t('route.noVehicles'),
+      }),
+      listSection(
+        t('route.alerts'),
+        alertListOptions(ctx, routeAlerts(ctx, route.id), t('alerts.noneHere'))
+      ),
+      ...(options.extraSections?.(route) ?? []),
+      { body: renderRawFields('routes.txt', route.raw) },
+    ],
+  };
 }
