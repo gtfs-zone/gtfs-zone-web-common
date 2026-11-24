@@ -73,10 +73,11 @@ body {
 }
 
 @layer components {
-  /* A .scroll-host (modal body, #panel-content) holding a .scroll-rows region
-     stops scrolling as a whole: it and every element between it and the
-     region become flex columns, and the region takes the height left over,
-     so only its rows scroll. A host without a region scrolls as before. The
+  /* A .scroll-host (modal body, sidebar-modal pane, #panel-content) holding
+     a .scroll-rows region stops scrolling as a whole: it and every element
+     between it and the region become flex columns, and the region takes the
+     height left over, so only its rows scroll. A host without a region
+     scrolls as before. The
      host keeps its own overflow, so on a very short screen where the region
      reaches its minimum height the host scrolls instead of clipping. Being in
      this layer, utilities on a chain element (hidden, md:flex-row) win. */

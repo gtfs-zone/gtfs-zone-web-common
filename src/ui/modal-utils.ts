@@ -98,8 +98,9 @@ export function renderWarningIcon(sizeClass = 'h-4 w-4'): string {
 /**
  * A modal list table whose rows scroll under a pinned header.
  *
- * The wrapper is the page's `.scroll-rows` region, so the modal body stops
- * scrolling and gives the table the height left over: whatever sits before or
+ * The wrapper is the page's `.scroll-rows` region, so its scroll host (modal
+ * body or sidebar-modal pane) stops scrolling and gives the table the height
+ * left over: whatever sits before or
  * after the returned markup (a search, an upload button) stays in place.
  */
 export function renderScrollableTable(
@@ -192,6 +193,8 @@ export function closeModalsAbove(depth: number): void {
  *   whether the X button is rendered.
  * `onMount`: called after the modal is in the DOM; receives a `close`
  *   callback so the mount handler can close the modal programmatically.
+ * `bodyScroll`: false makes the body a fixed flex column that never scrolls,
+ *   for a caller that lays out its own scroll regions inside it.
  */
 export async function showModal(options: {
   title: string;
@@ -202,6 +205,7 @@ export async function showModal(options: {
   enterAction?: number;
   escapeAction?: number;
   boxClassName?: string;
+  bodyScroll?: boolean;
 }): Promise<void> {
   return new Promise((resolve) => {
     const modal = document.createElement('div');
@@ -210,7 +214,7 @@ export async function showModal(options: {
       <div class="modal-box relative max-h-[80vh] max-w-4xl w-11/12 flex flex-col outline-none focus:outline-none ${options.boxClassName ?? ''}" tabindex="-1">
         ${options.escapeAction !== undefined ? `<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-dismiss>${renderCloseIcon()}</button>` : ''}
         <h3 class="font-bold text-lg">${options.title}</h3>
-        <div class="scroll-host flex-1 min-h-0 overflow-y-auto py-4">${options.body}</div>
+        <div class="${options.bodyScroll === false ? 'flex flex-col overflow-hidden' : 'scroll-host overflow-y-auto'} flex-1 min-h-0 py-4">${options.body}</div>
         <div class="modal-action">
           ${options.actionBarContent ? `<div class="flex items-center gap-2 flex-1">${options.actionBarContent}</div>` : ''}
           ${options.actions
