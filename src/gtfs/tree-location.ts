@@ -6,6 +6,8 @@
  */
 
 import type { PageSpecs } from '../ui/page-state-schema';
+import type { TripUpdate, VehiclePosition } from './rt-types';
+import type { GTFSScheduled } from './scheduled';
 
 /**
  * A trip page. Keyed by trip_id plus the service day (and start time for a
@@ -82,4 +84,122 @@ export function tripLocationKey(loc: TripLocation): string {
         loc.entity_id,
       ];
   return JSON.stringify(parts.map((p) => p ?? ''));
+}
+
+/**
+ * The trip fields a TripDescriptor or a `VehiclePosition` carries. Decoded
+ * strings are `''` when absent; `directionId` must already be checked with
+ * `presentNumber`, since a decoded one defaults to 0.
+ */
+export interface TripFields {
+  tripId?: string | null;
+  routeId?: string | null;
+  directionId?: string | number | null;
+  startDate?: string | null;
+  startTime?: string | null;
+}
+
+/** The fields of a decoded TripDescriptor, with an absent direction left out. */
+export function descriptorFields(
+  desc: (TripFields & object) | null | undefined
+): TripFields {
+  if (!desc) {
+    return {};
+  }
+  const hasDirection = Object.prototype.hasOwnProperty.call(
+    desc,
+    'directionId'
+  );
+  return {
+    tripId: desc.tripId,
+    routeId: desc.routeId,
+    directionId: hasDirection ? desc.directionId : undefined,
+    startDate: desc.startDate,
+    startTime: desc.startTime,
+  };
+}
+
+function text(value: string | number | null | undefined): string | undefined {
+  return value === null || value === undefined || value === ''
+    ? undefined
+    : String(value);
+}
+
+/**
+ * The trip page a vehicle or trip update links to, dated by its start_date.
+ * With a trip_id, `routeHint` (else the descriptor's route) is the crumb hint.
+ */
+export function tripLocationFor(
+  fields: TripFields,
+  routeHint?: string
+): TripLocation | undefined {
+  const tripId = text(fields.tripId);
+  const routeId = text(routeHint) ?? text(fields.routeId);
+  const startDate = text(fields.startDate);
+  const loc: TripLocation = tripId
+    ? {
+        type: 'trip',
+        trip_id: tripId,
+        start_date: startDate,
+        route_id: routeId,
+      }
+    : {
+        type: 'trip',
+        route_id: routeId,
+        direction_id: text(fields.directionId),
+        start_date: startDate,
+        start_time: text(fields.startTime),
+      };
+  for (const key of Object.keys(loc) as (keyof TripLocation)[]) {
+    if (loc[key] === undefined) {
+      delete loc[key];
+    }
+  }
+  return tripLocationValid(loc) ? loc : undefined;
+}
+
+/**
+ * Whether trip fields name the trip at a location. A field either side leaves
+ * out matches anything, so an undated location matches any service day.
+ */
+export function tripMatches(loc: TripLocation, fields: TripFields): boolean {
+  const agrees = (
+    want: string | undefined,
+    have: string | number | null | undefined
+  ): boolean => !want || text(have) === undefined || text(have) === want;
+  if (!agrees(loc.start_date, fields.startDate)) {
+    return false;
+  }
+  if (loc.trip_id) {
+    return (
+      text(fields.tripId) === loc.trip_id &&
+      agrees(loc.start_time, fields.startTime)
+    );
+  }
+  return (
+    text(fields.routeId) === loc.route_id &&
+    text(fields.startTime) === loc.start_time &&
+    agrees(loc.direction_id, fields.directionId)
+  );
+}
+
+/** The trip page a vehicle's trip links to, or undefined with no trip named. */
+export function vehicleTripLocation(
+  feed: GTFSScheduled | null,
+  vehicle: VehiclePosition
+): TripLocation | undefined {
+  const routeId = vehicle.tripId
+    ? feed?.trips.get(vehicle.tripId)?.route_id
+    : undefined;
+  return tripLocationFor(vehicle, routeId);
+}
+
+/** The trip page a trip update links to, or undefined with no trip named. */
+export function updateTripLocation(
+  feed: GTFSScheduled | null,
+  update: TripUpdate
+): TripLocation | undefined {
+  const tripId = update.trip?.tripId;
+  const routeId = tripId ? feed?.trips.get(tripId)?.route_id : undefined;
+  return tripLocationFor(descriptorFields(update.trip), routeId);
 }
