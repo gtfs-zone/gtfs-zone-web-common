@@ -7,7 +7,7 @@
 
 import type { EndpointStatus } from './rt-poller';
 import type { FeedGaps, RtIndex, ScheduleRelationshipCounts } from './rt-index';
-import type { TripUpdate, VehiclePosition } from './rt-types';
+import type { VehiclePosition } from './rt-types';
 import { presentNumber } from './rt-types';
 import type { LinkContext, PageRef, RenderContext } from './entity-render';
 import {
@@ -30,6 +30,7 @@ import { alertListOptions } from './alert-page';
 import type { RtPageRef } from './rt-page';
 import { listSection, type TreePage, type TreeSection } from './tree-page';
 import { treeNodeCrumb } from './breadcrumbs';
+import { updateTripLocation, type TripLocation } from './tree-location';
 import { t } from '../i18n/messages';
 
 /** An endpoint's status and how to show its URL. */
@@ -278,7 +279,7 @@ export interface TripUpdatesOptions<
   S extends PageRef,
 > extends RealtimeNodeOptions {
   /** The page a trip update row links to; a row without one is text. */
-  tripLink?: (update: TripUpdate) => S | undefined;
+  tripLink?: (loc: TripLocation) => S | undefined;
 }
 
 /** The Trip updates node. */
@@ -300,6 +301,7 @@ export function tripUpdatesPage<S extends PageRef>(
     const start = [desc?.startDate, desc?.startTime].filter(Boolean).join(' ');
     return {
       update,
+      loc: updateTripLocation(feed, update),
       label: trip?.headsign || tripId || t('node.updateFallback', { n: i + 1 }),
       sublabel: [routeName, tripId && trip?.headsign ? tripId : '', start]
         .filter(Boolean)
@@ -321,7 +323,7 @@ export function tripUpdatesPage<S extends PageRef>(
         items: rows,
         row: (row) =>
           entityRow<S>(ctx, {
-            state: options.tripLink?.(row.update),
+            state: row.loc ? options.tripLink?.(row.loc) : undefined,
             label: row.label,
             sublabel: row.sublabel,
             color: row.color,
