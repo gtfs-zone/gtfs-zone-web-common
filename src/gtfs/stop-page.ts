@@ -11,11 +11,11 @@
  */
 
 import type { AlertRecord, VehiclePosition } from './rt-types';
-import type { Stop } from './scheduled';
+import type { GTFSScheduled, Route, Stop } from './scheduled';
 import { alertsForStop } from './alerts';
 import { stopTypeLabel } from '../ui/breadcrumb-trail';
 import { zoneLabel } from './feed-time';
-import type { RtIndex } from './rt-index';
+import type { Prediction, RtIndex } from './rt-index';
 import { TOOLTIP_TRIGGER_CLASS, tooltipContentAttr } from '../ui/field-label';
 import type { PageRef, RenderContext } from './entity-render';
 import {
@@ -26,40 +26,37 @@ import {
   formatDelay,
   formatEpochTime,
   formatScheduledTime,
-  missing,
-  pageHeader,
   predictionTooltip,
   primaryEvent,
   prop,
   propList,
   renderRawFields,
   routeBadge,
-  section,
   stopTimeRelationshipMark,
   vehicleDisplayName,
 } from './entity-render';
-import { entityRow, entityRowList, rowSection } from './entity-row';
-import { renderAlertList } from './alert-page';
+import { entityRow } from './entity-row';
+import { alertListOptions } from './alert-page';
 import type { RtPageHooks, RtPageRef } from './rt-page';
-import { vehiclesTitle } from './rt-page';
-import { updateTripLocation, type TripLocation } from './tree-location';
+import { updateTripLocation } from './tree-location';
+import { listSection, type TreePage, type TreeSection } from './tree-page';
+import { t } from '../i18n/messages';
 
-export interface StopPageHooks<
+export interface StopPageOptions<
   S extends PageRef,
   V extends VehiclePosition,
 > extends RtPageHooks<S, V> {
-  /** The page a departure's trip links to; unlinked when absent or undefined. */
-  tripLink?: (loc: TripLocation) => S | undefined;
   /**
-   * Sections after the platforms. `serviceIds` are the stops whose service the
-   * page shows: the stop itself, or a station's boardable platforms.
+   * Sections inserted before the raw dump. `serviceIds` are the stops whose
+   * service the page shows: the stop itself, or a station's boardable platforms.
    */
-  stopExtra?: (stop: Stop, serviceIds: string[]) => string;
+  extraSections?: (stop: Stop, serviceIds: string[]) => TreeSection[];
 }
 
 type Ctx<S extends PageRef> = RenderContext<S | RtPageRef>;
 
-const MAX_DEPARTURES = 20;
+/** Departures read from the index; more than any service day at one stop. */
+const MAX_DEPARTURES = 2000;
 
 /** A platform's rider-facing label: platform_code, then platform_name, then id. */
 function platformLabel(stop: Stop): string {
@@ -69,323 +66,281 @@ function platformLabel(stop: Stop): string {
   );
 }
 
-/** The muted "this came from a child stop" tag every aggregated row carries. */
-function fromChild(ctx: RenderContext<RtPageRef>, stopId: string): string {
-  return `<span class="opacity-50 text-xs whitespace-nowrap">@ ${escHtml(
-    childName(ctx, stopId)
-  )}</span>`;
-}
-
-/** The same name as plain text, for a row's sublabel. */
-function childName(ctx: RenderContext<RtPageRef>, stopId: string): string {
-  const stop = ctx.session.scheduledFeed!.stops.get(stopId);
-  return stop ? platformLabel(stop) : stopId;
+/** "Platform 3" for a child stop of the station, by id. */
+function platformName(feed: GTFSScheduled, stopId: string): string {
+  const stop = feed.stops.get(stopId);
+  return t('stop.platform', { name: stop ? platformLabel(stop) : stopId });
 }
 
 function aggregationNote(count: number): string {
-  return `<p class="text-xs opacity-50">Aggregated across ${count} platform${
-    count === 1 ? '' : 's'
-  } - these rows come from child stops in <span class="font-mono">stop_times</span>, not this station id.</p>`;
+  return `<p class="text-xs opacity-50">${t('stop.aggregated', { count })}</p>`;
 }
 
 // --- Routes -----------------------------------------------------------------
 
-function renderRoutes(
-  ctx: RenderContext<RtPageRef>,
-  serviceIds: string[],
-  isStation: boolean
-): string {
-  const feed = ctx.session.scheduledFeed!;
-  // route_id -> the platforms that serve it
-  const routePlatforms = new Map<string, Set<string>>();
+interface RouteRow {
+  routeId: string;
+  route?: Route;
+  /** The platforms serving it, on a station. */
+  platforms: string[];
+}
+
+function routeRows(feed: GTFSScheduled, serviceIds: string[]): RouteRow[] {
+  const byRoute = new Map<string, Set<string>>();
   for (const id of serviceIds) {
     for (const routeId of feed.routesByStop.get(id) ?? []) {
-      let set = routePlatforms.get(routeId);
+      let set = byRoute.get(routeId);
       if (!set) {
-        routePlatforms.set(routeId, (set = new Set()));
+        byRoute.set(routeId, (set = new Set()));
       }
       set.add(id);
     }
   }
-  if (routePlatforms.size === 0) {
-    return '';
-  }
+  return [...byRoute.entries()].map(([routeId, platforms]) => ({
+    routeId,
+    route: feed.routes.get(routeId),
+    platforms: [...platforms],
+  }));
+}
 
-  if (!isStation) {
-    return section(
-      'Routes serving this stop',
-      `<div class="flex flex-wrap gap-1">${[...routePlatforms.keys()]
-        .map((id) => {
-          const route = feed.routes.get(id);
-          return route
-            ? routeBadge(ctx, route)
-            : `<span class="badge badge-ghost badge-sm">${escHtml(id)}</span>`;
-        })
-        .join('')}</div>`
-    );
-  }
-
-  const rows = [...routePlatforms.entries()]
-    .map(([routeId, platforms]) => {
-      const route = feed.routes.get(routeId);
-      const badge = route
-        ? routeBadge(ctx, route)
-        : `<span class="badge badge-ghost badge-sm">${escHtml(routeId)}</span>`;
-      const platformTags = [...platforms]
-        .map((id) => fromChild(ctx, id))
-        .join('<span class="opacity-30">-</span> ');
-      return `<div class="flex items-center gap-2 flex-wrap">${badge}${platformTags}</div>`;
-    })
-    .join('');
-
-  return section(
-    'Routes serving this station',
-    `${aggregationNote(new Set(serviceIds).size)}<div class="space-y-1">${rows}</div>`
+function routesSection<S extends PageRef>(
+  ctx: Ctx<S>,
+  feed: GTFSScheduled,
+  serviceIds: string[],
+  isStation: boolean
+): TreeSection {
+  return listSection(
+    t('stop.routes'),
+    {
+      name: 'stop-routes',
+      items: routeRows(feed, serviceIds),
+      row: (row) =>
+        entityRow<RtPageRef>(ctx, {
+          state: { type: 'route', route_id: row.routeId },
+          label: row.route?.short_name || row.route?.long_name || row.routeId,
+          sublabel: isStation
+            ? row.platforms.map((id) => platformName(feed, id)).join(', ')
+            : row.route?.short_name
+              ? row.route.long_name
+              : undefined,
+          color: row.route?.color,
+        }),
+      searchText: (row) =>
+        `${row.route?.short_name ?? ''} ${row.route?.long_name ?? ''} ${row.routeId}`,
+      empty: t('stop.noRoutes'),
+    },
+    isStation ? { body: aggregationNote(new Set(serviceIds).size) } : {}
   );
 }
 
 // --- Departures -------------------------------------------------------------
 
-function renderDepartures<S extends PageRef, V extends VehiclePosition>(
+function departureRow<S extends PageRef, V extends VehiclePosition>(
   ctx: Ctx<S>,
-  rt: RtIndex<V>,
-  hooks: StopPageHooks<S, V>,
-  serviceIds: string[],
+  feed: GTFSScheduled,
+  hooks: StopPageOptions<S, V>,
+  p: Prediction,
   isStation: boolean
 ): string {
+  const trip = feed.trips.get(p.trip_id);
+  const route = trip ? feed.routes.get(trip.route_id) : undefined;
+  const ev = primaryEvent(p);
+  const skipped = p.scheduleRelationship === 1;
+
+  // Scheduled time, and the platform it leaves from where that is not the
+  // page's own stop. Both are what tells two departures of one route apart.
+  const detail = [
+    ev.scheduledText
+      ? t('stop.scheduledAt', {
+          time: formatScheduledTime(ev.scheduledText, false),
+        })
+      : '',
+    isStation ? platformName(feed, p.stop_id) : '',
+  ].filter(Boolean);
+
+  // Calculated values are italic; a skipped stop shows only its badge. The
+  // hover is the prediction row's.
+  const times = skipped
+    ? ''
+    : `<span class="tabular-nums${derivedClass(ev.timeFrom)}">${escHtml(
+        ev.time === undefined ? '-' : formatEpochTime(ev.time, false)
+      )}</span>
+      <span class="${derivedClass(ev.delayFrom).trim()}">${formatDelay(ev.delay)}</span>`;
+
+  const loc = updateTripLocation(feed, p.update);
+  return entityRow(ctx, {
+    state: loc ? hooks.tripLink?.(loc) : undefined,
+    leadHtml: route
+      ? routeBadge(ctx, route)
+      : `<span class="badge badge-ghost badge-sm">${escHtml(p.update.trip?.routeId ?? '?')}</span>`,
+    label: trip?.headsign || p.trip_id,
+    sublabel: detail.join(' - '),
+    badgeHtml: `<span class="text-xs flex items-center gap-2 whitespace-nowrap ${TOOLTIP_TRIGGER_CLASS}" tabindex="0" ${tooltipContentAttr(
+      predictionTooltip(p)
+    )}>
+      ${times}${stopTimeRelationshipMark(p.scheduleRelationship)}
+    </span>`,
+  });
+}
+
+function departuresSection<S extends PageRef, V extends VehiclePosition>(
+  ctx: Ctx<S>,
+  rt: RtIndex<V>,
+  hooks: StopPageOptions<S, V>,
+  serviceIds: string[],
+  isStation: boolean
+): TreeSection {
   const feed = ctx.session.scheduledFeed!;
   const upcoming = isStation
     ? rt.upcomingAtStops(serviceIds, MAX_DEPARTURES)
     : rt.upcomingAtStop(serviceIds[0], MAX_DEPARTURES);
-  if (upcoming.length === 0) {
-    return section(
-      'Upcoming departures',
-      '<p class="text-xs opacity-60">No trip updates reference this stop.</p>'
-    );
-  }
-
-  const rows = upcoming.map((p) => {
-    const trip = feed.trips.get(p.trip_id);
-    const route = trip ? feed.routes.get(trip.route_id) : undefined;
-    const ev = primaryEvent(p);
-    const skipped = p.scheduleRelationship === 1;
-
-    // Scheduled time, and the platform it leaves from where that is not the
-    // page's own stop. Both are what tells two departures of one route apart.
-    const detail = [
-      `sched ${formatScheduledTime(ev.scheduledText, false)}`,
-      isStation ? `@ ${childName(ctx, p.stop_id)}` : '',
-    ].filter(Boolean);
-
-    // Calculated values are italic; a skipped stop shows only its badge. The
-    // hover is the prediction row's.
-    const times = skipped
-      ? ''
-      : `<span class="tabular-nums${derivedClass(ev.timeFrom)}">${escHtml(
-          ev.time === undefined ? '-' : formatEpochTime(ev.time, false)
-        )}</span>
-        <span class="${derivedClass(ev.delayFrom).trim()}">${formatDelay(ev.delay)}</span>`;
-
-    return entityRow(ctx, {
-      state: (() => {
-        const loc = updateTripLocation(feed, p.update);
-        return loc ? hooks.tripLink?.(loc) : undefined;
-      })(),
-      leadHtml: route
-        ? routeBadge(ctx, route)
-        : `<span class="badge badge-ghost badge-sm">${escHtml(p.update.trip?.routeId ?? '?')}</span>`,
-      label: trip?.headsign || p.trip_id,
-      sublabel: detail.join(' - '),
-      badgeHtml: `<span class="text-xs flex items-center gap-2 whitespace-nowrap ${TOOLTIP_TRIGGER_CLASS}" tabindex="0" ${tooltipContentAttr(
-        predictionTooltip(p)
-      )}>
-        ${times}${stopTimeRelationshipMark(p.scheduleRelationship)}
-      </span>`,
-    });
-  });
-
-  const body = `${entityRowList(rows, 'No trip updates reference this stop.')}
-    <p class="text-xs opacity-50">Predicted times are in ${escHtml(zoneLabel())}.</p>`;
-
-  return rowSection(
-    'Upcoming departures',
-    upcoming.length,
-    isStation ? `${aggregationNote(new Set(serviceIds).size)}${body}` : body
+  const notes = [
+    isStation ? aggregationNote(new Set(serviceIds).size) : '',
+    upcoming.length
+      ? `<p class="text-xs opacity-50">${escHtml(t('stop.timesIn', { zone: zoneLabel() }))}</p>`
+      : '',
+  ].join('');
+  return listSection(
+    t('stop.departures'),
+    {
+      name: 'stop-departures',
+      items: upcoming,
+      row: (p) => departureRow(ctx, feed, hooks, p, isStation),
+      searchText: (p) => {
+        const trip = feed.trips.get(p.trip_id);
+        const route = trip ? feed.routes.get(trip.route_id) : undefined;
+        return `${route?.short_name ?? ''} ${route?.long_name ?? ''} ${trip?.headsign ?? ''} ${p.trip_id}`;
+      },
+      empty: t('stop.noDepartures'),
+    },
+    notes ? { body: notes } : {}
   );
 }
 
-// --- Vehicles here now ------------------------------------------------------
+// --- Vehicles at the stop ---------------------------------------------------
 
-function renderVehiclesHere<S extends PageRef, V extends VehiclePosition>(
+function vehiclesSection<S extends PageRef, V extends VehiclePosition>(
   ctx: Ctx<S>,
   rt: RtIndex<V>,
-  hooks: RtPageHooks<S, V>,
+  hooks: StopPageOptions<S, V>,
   serviceIds: string[],
   isStation: boolean
-): string {
-  const rows: string[] = [];
+): TreeSection {
+  const feed = ctx.session.scheduledFeed!;
+  const here: { vehicle: V; stopId: string }[] = [];
   for (const id of serviceIds) {
-    for (const v of rt.vehiclesAtStop.get(id) ?? []) {
-      rows.push(
-        entityRow(ctx, {
-          state: hooks.vehicleLink(v),
-          label: vehicleDisplayName(ctx.session.scheduledFeed, v),
-          sublabel: isStation ? `@ ${childName(ctx, id)}` : undefined,
-          badge: VEHICLE_STATUS_LABELS[v.currentStatus ?? -1] ?? '',
-        })
-      );
+    for (const vehicle of rt.vehiclesAtStop.get(id) ?? []) {
+      here.push({ vehicle, stopId: id });
     }
   }
-  if (rows.length === 0) {
-    return '';
-  }
-  return rowSection(
-    `${vehiclesTitle(hooks.vehicleNoun)} here now`,
-    rows.length,
-    `${isStation ? aggregationNote(new Set(serviceIds).size) : ''}${entityRowList(
-      rows,
-      'Nothing is reporting from this stop.'
-    )}`
-  );
+  return listSection(t('stop.vehicles'), {
+    name: 'stop-vehicles',
+    items: here,
+    row: ({ vehicle, stopId }) =>
+      entityRow<S>(ctx, {
+        state: hooks.vehicleLink(vehicle),
+        label: vehicleDisplayName(feed, vehicle),
+        sublabel: isStation ? platformName(feed, stopId) : undefined,
+        badge:
+          vehicle.currentStatus === undefined
+            ? undefined
+            : VEHICLE_STATUS_LABELS[vehicle.currentStatus],
+      }),
+    empty: t('stop.noVehicles'),
+  });
 }
 
 // --- Alerts -----------------------------------------------------------------
 
-/** Alerts naming the station or any descendant, deduped, each marked. */
-function renderStationAlerts(
-  ctx: RenderContext<RtPageRef>,
+/** Alerts naming the stop or any descendant, deduped. */
+function stopAlerts<S extends PageRef>(
+  ctx: Ctx<S>,
   ids: string[]
-): string {
+): AlertRecord[] {
   const seen = new Set<string>();
   const records: AlertRecord[] = [];
   for (const id of ids) {
     for (const record of alertsForStop(ctx.session, id)) {
-      if (seen.has(record.id)) {
-        continue;
+      if (!seen.has(record.id)) {
+        seen.add(record.id);
+        records.push(record);
       }
-      seen.add(record.id);
-      records.push(record);
     }
   }
-  return renderAlertList(ctx, records, 'Alerts at this station');
+  return records;
 }
 
-// --- Platforms and related stops --------------------------------------------
+// --- Platforms --------------------------------------------------------------
 
 /**
- * The station's own structure: boardable platforms first, each with its code
- * and route badges, then the entrances and generic nodes collapsed so they
- * cannot bury the platforms (South Station has 131 of them over 23 platforms).
+ * The station's own structure: boardable platforms first, each with its route
+ * badges, then the entrances and generic nodes.
  */
-function renderPlatforms(
-  ctx: RenderContext<RtPageRef>,
+function platformsSection<S extends PageRef>(
+  ctx: Ctx<S>,
+  feed: GTFSScheduled,
   stopId: string
-): string {
-  const feed = ctx.session.scheduledFeed!;
+): TreeSection {
   const children = feed
     .descendants(stopId)
-    .map((id) => feed.stops.get(id)!)
-    .filter(Boolean);
-  if (children.length === 0) {
-    return section(
-      'Platforms',
-      '<p class="text-xs opacity-60">No platforms in this feed.</p>'
-    );
-  }
-
+    .map((id) => feed.stops.get(id))
+    .filter((s): s is Stop => s !== undefined);
   const boardable = children.filter((s) => s.location_type === 0);
   const others = children.filter((s) => s.location_type !== 0);
-
-  const platformRow = (s: Stop): string => {
-    const badges = [...(feed.routesByStop.get(s.id) ?? [])]
-      .map((id) => {
-        const route = feed.routes.get(id);
-        return route ? routeBadge(ctx, route) : '';
-      })
-      .join('');
-    return entityRow(ctx, {
-      state: { type: 'stop', stop_id: s.id },
-      label: platformLabel(s),
-      sublabel: s.id,
-      badgeHtml: `<span class="flex gap-1 flex-wrap">${badges}</span>`,
-    });
-  };
-
-  const boardableList = entityRowList(
-    boardable.map(platformRow),
-    'No boardable platforms in this feed.'
-  );
-
-  const otherList = others.length
-    ? `<details class="text-xs">
-         <summary class="cursor-pointer opacity-60">${others.length} entrance${
-           others.length === 1 ? '' : 's'
-         } and generic node${others.length === 1 ? '' : 's'}</summary>
-         ${entityRowList(
-           others.map((s) =>
-             entityRow(ctx, {
-               state: { type: 'stop', stop_id: s.id },
-               label: s.name || s.id,
-               badge: stopTypeLabel(s.location_type),
-             })
-           ),
-           ''
-         )}
-       </details>`
-    : '';
-
-  return rowSection(
-    'Platforms',
-    children.length,
-    `${boardableList}${otherList}`
-  );
-}
-
-/** For a platform: the parent's other platforms. Stations use renderPlatforms. */
-function renderSiblingPlatforms(
-  ctx: RenderContext<RtPageRef>,
-  stop: Stop
-): string {
-  const feed = ctx.session.scheduledFeed!;
-  if (!stop.parent_station) {
-    return '';
-  }
-  const siblings = (feed.childrenByParent.get(stop.parent_station) ?? [])
-    .filter((id) => id !== stop.id)
-    .map((id) => feed.stops.get(id)!)
-    .filter(Boolean);
-  if (siblings.length === 0) {
-    return '';
-  }
-
-  return rowSection(
-    'Sibling platforms',
-    siblings.length,
-    entityRowList(
-      siblings.map((s) =>
-        entityRow(ctx, {
-          state: { type: 'stop', stop_id: s.id },
+  return listSection(t('stop.platforms'), {
+    name: 'stop-platforms',
+    items: [...boardable, ...others],
+    row: (s) => {
+      const state: RtPageRef = { type: 'stop', stop_id: s.id };
+      if (s.location_type !== 0) {
+        return entityRow<RtPageRef>(ctx, {
+          state,
           label: s.name || s.id,
-          sublabel: s.id,
+          badge: stopTypeLabel(s.location_type),
+        });
+      }
+      const badges = [...(feed.routesByStop.get(s.id) ?? [])]
+        .map((id) => {
+          const route = feed.routes.get(id);
+          return route ? routeBadge(ctx, route) : '';
         })
-      ),
-      'No sibling platforms.'
-    )
-  );
+        .join('');
+      return entityRow<RtPageRef>(ctx, {
+        state,
+        label: platformName(feed, s.id),
+        sublabel: s.name && s.name !== platformLabel(s) ? s.name : s.id,
+        badgeHtml: badges
+          ? `<span class="flex gap-1 flex-wrap">${badges}</span>`
+          : undefined,
+      });
+    },
+    searchText: (s) =>
+      `${platformLabel(s)} ${s.name} ${s.id} ${s.raw.platform_code ?? ''}`,
+    empty: t('stop.noPlatforms'),
+  });
 }
 
 // --- Page --------------------------------------------------------------------
 
-export function renderStopPage<S extends PageRef, V extends VehiclePosition>(
+/** A stop or station: its routes, departures, vehicles at it and alerts. */
+export function stopPage<S extends PageRef, V extends VehiclePosition>(
   ctx: Ctx<S>,
   rt: RtIndex<V>,
   stopId: string,
-  hooks: StopPageHooks<S, V>
-): string {
+  options: StopPageOptions<S, V>
+): TreePage {
   const feed = ctx.session.scheduledFeed;
   const stop = feed?.stops.get(stopId);
   if (!feed || !stop) {
-    return missing(`Stop ${stopId}`);
+    return {
+      eyebrow: stopTypeLabel(undefined),
+      title: stopId,
+      sections: [
+        {
+          body: `<p class="text-sm opacity-60">${escHtml(t('stop.missing', { id: stopId }))}</p>`,
+        },
+      ],
+    };
   }
 
   const parent = stop.parent_station
@@ -399,47 +354,42 @@ export function renderStopPage<S extends PageRef, V extends VehiclePosition>(
   const isStation = boardable.length > 0;
   const serviceIds = isStation ? [...boardable, stop.id] : [stop.id];
   const alertIds = [stop.id, ...feed.descendants(stop.id)];
+  const code = stop.raw.platform_code?.trim() ?? '';
 
-  return `
-    <div class="space-y-4">
-      <div class="space-y-1">
-        ${pageHeader(stop.name || stop.id, stop.id)}
-        ${
+  return {
+    eyebrow: stopTypeLabel(stop.location_type),
+    title: stop.name || stop.id,
+    id: stop.id,
+    sections: [
+      {
+        body: propList([
           parent
-            ? `<p class="text-xs">Part of ${entityLink(
-                ctx,
-                { type: 'stop', stop_id: parent.id },
-                parent.name || parent.id
-              )}</p>`
-            : ''
-        }
-      </div>
-
-      ${
-        isStation
-          ? renderStationAlerts(ctx, alertIds)
-          : renderAlertList(
-              ctx,
-              alertsForStop(ctx.session, stop.id),
-              'Alerts at this stop'
-            )
-      }
-      ${renderRoutes(ctx, serviceIds, isStation)}
-      ${renderDepartures(ctx, rt, hooks, serviceIds, isStation)}
-      ${renderVehiclesHere(ctx, rt, hooks, serviceIds, isStation)}
-      ${isStation ? renderPlatforms(ctx, stop.id) : renderSiblingPlatforms(ctx, stop)}
-      ${hooks.stopExtra?.(stop, serviceIds) ?? ''}
-
-      ${section(
-        'Properties',
-        propList([
+            ? prop(
+                t('stop.station'),
+                entityLink(
+                  ctx,
+                  { type: 'stop', stop_id: parent.id },
+                  parent.name || parent.id
+                )
+              )
+            : '',
+          code ? prop(t('stop.platformCode'), escHtml(code)) : '',
           prop(
-            'Coordinates',
+            t('stop.coordinates'),
             escHtml(`${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}`)
           ),
-          prop('Trips calling', String(feed.tripCountByStop.get(stop.id) ?? 0)),
-        ])
-      )}
-      ${renderRawFields('stops.txt', stop.raw)}
-    </div>`;
+        ]),
+      },
+      ...(isStation ? [platformsSection(ctx, feed, stop.id)] : []),
+      routesSection(ctx, feed, serviceIds, isStation),
+      departuresSection(ctx, rt, options, serviceIds, isStation),
+      vehiclesSection(ctx, rt, options, serviceIds, isStation),
+      listSection(
+        t('stop.alerts'),
+        alertListOptions(ctx, stopAlerts(ctx, alertIds), t('alerts.noneHere'))
+      ),
+      ...(options.extraSections?.(stop, serviceIds) ?? []),
+      { body: renderRawFields('stops.txt', stop.raw) },
+    ],
+  };
 }
