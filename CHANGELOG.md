@@ -1,3 +1,10 @@
+## v7.12.0 (2026-11-25)
+
+### Feat
+
+- **trip**: link vehicles, trip updates and departures to the trip page
+- **trip**: add the trip page and its service lines
+
 ## v7.11.4 (2026-11-25)
 
 ### Fix
