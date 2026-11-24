@@ -230,7 +230,7 @@ export function tripPage(
   const session = ctx.session;
   const feed = session.scheduledFeed;
   const tripId = loc.trip_id;
-  const trip = tripId ? feed?.trips.get(tripId) : undefined;
+  const trip = tripId ? feed?.findTrip(tripId, loc.route_id) : undefined;
   const update = tripUpdateFor(session, loc);
   const vehicles = tripVehicles(session, loc);
   const eyebrow = t('crumb.trip');
