@@ -27,9 +27,10 @@ import { vehicleProps } from './vehicle-props';
 import { alertListOptions } from './alert-page';
 import type { RtPageRef } from './rt-page';
 import { listSection, type TreePage, type TreeSection } from './tree-page';
+import { vehicleTripLocation, type TripLocation } from './tree-location';
 import { t } from '../i18n/messages';
 
-type Ctx = RenderContext<RtPageRef>;
+type Ctx = RenderContext<RtPageRef | TripLocation>;
 
 /**
  * Last-known state for every vehicle the page has rendered.
@@ -105,6 +106,15 @@ function renderAddedTripRoute(
   return prop(t('vehicle.route'), `${routeHtml} ${tripRelationshipMark(rel)}`);
 }
 
+/** The trip_id, linked to its trip page. */
+function tripLink(ctx: Ctx, vehicle: VehiclePosition): string {
+  const id = vehicle.tripId ?? '';
+  const loc = vehicleTripLocation(ctx.session.scheduledFeed, vehicle);
+  return loc
+    ? entityLink(ctx, loc, id, 'link link-hover font-mono')
+    : `<span class="font-mono">${escHtml(id)}</span>`;
+}
+
 function tripSection(
   ctx: Ctx,
   rt: RtIndex,
@@ -163,10 +173,7 @@ function tripSection(
   return {
     title: t('vehicle.trip'),
     body: propList([
-      prop(
-        'trip_id',
-        `<span class="font-mono">${escHtml(vehicle.tripId)}</span>`
-      ),
+      prop('trip_id', tripLink(ctx, vehicle)),
       routeProp,
       vehicle.scheduled
         ? ''

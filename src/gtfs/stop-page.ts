@@ -42,13 +42,14 @@ import { entityRow, entityRowList, rowSection } from './entity-row';
 import { renderAlertList } from './alert-page';
 import type { RtPageHooks, RtPageRef } from './rt-page';
 import { vehiclesTitle } from './rt-page';
+import { updateTripLocation, type TripLocation } from './tree-location';
 
 export interface StopPageHooks<
   S extends PageRef,
   V extends VehiclePosition,
 > extends RtPageHooks<S, V> {
-  /** The page a departure links to; unlinked when absent or undefined. */
-  tripLink?: (tripId: string, routeId: string | undefined) => S | undefined;
+  /** The page a departure's trip links to; unlinked when absent or undefined. */
+  tripLink?: (loc: TripLocation) => S | undefined;
   /**
    * Sections after the platforms. `serviceIds` are the stops whose service the
    * page shows: the stop itself, or a station's boardable platforms.
@@ -186,7 +187,10 @@ function renderDepartures<S extends PageRef, V extends VehiclePosition>(
         <span class="${derivedClass(ev.delayFrom).trim()}">${formatDelay(ev.delay)}</span>`;
 
     return entityRow(ctx, {
-      state: hooks.tripLink?.(p.trip_id, trip?.route_id),
+      state: (() => {
+        const loc = updateTripLocation(feed, p.update);
+        return loc ? hooks.tripLink?.(loc) : undefined;
+      })(),
       leadHtml: route
         ? routeBadge(ctx, route)
         : `<span class="badge badge-ghost badge-sm">${escHtml(p.update.trip?.routeId ?? '?')}</span>`,
