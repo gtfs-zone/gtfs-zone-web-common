@@ -1,7 +1,8 @@
 /**
  * Route name labels along route lines: a symbol layer on a route source whose
  * features carry `route_id`, drawing one image per route. Images are rendered
- * on demand from `styleimagemissing`, so the basemap needs no glyphs.
+ * on demand by the map's missing image resolver, so the basemap needs no
+ * glyphs.
  */
 
 import type {
@@ -106,19 +107,21 @@ export function routeLabelFilter(routeIds: string[]): FilterSpecification {
 
 /**
  * Render label images when the map asks for them. `lookup` resolves a route id
- * to its text and color, or null to leave the image missing.
+ * to its text and color, or null to leave the image missing. This takes the
+ * map's one missing image resolver: a `styleimagemissing` listener cannot
+ * supply an image for the request that fired it.
  */
 export function installRouteLabelImages(
   map: MapLibreMap,
   lookup: (routeId: string) => RouteLabel | null
 ): void {
-  map.on('styleimagemissing', (e: { id: string }) => {
-    if (!e.id.startsWith(LABEL_IMAGE) || map.hasImage(e.id)) {
+  map.setMissingStyleImageResolver((id) => {
+    if (!id.startsWith(LABEL_IMAGE) || map.hasImage(id)) {
       return;
     }
-    const label = lookup(e.id.slice(LABEL_IMAGE.length));
+    const label = lookup(id.slice(LABEL_IMAGE.length));
     if (label) {
-      map.addImage(e.id, labelImage(label.text, label.color), {
+      map.addImage(id, labelImage(label.text, label.color), {
         pixelRatio: 2,
       });
     }

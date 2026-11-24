@@ -29,7 +29,7 @@
     "fflate": "*",
     "gtfs-realtime-bindings": "*",
     "gtfs-zone-vocab": "*",
-    "maplibre-gl": ">=6.4.1 <7",
+    "maplibre-gl": ">=6.11.2 <7",
     "papaparse": "*",
     "zod": "*"
   },
