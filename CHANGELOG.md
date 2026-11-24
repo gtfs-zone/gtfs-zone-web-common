@@ -1,3 +1,9 @@
+## v7.11.3 (2026-11-25)
+
+### Fix
+
+- **map**: render route label images from the missing image resolver
+
 ## v7.11.2 (2026-11-24)
 
 ### Fix
