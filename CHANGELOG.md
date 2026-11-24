@@ -1,3 +1,9 @@
+## v7.11.2 (2026-11-24)
+
+### Fix
+
+- **panel**: restore the panel scroll after list boxes mount
+
 ## v7.11.1 (2026-11-24)
 
 ### Perf
