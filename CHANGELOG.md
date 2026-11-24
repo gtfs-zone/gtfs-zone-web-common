@@ -1,3 +1,10 @@
+## v7.13.0 (2026-11-25)
+
+### Feat
+
+- **route,stop**: render the route and stop pages as tree pages
+- **scheduled**: read a route's trips on a service day
+
 ## v7.12.0 (2026-11-25)
 
 ### Feat
