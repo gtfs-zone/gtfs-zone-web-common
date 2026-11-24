@@ -5,6 +5,7 @@
  */
 
 import type { FeedStore, Row, TripStop } from './feed-store';
+import { readCalendar, servicesOn } from './service-calendar';
 
 /** Small per-feed aggregates the main thread keeps for synchronous reads. */
 export interface FeedSummary {
@@ -232,6 +233,50 @@ export function routeTrips(store: FeedStore, routeId: string): RouteTrips {
     out.tripList.push(i);
   }
   return out;
+}
+
+/** A trip running on a service date, with its first departure. */
+export interface DayTrip {
+  trip_id: string;
+  /** First departure (else arrival) as `HH:MM:SS`; empty without times. */
+  departure: string;
+}
+
+function clockText(seconds: number): string {
+  const s = Math.round(seconds);
+  return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60]
+    .map((n) => String(n).padStart(2, '0'))
+    .join(':');
+}
+
+/** A route's trips whose service runs on a `YYYYMMDD` date, by first departure. */
+export function routeDayTrips(
+  store: FeedStore,
+  routeId: string,
+  date: string
+): DayTrip[] {
+  const services = servicesOn(store, readCalendar(store), date);
+  const timed = store.stopTimesMode === 'full';
+  const span = new Float64Array(4);
+  const out: { trip_id: string; departure: string; at: number }[] = [];
+  for (const { row } of store.find('trips', 'route_id', routeId)) {
+    if (!services.has(row.service_id ?? '')) {
+      continue;
+    }
+    const tripId = row.trip_id ?? '';
+    let at = NaN;
+    if (timed && store.tripSpan(tripId, span) > 0) {
+      at = Number.isFinite(span[1]) ? span[1] : span[0];
+    }
+    out.push({
+      trip_id: tripId,
+      departure: Number.isFinite(at) ? clockText(at) : '',
+      at: Number.isFinite(at) ? at : Infinity,
+    });
+  }
+  return out
+    .sort((a, b) => a.at - b.at)
+    .map(({ trip_id, departure }) => ({ trip_id, departure }));
 }
 
 /** Every trip's stop_times. For small feeds kept whole on the main thread. */
