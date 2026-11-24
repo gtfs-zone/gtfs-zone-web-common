@@ -1,3 +1,9 @@
+## v7.11.4 (2026-11-25)
+
+### Fix
+
+- **sidebar-modal**: scroll the sidebar and pane independently
+
 ## v7.11.3 (2026-11-25)
 
 ### Fix
