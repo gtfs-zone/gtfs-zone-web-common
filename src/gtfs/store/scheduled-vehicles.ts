@@ -15,6 +15,7 @@
 
 import type { FeedStore } from './feed-store';
 import { clockSeconds } from './columns';
+import { readCalendar, servicesOn, type CalendarRow } from './service-calendar';
 import type { TripTimes } from './patterns';
 import {
   bearingOf,
@@ -103,29 +104,11 @@ interface Found {
   k: number;
 }
 
-interface CalendarRow {
-  serviceId: string;
-  start: string;
-  end: string;
-  /** Sunday first, as `Date.getUTCDay()`. */
-  days: boolean[];
-}
-
 interface Frequency {
   start: number;
   end: number;
   headway: number;
 }
-
-const WEEKDAYS = [
-  'sunday',
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-];
 
 class Simulator {
   readonly editCount: number;
@@ -147,18 +130,7 @@ class Simulator {
   constructor(private store: FeedStore) {
     this.editCount = store.editCount;
     this.readStops();
-    this.store.scan(
-      'calendar',
-      ['service_id', 'start_date', 'end_date', ...WEEKDAYS],
-      ([serviceId, start, end, ...days]) => {
-        this.calendar.push({
-          serviceId,
-          start,
-          end,
-          days: days.map((d) => d === '1'),
-        });
-      }
-    );
+    this.calendar = readCalendar(store);
     let badHeadways = 0;
     this.store.scan(
       'frequencies',
@@ -216,33 +188,6 @@ class Simulator {
         this.stopPos.set(id, p);
       }
     }
-  }
-
-  /** Service ids active on a `YYYYMMDD` date. */
-  private activeServices(date: string): Set<string> {
-    const out = new Set<string>();
-    const m = /^(\d{4})(\d{2})(\d{2})$/.exec(date);
-    if (!m) {
-      throw new Error(`[ScheduledVehicles] bad service date ${date}`);
-    }
-    const weekday = new Date(
-      Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-    ).getUTCDay();
-    for (const c of this.calendar) {
-      if (c.days[weekday] && c.start <= date && date <= c.end) {
-        out.add(c.serviceId);
-      }
-    }
-    if (this.store.hasTable('calendar_dates')) {
-      for (const { row } of this.store.find('calendar_dates', 'date', date)) {
-        if (row.exception_type === '1') {
-          out.add(row.service_id);
-        } else if (row.exception_type === '2') {
-          out.delete(row.service_id);
-        }
-      }
-    }
-    return out;
   }
 
   /** Every trip's service and first and last times, read once. */
@@ -314,7 +259,7 @@ class Simulator {
     }
     const spans = this.tripSpans();
     const t0 = performance.now();
-    const services = this.activeServices(date);
+    const services = servicesOn(this.store, this.calendar, date);
     const active = new Uint8Array(spans.serviceIds.length);
     spans.serviceIds.forEach((id, s) => {
       active[s] = services.has(id) ? 1 : 0;
