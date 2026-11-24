@@ -1,3 +1,9 @@
+## v7.14.0 (2026-11-25)
+
+### Feat
+
+- **map**: add onMapClick with a click-away callback
+
 ## v7.13.0 (2026-11-25)
 
 ### Feat
