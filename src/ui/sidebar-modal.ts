@@ -1,14 +1,18 @@
 /**
- * The shared sidebar-modal scaffold.
- *
- * `fares-modal.ts`, `feed-data-modal.ts`, `on-demand-modal.ts` and
- * `help-modal.ts` are all the same dialog: a menu of entries on the left, one
- * rendered pane on the right, and a Close action. This owns that skeleton, the
- * sidebar markup, the entry click delegation and the pane header, so a modal of
+ * The shared sidebar-modal scaffold: a menu of entries on the left, one
+ * rendered pane on the right, and a Close action. It owns the sidebar markup,
+ * the entry click delegation, the pane header and all scrolling, so a modal of
  * this shape is a list of entries rather than another copy of the layout.
- * Below the md breakpoint the menu stacks above the pane, capped in height.
- * A pane holding a `.scroll-rows` region fills the modal height and scrolls
- * only that region; a longer menu then scrolls on its own beside it.
+ *
+ * Layout, the same for every consumer:
+ * - The box is a fixed height, so switching entries never resizes it.
+ * - The modal body never scrolls. The sidebar and the pane body each scroll on
+ *   their own, and the pane header stays pinned above the pane body.
+ * - The sidebar never scrolls sideways: long labels wrap.
+ * - A pane body holding a `.scroll-rows` region scrolls only that region, so
+ *   whatever sits above it (a search, a toolbar) stays put. Any other pane body
+ *   scrolls as a whole.
+ * - Below the md breakpoint the menu stacks above the pane, capped in height.
  */
 
 import { showModal, renderHelpIcon } from './modal-utils';
@@ -69,6 +73,10 @@ export interface SidebarModalConfig {
   selectRef?: { select: (id: string) => Promise<void> };
 }
 
+// Breaks a label mid-identifier (e.g. `fare_leg_join_rules.txt`) rather than
+// letting it widen the sidebar.
+const WRAP_ANYWHERE = 'min-w-0 [overflow-wrap:anywhere]';
+
 // Nested sidebar modals would otherwise collide on the element ids.
 const shared = moduleState('ui/sidebar-modal', () => ({
   instanceCounter: 0,
@@ -90,7 +98,7 @@ function renderSidebar(
         type="button"
         data-sidebar-entry="${escapeHtml(entry.id)}"
         class="${entry.id === activeId ? 'menu-active' : ''}"
-      >${escapeHtml(entry.label)}${badge}</button>
+      ><span class="${WRAP_ANYWHERE}">${escapeHtml(entry.label)}</span>${badge}</button>
     </li>`;
   };
 
@@ -108,11 +116,11 @@ function renderSidebar(
       if (items.length === 0) {
         return '';
       }
-      return `<li class="menu-title">${escapeHtml(config.groupLabel?.(group) ?? group)}</li>${items.map(item).join('')}`;
+      return `<li class="menu-title ${WRAP_ANYWHERE}">${escapeHtml(config.groupLabel?.(group) ?? group)}</li>${items.map(item).join('')}`;
     })
     .join('');
 
-  return `<ul class="menu menu-sm bg-base-200 rounded-box w-full max-h-48 overflow-y-auto flex-nowrap md:w-52 md:max-h-full shrink-0">${ungrouped.map(item).join('')}${grouped}</ul>`;
+  return `<ul class="menu menu-sm bg-base-200 rounded-box w-full flex-nowrap">${ungrouped.map(item).join('')}${grouped}</ul>`;
 }
 
 /**
@@ -184,10 +192,12 @@ export async function showSidebarModal(
     sidebarEl.innerHTML = renderSidebar(config, activeEntry.id, counts);
 
     // A fresh element per render, so listeners hung on it by onPaneRendered go
-    // away with it instead of stacking up across pane switches.
+    // away with it instead of stacking up across pane switches. The header is
+    // pinned; the body below it is the pane's only scroll host.
     const content = document.createElement('div');
-    content.innerHTML =
-      renderPaneHeader(activeEntry) + (await activeEntry.renderPane());
+    content.className = 'flex flex-1 min-h-0 flex-col';
+    content.innerHTML = `<div class="shrink-0">${renderPaneHeader(activeEntry)}</div>
+      <div class="scroll-host flex-1 min-h-0 overflow-y-auto">${await activeEntry.renderPane()}</div>`;
     paneEl.replaceChildren(content);
 
     installGuideButtons(content);
@@ -223,10 +233,10 @@ export async function showSidebarModal(
   }
 
   const body = `
-    ${config.intro ? `<p class="text-xs text-base-content/60 mb-3">${config.intro}</p>` : ''}
-    <div class="flex flex-col gap-4 md:flex-row md:items-stretch">
-      <div id="${sidebarId}" class="shrink-0"></div>
-      <div id="${paneId}" class="flex-1 min-w-0"></div>
+    ${config.intro ? `<p class="text-xs text-base-content/60 mb-3 shrink-0">${config.intro}</p>` : ''}
+    <div class="flex flex-1 min-h-0 flex-col gap-4 md:flex-row">
+      <div id="${sidebarId}" class="shrink-0 max-h-48 overflow-y-auto overflow-x-hidden md:max-h-none md:w-52"></div>
+      <div id="${paneId}" class="flex flex-1 min-w-0 min-h-0 flex-col"></div>
     </div>
   `;
 
@@ -241,7 +251,8 @@ export async function showSidebarModal(
       },
     ],
     escapeAction: 0,
-    boxClassName: config.boxClassName ?? 'max-w-6xl w-11/12',
+    bodyScroll: false,
+    boxClassName: `${config.boxClassName ?? 'max-w-6xl w-11/12'} h-[80vh]`,
     onMount: (close) => {
       closeModal = close;
       void refresh();
