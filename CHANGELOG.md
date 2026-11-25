@@ -1,3 +1,9 @@
+## v7.15.0 (2026-11-25)
+
+### Feat
+
+- **tree**: add the page hooks rt-manager needs and drop string pages
+
 ## v7.14.1 (2026-11-25)
 
 ### Fix
