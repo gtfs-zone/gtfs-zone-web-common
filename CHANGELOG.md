@@ -1,3 +1,9 @@
+## v7.18.0 (2026-11-25)
+
+### Feat
+
+- **navigation**: load what a page needs before it is validated and shown
+
 ## v7.17.0 (2026-11-25)
 
 ### Feat
