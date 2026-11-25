@@ -23,6 +23,7 @@
 import type { RouteGraph } from './route-graph';
 import type { DirectionInfo, RouteSequence, StopStats } from './route-sequence';
 import { escapeHtml } from '../util/escape-html';
+import { t } from '../i18n/messages';
 
 export const RAIL_WIDTH = 9;
 
@@ -288,10 +289,10 @@ export function isEndpoint(stats: StopStats, threshold: number): boolean {
 export function endpointNote(stats: StopStats, threshold: number): string {
   const parts: string[] = [];
   if (stats.endsHere >= threshold) {
-    parts.push(`${stats.endsHere} end`);
+    parts.push(t('strip.ends', { count: stats.endsHere }));
   }
   if (stats.startsHere >= threshold) {
-    parts.push(`${stats.startsHere} start`);
+    parts.push(t('strip.starts', { count: stats.startsHere }));
   }
   return parts.join(' - ');
 }
@@ -312,13 +313,14 @@ export function renderCoverage(sequence: RouteSequence): string {
   const notes: string[] = [];
   if (sequence.totalPatterns > 1) {
     notes.push(
-      `${sequence.totalPatterns} stop patterns across ${sequence.totalTrips} trips, all of them on the strip. A trip count marks a stop fewer than half the trips call at; a filled dot marks where trips start or end. Platforms are shown under their parent station.`
+      t('strip.patterns', {
+        patterns: sequence.totalPatterns,
+        trips: sequence.totalTrips,
+      })
     );
   }
   if (sequence.isLoop) {
-    notes.push(
-      'Some trips visit a stop more than once. Repeat visits are shown as separate rows rather than collapsed onto one.'
-    );
+    notes.push(t('strip.loop'));
   }
   if (notes.length === 0) {
     return '';

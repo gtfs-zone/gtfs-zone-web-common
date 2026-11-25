@@ -7,6 +7,7 @@ import type { CatalogFeed, FeedState, Role, RoleState } from './feed-catalog';
 import { FEED_STATE_LABELS, ROLE_LABELS, realtimeRoles } from './feed-catalog';
 import type { NavIconName } from '../ui/nav-icons';
 import { renderNavIcon } from '../ui/nav-icons';
+import { t } from '../i18n/messages';
 
 type BadgeSize = 'xs' | 'sm' | 'md';
 
@@ -45,9 +46,9 @@ const ICON_SIZE_CLASS: Record<BadgeSize, string> = {
 };
 
 const ROLE_STATE_TEXT: Record<RoleState, string> = {
-  up: 'answered the last daily check',
-  down: 'did not answer the last daily check',
-  unknown: 'not checked',
+  up: t('roleState.up'),
+  down: t('roleState.down'),
+  unknown: t('roleState.unknown'),
 };
 
 /** "Down since 2026-09-23", "Down, never seen up", or just "Down" without a date. */
@@ -58,9 +59,11 @@ export function feedStateText(
 ): string {
   const label = FEED_STATE_LABELS[state];
   if (neverUp && state === 'down') {
-    return `${label}, never seen up`;
+    return t('feedState.neverUp', { state: label });
   }
-  return since && state !== 'unknown' ? `${label} since ${since}` : label;
+  return since && state !== 'unknown'
+    ? t('feedState.since', { state: label, date: since })
+    : label;
 }
 
 export function feedStateBadge(

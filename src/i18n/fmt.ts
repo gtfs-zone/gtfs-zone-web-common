@@ -79,6 +79,19 @@ export function formatSpeed(
   );
 }
 
+/** A count of one time unit in its narrow form: "3m" in English, "3 Min." in German. */
+export function formatTimeUnit(
+  value: number,
+  unit: 'second' | 'minute' | 'hour' | 'day',
+  locale: Locale = getLocale()
+): string {
+  return formatNumber(
+    value,
+    { style: 'unit', unit, unitDisplay: 'narrow' },
+    locale
+  );
+}
+
 const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
 
 /**

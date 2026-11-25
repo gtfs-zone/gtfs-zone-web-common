@@ -13,6 +13,7 @@
 
 import { moduleState } from '../util/module-state';
 import { DATA_ORIGIN } from './data-origin';
+import { t } from '../i18n/messages';
 
 /** feed-catalog's last check of one role: whether any of its URLs answered. */
 export type RoleState = 'up' | 'down' | 'unknown';
@@ -35,18 +36,18 @@ export const RT_ROLES: readonly Role[] = [
 ];
 
 export const FEED_STATE_LABELS: Record<FeedState, string> = {
-  up: 'Up',
-  partial: 'Partial',
-  down: 'Down',
-  unknown: 'Inaccessible',
+  up: t('feedState.up'),
+  partial: t('feedState.partial'),
+  down: t('feedState.down'),
+  unknown: t('feedState.unknown'),
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
-  scheduled: 'Schedule',
-  vehicles: 'Vehicle positions',
-  trip_updates: 'Trip updates',
-  alerts: 'Service alerts',
-  realtime: 'Realtime (type not declared)',
+  scheduled: t('role.scheduled'),
+  vehicles: t('role.vehicles'),
+  trip_updates: t('role.tripUpdates'),
+  alerts: t('role.alerts'),
+  realtime: t('role.realtime'),
 };
 
 /** How another feed overlaps this one, from this feed's side. */
