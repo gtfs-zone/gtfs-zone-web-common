@@ -16,7 +16,10 @@ import {
   feedSummary,
   routeGeometries,
   routeTrips,
+  stopListLine,
+  stopPositions,
   tripsInfo,
+  usableShape,
 } from '../src/gtfs/store/feed-queries';
 
 type Files = Record<string, string>;
@@ -456,6 +459,18 @@ describe('feed queries', () => {
     );
     // R2: SH2 has two points, so it is drawn as is.
     assert.deepEqual(Array.from(geo.R2.coords), [13.41, 52.51, 1000, -0]);
+  });
+
+  it('builds stop list lines and tests shapes', async () => {
+    const { store } = await load(BASE);
+    const pos = stopPositions(store);
+    assert.deepEqual(
+      Array.from(stopListLine(['S1', 'nope', 'S3'], pos) ?? []),
+      [13.4, 52.5, 13.42, 52.52]
+    );
+    assert.equal(stopListLine(['S1', 'nope'], pos), null);
+    assert.equal(usableShape(new Float64Array([1, 2])), false);
+    assert.equal(usableShape(new Float64Array([1, 2, 3, 4])), true);
   });
 
   it("lists a route's trips with shared stop lists", async () => {

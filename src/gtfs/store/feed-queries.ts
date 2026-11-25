@@ -76,6 +76,42 @@ export interface RouteGeometry {
   lineStarts: Uint32Array;
 }
 
+/** Whether a shape has enough points to draw (2+), from its flat coords. */
+export function usableShape(coords: Float64Array): boolean {
+  return coords.length >= 4;
+}
+
+/** [lon, lat] of every stop with numeric coordinates, by stop_id. */
+export function stopPositions(store: FeedStore): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>();
+  store.scan('stops', ['stop_id', 'stop_lon', 'stop_lat'], ([id, lon, lat]) => {
+    const x = parseFloat(lon);
+    const y = parseFloat(lat);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      out.set(id, [x, y]);
+    }
+  });
+  return out;
+}
+
+/**
+ * A straight line through a stop list as flat [lon, lat, ...] points,
+ * skipping stops without a position. Null when under two points remain.
+ */
+export function stopListLine(
+  stopIds: Iterable<string>,
+  positions: Map<string, [number, number]>
+): Float64Array | null {
+  const pts: number[] = [];
+  for (const id of stopIds) {
+    const p = positions.get(id);
+    if (p) {
+      pts.push(p[0], p[1]);
+    }
+  }
+  return pts.length >= 4 ? Float64Array.from(pts) : null;
+}
+
 /**
  * The distinct lines of every route: each shape once, and for trips with no
  * usable shape (missing or under two points) a straight line through their
@@ -87,14 +123,7 @@ export function routeGeometries(
   store: FeedStore,
   simplify?: (coords: Float64Array) => Float64Array
 ): RouteGeometry[] {
-  const stopPos = new Map<string, [number, number]>();
-  store.scan('stops', ['stop_id', 'stop_lon', 'stop_lat'], ([id, lon, lat]) => {
-    const x = parseFloat(lon);
-    const y = parseFloat(lat);
-    if (Number.isFinite(x) && Number.isFinite(y)) {
-      stopPos.set(id, [x, y]);
-    }
-  });
+  const stopPos = stopPositions(store);
 
   type Acc = { shapes: Set<string>; lists: Set<string>; lines: Float64Array[] };
   const byRoute = new Map<string, Acc>();
@@ -126,7 +155,7 @@ export function routeGeometries(
           }
           shapeCache.set(shapeId, coords);
         }
-        if (coords.length >= 4) {
+        if (usableShape(coords)) {
           acc.shapes.add(shapeId);
           acc.lines.push(coords);
           return;
@@ -139,14 +168,10 @@ export function routeGeometries(
       acc.lists.add(key);
       let line = listCache.get(key);
       if (line === undefined) {
-        const pts: number[] = [];
-        for (const s of store.tripStops(tripId)) {
-          const p = stopPos.get(s.stop_id);
-          if (p) {
-            pts.push(p[0], p[1]);
-          }
-        }
-        line = pts.length >= 4 ? Float64Array.from(pts) : null;
+        line = stopListLine(
+          store.tripStops(tripId).map((s) => s.stop_id),
+          stopPos
+        );
         listCache.set(key, line);
       }
       if (!line) {
