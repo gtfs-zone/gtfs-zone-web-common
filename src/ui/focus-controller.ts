@@ -18,6 +18,7 @@ import {
   sameLocation,
 } from './page-state-manager';
 import { notify } from './notification-system';
+import { t } from '../i18n/messages';
 
 export interface FocusHooks<S> {
   /**
@@ -188,9 +189,7 @@ export class ValidatedFocusController<
 
     if (reportMiss) {
       this.pendingFocus = null;
-      notify.warning(
-        `Nothing in this feed matches the linked ${pending.type}.`
-      );
+      notify.warning(t('focus.noMatch'));
       this.adoptLinked(homeWithModal(pending));
     }
   }
