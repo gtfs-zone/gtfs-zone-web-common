@@ -7,7 +7,11 @@
  * Apps extend this with their own selection and boot logic.
  */
 
-import type { AnyPageState, PageStateManager } from './page-state-manager';
+import type {
+  AnyPageState,
+  PageStateManager,
+  StatePreparer,
+} from './page-state-manager';
 import {
   homeWithModal,
   pageStatesEqual,
@@ -118,6 +122,8 @@ export interface ValidatedFocusOptions<S, C> {
   breadcrumbs: (state: S) => C[];
   /** Whether a state still names something the loaded data has. */
   validate: (state: S) => boolean;
+  /** Loads what `validate` and the page read, when they are not in memory. */
+  prepare?: StatePreparer<S>;
 }
 
 /**
@@ -142,6 +148,9 @@ export class ValidatedFocusController<
     this.validate = options.validate;
     pages.setBreadcrumbBuilder(options.breadcrumbs);
     pages.setStateValidator(options.validate);
+    if (options.prepare) {
+      pages.setStatePreparer(options.prepare);
+    }
     // A navigation made while a link is pending replaces it, so the link
     // resolving later does not pull the page back. Adopting is silent, so the
     // boot restore does not land here.
