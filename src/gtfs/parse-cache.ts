@@ -5,12 +5,14 @@
  * Each entry is one base file, named by the entry id, plus a record in a
  * small localStorage index. A URL load hands the worker the entry for that
  * URL; the worker restores it when the response's ETag or Last-Modified still
- * match and parses otherwise. Picking an entry under "Your feeds" restores it
- * without asking the server. Uploads are parsed and never stored: there is
- * no URL to check them against.
+ * match and parses otherwise. An upload is matched by `uploadKey` (name,
+ * size, modified time), so picking the same zip again restores it. Picking an
+ * entry under "Your feeds" restores it without asking the server.
  *
- * The storage rule for apps that do not edit: only the feed in use is kept,
- * so every load deletes the other entries.
+ * The storage rule for apps that do not edit: only the feeds in use are kept,
+ * so every load deletes the other entries. An app that parses in its own
+ * worker (diff) saves the bases there with `saveBaseFile` and records them
+ * here with `add` and `keepOnly`.
  */
 
 import {
@@ -27,10 +29,14 @@ import { t } from '../i18n/messages';
 export interface CachedFeed {
   /** Also the base file's name. */
   id: string;
-  /** The URL fetched, proxy included. */
+  kind: 'url' | 'upload';
+  /** The URL fetched, proxy included; empty for an upload. */
   url: string;
-  /** The schedule URL without the proxy, matched to the catalog. */
+  /** The schedule URL without the proxy, matched to the catalog; empty for an upload. */
   sourceUrl: string;
+  /** The upload's `uploadKey`; empty for a URL. */
+  uploadKey: string;
+  /** The URL feed's name, or the uploaded file's name. */
   label: string;
   lastModified: string | null;
   etag: string | null;
@@ -64,11 +70,17 @@ export interface CachedLoad {
   storeError: string | null;
 }
 
-const VERSION = 1;
+const VERSION = 2;
 
-function newBaseName(): string {
+/** A new, unused base file name. */
+export function newBaseName(): string {
   const rand = Math.floor(Math.random() * 1e9).toString(36);
   return `cache-${Date.now().toString(36)}-${rand}.bin`;
+}
+
+/** Identifies an uploaded zip without reading it: name, size and modified time. */
+export function uploadKey(file: File): string {
+  return `${file.name}|${file.size}|${file.lastModified}`;
 }
 
 /** An HTTP date as YYYY-MM-DD, or undefined. */
@@ -82,6 +94,16 @@ function isoDay(httpDate: string | null): string | undefined {
     return undefined;
   }
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** Why a base could not be stored, for the user. */
+function storeErrorText(err: unknown): string {
+  const reason = isQuotaError(err)
+    ? t('cache.quota')
+    : err instanceof Error
+      ? err.message
+      : String(err);
+  return t('cache.storeFailed', { reason });
 }
 
 export class ParseCache {
@@ -121,6 +143,22 @@ export class ParseCache {
     return this.list().find((e) => e.id === id);
   }
 
+  /** The entry stored for a URL, proxy included. */
+  forUrl(url: string): CachedFeed | undefined {
+    return this.list().find((e) => e.kind === 'url' && e.url === url);
+  }
+
+  /** The entry stored for an uploaded zip, matched by `uploadKey`. */
+  forUpload(file: File): CachedFeed | undefined {
+    const key = uploadKey(file);
+    return this.list().find((e) => e.kind === 'upload' && e.uploadKey === key);
+  }
+
+  /** Record an entry whose base file is already written, replacing its id. */
+  add(entry: CachedFeed): void {
+    this.write([entry, ...this.list().filter((e) => e.id !== entry.id)]);
+  }
+
   /** The entries as "Your feeds" rows; `activeId` is the one open now. */
   offers(activeId: string | null): StoredFeedOffer[] {
     return this.list().map((e) => ({
@@ -132,8 +170,9 @@ export class ParseCache {
       bytes: e.bytes,
       lastOpened: e.lastOpened,
       active: e.id === activeId,
-      sourceUrl: e.sourceUrl,
+      sourceUrl: e.sourceUrl || undefined,
       sourceModified: isoDay(e.lastModified),
+      uploaded: e.kind === 'upload',
     }));
   }
 
@@ -146,8 +185,8 @@ export class ParseCache {
 
   /**
    * Load a schedule through the cache. A stored entry that cannot be
-   * restored is deleted and the error rethrown. A parsed URL feed is stored;
-   * a failure to store it is returned as `storeError`, not thrown.
+   * restored is deleted and the error rethrown. A parsed feed is stored; a
+   * failure to store it is returned as `storeError`, not thrown.
    */
   async load(
     input: CacheInput,
@@ -159,12 +198,10 @@ export class ParseCache {
       return this.loadStored(input.stored, meta, options, hooks);
     }
     if ('file' in input) {
-      const feed = await GTFSScheduled.load(input, options, hooks);
-      await this.keepOnly(null);
-      return { feed, entry: null, restored: false, storeError: null };
+      return this.loadUpload(input.file, meta, options, hooks);
     }
 
-    const known = this.list().find((e) => e.url === input.url);
+    const known = this.forUrl(input.url);
     const feed = await GTFSScheduled.load(
       {
         url: input.url,
@@ -181,49 +218,99 @@ export class ParseCache {
     if (restored && known) {
       console.log(`[ParseCache] ${input.url} unchanged; restored ${known.id}`);
       const entry = this.touch(known, meta);
-      await this.keepOnly(entry.id);
+      await this.keepOnly([entry.id]);
       return { feed, entry, restored: true, storeError: null };
     }
+    return this.store(feed, {
+      kind: 'url',
+      url: input.url,
+      sourceUrl: meta.sourceUrl ?? input.url,
+      uploadKey: '',
+      label: meta.label,
+      lastModified: source?.lastModified ?? null,
+      etag: source?.etag ?? null,
+      extra: meta.extra,
+    });
+  }
 
+  /** Restore an upload stored earlier, or parse and store it. */
+  private async loadUpload(
+    file: File,
+    meta: CacheMeta,
+    options: ScheduledOptions,
+    hooks: LoadHooks
+  ): Promise<CachedLoad> {
+    const known = this.forUpload(file);
+    if (known) {
+      try {
+        return await this.loadStored(known.id, meta, options, hooks);
+      } catch (err) {
+        if (err instanceof LoadCancelledError) {
+          throw err;
+        }
+        console.warn(
+          `[ParseCache] ${file.name}: stored copy unusable; parsing`
+        );
+      }
+    }
+    const feed = await GTFSScheduled.load({ file }, options, hooks);
+    return this.store(feed, {
+      kind: 'upload',
+      url: '',
+      sourceUrl: '',
+      uploadKey: uploadKey(file),
+      label: meta.label,
+      lastModified: null,
+      etag: null,
+      extra: meta.extra,
+    });
+  }
+
+  /** Save a parsed feed's base and make it the only entry kept. */
+  private async store(
+    feed: GTFSScheduled,
+    fields: Pick<
+      CachedFeed,
+      | 'kind'
+      | 'url'
+      | 'sourceUrl'
+      | 'uploadKey'
+      | 'label'
+      | 'lastModified'
+      | 'etag'
+      | 'extra'
+    >
+  ): Promise<CachedLoad> {
     const id = newBaseName();
+    const what = fields.url || fields.label;
     try {
       const bytes = await feed.store.call('saveBase', id);
       const c = feed.counts();
       const now = Date.now();
       const entry: CachedFeed = {
         id,
-        url: input.url,
-        sourceUrl: meta.sourceUrl ?? input.url,
-        label: meta.label,
-        lastModified: source?.lastModified ?? null,
-        etag: source?.etag ?? null,
+        ...fields,
         bytes,
         routes: c.routes,
         stops: c.stops,
         trips: c.trips,
         savedAt: now,
         lastOpened: now,
-        extra: meta.extra,
       };
-      this.write([entry, ...this.list().filter((e) => e.id !== id)]);
-      console.log(`[ParseCache] stored ${input.url} as ${id} (${bytes} bytes)`);
-      await this.keepOnly(id);
+      this.add(entry);
+      console.log(`[ParseCache] stored ${what} as ${id} (${bytes} bytes)`);
+      await this.keepOnly([id]);
       return { feed, entry, restored: false, storeError: null };
     } catch (err) {
-      console.error(`[ParseCache] storing ${input.url} failed`, err);
+      console.error(`[ParseCache] storing ${what} failed`, err);
       // The previous feed is still dropped: it is no longer the one in use,
       // and its space may be what the next attempt needs.
-      await this.keepOnly(null);
-      const reason = isQuotaError(err)
-        ? t('cache.quota')
-        : err instanceof Error
-          ? err.message
-          : String(err);
+      await this.keepOnly([]);
       return {
         feed,
         entry: null,
         restored: false,
-        storeError: t('cache.storeFailed', { reason }),
+        storeError: storeErrorText(err),
       };
     }
   }
@@ -253,12 +340,12 @@ export class ParseCache {
     }
     console.log(`[ParseCache] restored ${id}`);
     const entry = this.touch(known, { ...meta, extra: known.extra });
-    await this.keepOnly(id);
+    await this.keepOnly([id]);
     return { feed, entry, restored: true, storeError: null };
   }
 
   /** Mark an entry opened now, with the label and extra of this load. */
-  private touch(entry: CachedFeed, meta: CacheMeta): CachedFeed {
+  touch(entry: CachedFeed, meta: CacheMeta): CachedFeed {
     const next: CachedFeed = {
       ...entry,
       label: meta.label,
@@ -270,20 +357,21 @@ export class ParseCache {
   }
 
   /**
-   * Delete every entry but `id`, then every base file no entry names.
-   * Failures are logged: a file another tab is still reading is retried by
-   * the next sweep.
+   * Delete every entry not in `ids`, then every base file no kept entry
+   * names. Failures are logged: a file another tab is still reading is
+   * retried by the next sweep.
    */
-  private async keepOnly(id: string | null): Promise<void> {
+  async keepOnly(ids: string[]): Promise<void> {
+    const keep = new Set(ids);
     const entries = this.list();
     for (const e of entries) {
-      if (e.id !== id) {
+      if (!keep.has(e.id)) {
         await deleteBaseFile(e.id).catch((err: unknown) =>
           console.warn(`[ParseCache] deleting ${e.id} failed`, err)
         );
       }
     }
-    const kept = entries.filter((e) => e.id === id);
+    const kept = entries.filter((e) => keep.has(e.id));
     this.write(kept);
     try {
       const gone = await sweepBaseFiles(kept.map((e) => e.id));
