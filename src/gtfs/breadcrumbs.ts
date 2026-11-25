@@ -377,6 +377,27 @@ export function validateTreeLocation(
   }
 }
 
+/**
+ * Fetch the trip a trip location names when the schedule has not mirrored its
+ * row, with its stop_times, so the location validates, its crumb has a label
+ * and the page paints whole. Nothing to wait for otherwise.
+ */
+export function prepareTreeLocation(
+  feed: Feed,
+  loc: TreeLocation
+): Promise<void> | void {
+  if (
+    loc.type !== 'trip' ||
+    loc.trip_id === undefined ||
+    !feed ||
+    feed.tripsComplete ||
+    feed.findTrip(loc.trip_id, loc.route_id)
+  ) {
+    return;
+  }
+  return feed.loadTripTimes(loc.trip_id);
+}
+
 /** `TreeCrumbSource` over the parsed schedule, which may not be loaded. */
 export function scheduledCrumbSource(feed: Feed): TreeCrumbSource {
   const soleAgency = (): string | null =>

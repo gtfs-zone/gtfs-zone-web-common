@@ -34,6 +34,13 @@ export interface NavigationEvent<S> {
  */
 export type StateValidator<S> = (state: S) => boolean | Promise<boolean>;
 
+/**
+ * Loads what validating and painting a state read, before either runs.
+ * Returns nothing when that is already in memory, so the navigation stays
+ * synchronous.
+ */
+export type StatePreparer<S> = (state: S) => Promise<void> | void;
+
 /** Resolves a state to its breadcrumb trail. */
 export type BreadcrumbBuilder<S, C> = (state: S) => C[];
 
@@ -114,6 +121,9 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
   private enableUrlSync: boolean;
   private breadcrumbBuilder: BreadcrumbBuilder<S, C> | null = null;
   private stateValidator: StateValidator<S> | null = null;
+  private statePreparer: StatePreparer<S> | null = null;
+  /** Bumped by every navigation, so only the latest prepared one lands. */
+  private navigationSeq = 0;
   private feedParams: Record<string, string> = {};
   /** Marks the entries this instance pushed, so a reload never claims them. */
   private readonly instanceId = Math.random().toString(36).slice(2);
@@ -143,6 +153,30 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
   }
 
   /**
+   * Set the preparer awaited before a navigation or hash change is validated
+   * and applied.
+   */
+  setStatePreparer(fn: StatePreparer<S>): void {
+    this.statePreparer = fn;
+  }
+
+  /**
+   * Run the preparer for a state, for a caller that validates it itself (the
+   * boot restore). A failure is logged and resolves, leaving the state to
+   * validate against what is there.
+   */
+  prepare(state: S): Promise<void> {
+    return this.runPreparer(state) ?? Promise.resolve();
+  }
+
+  private runPreparer(state: S): Promise<void> | undefined {
+    const ready = this.statePreparer?.(state);
+    return ready?.catch((error: unknown) => {
+      console.error(`[PageStateManager] preparing ${state.type} failed`, error);
+    });
+  }
+
+  /**
    * Replace the feed half of the hash. Written immediately unless `writeNow`
    * is false, since the selection can change while the focus does not.
    */
@@ -161,13 +195,29 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     return { ...this.currentState };
   }
 
-  /** Update the current state, pushing its hash. */
+  /**
+   * Update the current state, pushing its hash. When the preparer has data to
+   * load, both wait for it, and a navigation made meanwhile supersedes this
+   * one.
+   */
   setPageState(newState: S): void {
     if (!this.codec.isPageState(newState)) {
       throw new Error('Invalid page state provided');
     }
-    this.writeHash(newState);
-    this.apply(newState);
+    const seq = ++this.navigationSeq;
+    const ready = this.runPreparer(newState);
+    if (!ready) {
+      this.writeHash(newState);
+      this.apply(newState);
+      return;
+    }
+    void ready.then(() => {
+      if (seq !== this.navigationSeq) {
+        return;
+      }
+      this.writeHash(newState);
+      this.apply(newState);
+    });
   }
 
   /** The trail for the current state, or none when no builder is set. */
@@ -259,6 +309,7 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
     }
     const rest = { ...current };
     delete rest.modal;
+    ++this.navigationSeq;
 
     if (!this.enableUrlSync || typeof window === 'undefined') {
       this.apply(rest);
@@ -360,7 +411,25 @@ export class PageStateManager<S extends AnyPageState, C = unknown> {
       return;
     }
 
+    const seq = ++this.navigationSeq;
     const candidate = this.urlToPageState(hash);
+    const ready =
+      candidate.type === 'home' ? undefined : this.runPreparer(candidate);
+    if (!ready) {
+      this.validateFromHistory(candidate, hash);
+      return;
+    }
+    void ready.then(() => {
+      // A later navigation moved on while this one was preparing.
+      if (seq !== this.navigationSeq || currentHash() !== hash) {
+        console.log('[PageStateManager] dropping stale hashchange');
+        return;
+      }
+      this.validateFromHistory(candidate, hash);
+    });
+  }
+
+  private validateFromHistory(candidate: S, hash: string): void {
     if (candidate.type === 'home' || !this.stateValidator) {
       this.applyFromHistory(candidate);
       return;
