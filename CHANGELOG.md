@@ -1,3 +1,9 @@
+## v7.16.0 (2026-11-25)
+
+### Feat
+
+- **cache**: store uploads in ParseCache and keep several entries
+
 ## v7.15.0 (2026-11-25)
 
 ### Feat
