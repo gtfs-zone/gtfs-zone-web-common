@@ -1,3 +1,9 @@
+## v7.14.1 (2026-11-25)
+
+### Fix
+
+- **focus**: drop a pending link focus on user navigation
+
 ## v7.14.0 (2026-11-25)
 
 ### Feat
