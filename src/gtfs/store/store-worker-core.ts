@@ -19,7 +19,12 @@ import {
   type StoreOptions,
 } from './feed-store';
 import { streamGtfsZip, type StreamResult } from './csv-stream';
-import { loadBaseFile, saveBaseFile } from './opfs-base';
+import {
+  loadBaseFile,
+  responseValidators,
+  saveBaseFile,
+  validatorsMatch,
+} from './opfs-base';
 import {
   allShapes,
   allStopTimes,
@@ -323,10 +328,7 @@ async function openSource(
     stream: res.body,
     total: len ? Number(len) : null,
     innerPaths,
-    validators: {
-      lastModified: res.headers.get('Last-Modified'),
-      etag: res.headers.get('ETag'),
-    },
+    validators: responseValidators(res),
   };
 }
 
@@ -406,24 +408,6 @@ async function load(input: StoreInput, options: LoadOptions): Promise<void> {
       restored,
     },
   });
-}
-
-/**
- * True when the response is the version the base was saved from: the same
- * ETag, or with no ETag on either side, the same Last-Modified. A response
- * with neither never matches.
- */
-function validatorsMatch(
-  reuse: ReusableBase,
-  now: SourceValidators | null
-): boolean {
-  if (!now) {
-    return false;
-  }
-  if (reuse.etag && now.etag) {
-    return reuse.etag === now.etag;
-  }
-  return Boolean(reuse.lastModified && reuse.lastModified === now.lastModified);
 }
 
 /**

@@ -143,6 +143,7 @@ export const en = {
   'load.edits_other': '{count} edits',
   'load.yourFeeds': 'Your feeds',
   'load.lastOpened': 'opened {date}',
+  'load.uploaded': 'uploaded file',
   'load.active': 'open',
   'load.newer': 'newer version',
   'load.update': 'Update',

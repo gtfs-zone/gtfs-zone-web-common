@@ -13,6 +13,38 @@ import type { StreamResult } from './csv-stream';
 
 const DIR = 'feed-bases';
 
+/** HTTP validators of a downloaded feed, as the server sent them. */
+interface Validators {
+  lastModified: string | null;
+  etag: string | null;
+}
+
+/** A response's validators. */
+export function responseValidators(res: Response): Validators {
+  return {
+    lastModified: res.headers.get('Last-Modified'),
+    etag: res.headers.get('ETag'),
+  };
+}
+
+/**
+ * True when the response is the version the base was saved from: the same
+ * ETag, or with no ETag on either side, the same Last-Modified. A response
+ * with neither never matches.
+ */
+export function validatorsMatch(
+  reuse: Validators,
+  now: Validators | null
+): boolean {
+  if (!now) {
+    return false;
+  }
+  if (reuse.etag && now.etag) {
+    return reuse.etag === now.etag;
+  }
+  return Boolean(reuse.lastModified && reuse.lastModified === now.lastModified);
+}
+
 /** The worker-only parts of OPFS, missing from the DOM lib types. */
 interface SyncAccessHandle {
   read(into: Uint8Array, opts: { at: number }): number;
