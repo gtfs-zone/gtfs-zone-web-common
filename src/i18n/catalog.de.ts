@@ -147,6 +147,7 @@ export const de: Translation<typeof en> = {
   'load.edits_other': '{count} Änderungen',
   'load.yourFeeds': 'Ihre Feeds',
   'load.lastOpened': 'geöffnet am {date}',
+  'load.uploaded': 'hochgeladene Datei',
   'load.active': 'geöffnet',
   'load.newer': 'neuere Version',
   'load.update': 'Aktualisieren',
