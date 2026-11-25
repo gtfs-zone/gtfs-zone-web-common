@@ -128,6 +128,8 @@ export interface StoredFeedOffer {
   sourceUrl?: string;
   /** The schedule's Last-Modified when it was loaded, YYYY-MM-DD. */
   sourceModified?: string;
+  /** Stored from an uploaded zip rather than a URL. */
+  uploaded?: boolean;
 }
 
 /** "Your feeds": the stored feeds and how to delete one. */
@@ -427,6 +429,7 @@ function storedMeta(offer: StoredFeedOffer): string {
     .filter(Boolean)
     .join(', ');
   return [
+    offer.uploaded ? escHtml(t('load.uploaded')) : '',
     counts ? escHtml(counts) : '',
     offer.edits === undefined
       ? ''
