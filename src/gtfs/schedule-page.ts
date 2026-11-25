@@ -34,6 +34,8 @@ export interface SchedulePageOptions {
   source: ScheduleSourceStatus | null;
   /** What the map could not draw, when the app has a map. */
   mapIssues?: MapDataIssues | null;
+  /** Sections inserted after the source status. */
+  extraSections?: TreeSection[];
 }
 
 type Ctx = RenderContext<TreeLocation>;
@@ -253,6 +255,7 @@ export function schedulePage(ctx: Ctx, options: SchedulePageOptions): TreePage {
   const label = treeNodeCrumb('schedule').label;
   const sections: (TreeSection | null)[] = [
     source ? sourceSection(source) : null,
+    ...(options.extraSections ?? []),
   ];
   if (!feed) {
     sections.push({

@@ -6,7 +6,7 @@
  * pages read (built on a page's first read and reused until the session data
  * it was built from changes), the live `[data-since]` relative times, and the route-strip hover that lights a
  * stop on the map. The app supplies the page dispatcher, which returns a
- * `TreePage` or, for a page not yet on the tree, a markup string.
+ * `TreePage`.
  */
 
 import type { BreadcrumbItem } from '../ui/breadcrumb-trail';
@@ -26,7 +26,7 @@ export interface RtPanelHooks<S, V extends VehiclePosition> {
    * The page for a state. `rt` returns the current index, building it on the
    * first call; a page that reads no realtime data should not call it.
    */
-  renderPage: (state: S, rt: () => RtIndex<V>) => TreePage | string;
+  renderPage: (state: S, rt: () => RtIndex<V>) => TreePage;
   /** Light a stop on the map while its route-strip row is hovered. */
   hoverStop: (stop_id: string | null) => void;
   /** Run a write named by a `data-action` button. */
@@ -66,11 +66,8 @@ export class RtPanel<S, V extends VehiclePosition = VehiclePosition> {
       navigate: hooks.navigate,
       href: hooks.href,
       beforeRender: (_el, reset) => this.mounter.capture(reset),
-      renderPage: (state) => {
-        const page = hooks.renderPage(state, this.rt);
-        return typeof page === 'string' ? page : this.mounter.render(page);
-      },
-      // A string page has no list placeholders, so this only clears boxes.
+      renderPage: (state) =>
+        this.mounter.render(hooks.renderPage(state, this.rt)),
       afterRender: (el) => this.mounter.mount(el),
       action: hooks.action,
       tick: (el) => {

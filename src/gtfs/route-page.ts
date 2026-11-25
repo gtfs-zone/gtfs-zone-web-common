@@ -77,8 +77,8 @@ export interface RoutePageOptions<
 > extends RtPageHooks<S, V> {
   /** The page the route's agency links to; plain text when absent. */
   agencyLink?: (agencyId: string) => S;
-  /** Appended to each direction's strip. */
-  directionExtra?: (routeId: string, directionId: string) => string;
+  /** Badge markup an app adds to a Trips list row, by its trip_id. */
+  tripBadge?: (tripId: string) => string;
   /** Sections inserted before the raw dump. */
   extraSections?: (route: Route) => TreeSection[];
 }
@@ -627,7 +627,10 @@ function tripListSection<S extends PageRef, V extends VehiclePosition>(
           )}</span>`,
           label: row.trip?.headsign || row.tripId,
           sublabel: row.trip?.raw.trip_short_name?.trim() || undefined,
-          badgeHtml: realtimeMark(rt, row) || undefined,
+          badgeHtml:
+            [realtimeMark(rt, row), hooks.tripBadge?.(row.tripId)]
+              .filter(Boolean)
+              .join(' ') || undefined,
         }),
       searchText: (row) =>
         `${row.departure} ${row.trip?.headsign ?? ''} ${row.trip?.raw.trip_short_name ?? ''} ${row.tripId}`,
@@ -720,8 +723,7 @@ export function routePage<S extends PageRef, V extends VehiclePosition>(
         return `
           ${renderCoverage(sequence)}
           ${renderStrip(page, route, sequence, d.direction_id, placed)}
-          ${renderUnplaced(page, unplaced)}
-          ${options.directionExtra?.(route.id, d.direction_id) ?? ''}`;
+          ${renderUnplaced(page, unplaced)}`;
       })
     : loadingLine(t('route.loadingStops'));
 
