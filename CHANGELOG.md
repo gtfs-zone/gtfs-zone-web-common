@@ -1,3 +1,9 @@
+## v7.17.0 (2026-11-25)
+
+### Feat
+
+- **queries**: export usableShape, stopPositions and stopListLine
+
 ## v7.16.0 (2026-11-25)
 
 ### Feat
