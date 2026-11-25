@@ -142,6 +142,12 @@ export class ValidatedFocusController<
     this.validate = options.validate;
     pages.setBreadcrumbBuilder(options.breadcrumbs);
     pages.setStateValidator(options.validate);
+    // A navigation made while a link is pending replaces it, so the link
+    // resolving later does not pull the page back. Adopting is silent, so the
+    // boot restore does not land here.
+    pages.addNavigationHandler(() => {
+      this.pendingFocus = null;
+    });
   }
 
   /** Go home when the focus no longer resolves, e.g. after a new feed loads. */
