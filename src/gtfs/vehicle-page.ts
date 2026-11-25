@@ -3,6 +3,7 @@
  * is predicted to do.
  */
 
+import type { FeedSession } from './feed-session';
 import type { VehiclePosition } from './rt-types';
 import type { GTFSScheduled } from './scheduled';
 import { alertsForTrip } from './alerts';
@@ -267,11 +268,17 @@ function renderScheduledProps(vehicle: VehiclePosition): string {
   ]);
 }
 
+export interface VehiclePageOptions<V extends VehiclePosition> {
+  /** Sections inserted before the raw dump. */
+  extraSections?: (vehicle: V) => TreeSection[];
+}
+
 /** A vehicle by its `VehiclePosition.key`, or its last poll once it left the feed. */
-export function vehiclePage(
-  ctx: Ctx,
-  rt: RtIndex,
-  vehicleKey: string
+export function vehiclePage<V extends VehiclePosition = VehiclePosition>(
+  ctx: RenderContext<RtPageRef | TripLocation, FeedSession<V>>,
+  rt: RtIndex<V>,
+  vehicleKey: string,
+  options: VehiclePageOptions<V> = {}
 ): TreePage {
   const live = ctx.session.vehicles.get(vehicleKey);
   if (live) {
@@ -380,6 +387,7 @@ export function vehiclePage(
         t('alerts.noneHere')
       )
     ),
+    ...(options.extraSections?.(vehicle as V) ?? []),
     {
       body: renderRawJson(
         t(vehicle.scheduled ? 'vehicle.rawScheduled' : 'vehicle.raw'),

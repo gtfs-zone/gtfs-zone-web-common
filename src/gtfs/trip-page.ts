@@ -12,7 +12,7 @@ import type { Prediction, RtIndex } from './rt-index';
 import type { TripUpdate, VehiclePosition } from './rt-types';
 import { presentNumber } from './rt-types';
 import type { GTFSScheduled, Route, Trip } from './scheduled';
-import type { LinkContext, RenderContext } from './entity-render';
+import type { LinkContext, PageRef, RenderContext } from './entity-render';
 import type { StopPageRef } from './breadcrumbs';
 import {
   TRIP_SCHEDULE_RELATIONSHIP_LABELS,
@@ -213,19 +213,27 @@ function updateSection(update: TripUpdate | undefined): TreeSection {
   };
 }
 
-export interface TripPageOptions {
+export interface TripPageOptions<
+  S extends PageRef = TreeLocation,
+  V extends VehiclePosition = VehiclePosition,
+> {
   /** First weekday of the service line, 0 for Sunday. Monday by default. */
   weekStart?: number;
   /** Sections inserted before the raw dumps. */
   extraSections?: TreeSection[];
+  /** The page a vehicle row links to; the shared vehicle page by default. */
+  vehicleLink?: (vehicle: V) => S;
 }
 
 /** A trip by its location: schedule, trip update and vehicles. */
-export function tripPage(
-  ctx: Ctx,
-  rt: RtIndex,
+export function tripPage<
+  S extends PageRef = TreeLocation,
+  V extends VehiclePosition = VehiclePosition,
+>(
+  ctx: RenderContext<S | TreeLocation, FeedSession<V>>,
+  rt: RtIndex<V>,
   loc: TripLocation,
-  options: TripPageOptions = {}
+  options: TripPageOptions<S, V> = {}
 ): TreePage {
   const session = ctx.session;
   const feed = session.scheduledFeed;
@@ -347,8 +355,11 @@ export function tripPage(
       name: 'trip-vehicles',
       items: vehicles,
       row: (v) =>
-        entityRow<TreeLocation>(ctx, {
-          state: { type: 'vehicle', vehicle_key: v.key },
+        entityRow<S | TreeLocation>(ctx, {
+          state: options.vehicleLink?.(v) ?? {
+            type: 'vehicle',
+            vehicle_key: v.key,
+          },
           label:
             v.label || v.vehicleId || v.entityId || vehicleDisplayName(feed, v),
         }),
