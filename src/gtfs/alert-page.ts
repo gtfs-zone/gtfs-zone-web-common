@@ -29,7 +29,7 @@ import {
 } from './entity-render';
 import { entityRow, entityRowList, rowSection } from './entity-row';
 import type { RtPageRef } from './rt-page';
-import { TreePageMounter, type TreePage, type TreeSection } from './tree-page';
+import type { TreePage, TreeSection } from './tree-page';
 import type { ListBoxOptions } from '../ui/list-box';
 import { t } from '../i18n/messages';
 
@@ -365,12 +365,4 @@ export function alertPage(
     id: record.id,
     sections: sections.filter((section) => section.body),
   };
-}
-
-/** `alertPage` as markup, for a host that renders strings. */
-export function renderAlertPage(
-  ctx: RenderContext<RtPageRef>,
-  alertId: string
-): string {
-  return new TreePageMounter().render(alertPage(ctx, alertId));
 }

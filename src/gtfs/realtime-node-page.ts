@@ -336,10 +336,15 @@ export function tripUpdatesPage<S extends PageRef>(
   };
 }
 
+export interface ServiceAlertsOptions extends RealtimeNodeOptions {
+  /** Replaces the list of decoded alerts and its active-count line. */
+  list?: TreeSection;
+}
+
 /** The Service alerts node, the active-count line above the list. */
 export function serviceAlertsPage(
   ctx: RenderContext<RtPageRef>,
-  options: RealtimeNodeOptions
+  options: ServiceAlertsOptions
 ): TreePage {
   const records = [...ctx.session.alerts.values()];
   const active = records.filter((r) => isActiveNow(r.alert)).length;
@@ -349,15 +354,16 @@ export function serviceAlertsPage(
     sections: present([
       endpointSection(options),
       ...(options.extraSections ?? []),
-      listSection(
-        t('node.alerts'),
-        alertListOptions(ctx, records, t('alerts.none')),
-        {
-          body: records.length
-            ? `<p class="text-xs opacity-60">${escHtml(t('alerts.activeOf', { active, total: records.length }))}</p>`
-            : '',
-        }
-      ),
+      options.list ??
+        listSection(
+          t('node.alerts'),
+          alertListOptions(ctx, records, t('alerts.none')),
+          {
+            body: records.length
+              ? `<p class="text-xs opacity-60">${escHtml(t('alerts.activeOf', { active, total: records.length }))}</p>`
+              : '',
+          }
+        ),
     ]),
   };
 }
