@@ -14,6 +14,7 @@ import type { AlertRecord, ServiceAlert } from './rt-types';
 import { presentNumber } from './rt-types';
 import type { FeedSession } from './feed-session';
 import { getLocale } from '../i18n/index';
+import { t } from '../i18n/messages';
 
 type EntitySelector = NonNullable<ServiceAlert['informedEntity']>[number];
 type TranslatedString = NonNullable<ServiceAlert['headerText']>;
@@ -47,13 +48,13 @@ export function selectorLevel(e: EntitySelector): AlertLevel {
 }
 
 export const ALERT_LEVEL_LABELS: Record<AlertLevel, string> = {
-  feed: 'Whole feed',
-  agency: 'Agency-wide',
-  'route-type': 'All routes of a mode',
-  route: 'Route',
-  trip: 'Trip',
-  stop: 'Stop',
-  'route-stop': 'Route at stop',
+  feed: t('alertLevel.feed'),
+  agency: t('alertLevel.agency'),
+  'route-type': t('alertLevel.routeType'),
+  route: t('alertLevel.route'),
+  trip: t('alertLevel.trip'),
+  stop: t('alertLevel.stop'),
+  'route-stop': t('alertLevel.routeStop'),
 };
 
 function selectors(record: AlertRecord): EntitySelector[] {
@@ -254,37 +255,37 @@ export function preferredText(ts: TranslatedString | null | undefined): string {
 }
 
 export const CAUSE_LABELS: Record<number, string> = {
-  1: 'Unknown cause',
-  2: 'Other cause',
-  3: 'Technical problem',
-  4: 'Strike',
-  5: 'Demonstration',
-  6: 'Accident',
-  7: 'Holiday',
-  8: 'Weather',
-  9: 'Maintenance',
-  10: 'Construction',
-  11: 'Police activity',
-  12: 'Medical emergency',
+  1: t('cause.unknownCause'),
+  2: t('cause.otherCause'),
+  3: t('cause.technicalProblem'),
+  4: t('cause.strike'),
+  5: t('cause.demonstration'),
+  6: t('cause.accident'),
+  7: t('cause.holiday'),
+  8: t('cause.weather'),
+  9: t('cause.maintenance'),
+  10: t('cause.construction'),
+  11: t('cause.policeActivity'),
+  12: t('cause.medicalEmergency'),
 };
 
 export const EFFECT_LABELS: Record<number, string> = {
-  1: 'No service',
-  2: 'Reduced service',
-  3: 'Significant delays',
-  4: 'Detour',
-  5: 'Additional service',
-  6: 'Modified service',
-  7: 'Other effect',
-  8: 'Unknown effect',
-  9: 'Stop moved',
-  10: 'No effect',
-  11: 'Accessibility issue',
+  1: t('effect.noService'),
+  2: t('effect.reducedService'),
+  3: t('effect.significantDelays'),
+  4: t('effect.detour'),
+  5: t('effect.additionalService'),
+  6: t('effect.modifiedService'),
+  7: t('effect.otherEffect'),
+  8: t('effect.unknownEffect'),
+  9: t('effect.stopMoved'),
+  10: t('effect.noEffect'),
+  11: t('effect.accessibilityIssue'),
 };
 
 export const SEVERITY_LABELS: Record<number, string> = {
-  1: 'Unknown severity',
-  2: 'Info',
-  3: 'Warning',
-  4: 'Severe',
+  1: t('severity.unknownSeverity'),
+  2: t('severity.info'),
+  3: t('severity.warning'),
+  4: t('severity.severe'),
 };

@@ -111,15 +111,14 @@ function renderOtherTranslations(
   if (others.length === 0) {
     return '';
   }
+  const noLanguage = t('alertPage.noLanguage');
   return `
     <details class="text-xs" data-detail="tr:${escHtml(label)}">
-      <summary class="cursor-pointer opacity-60">${others.length} other translation${
-        others.length === 1 ? '' : 's'
-      }</summary>
+      <summary class="cursor-pointer opacity-60">${escHtml(t('alertPage.otherTranslations', { count: others.length }))}</summary>
       <dl class="mt-1 space-y-1">${others
         .map(
           (t) => `<div>
-            <dt class="opacity-50 font-mono">${escHtml(t.language || '(no language)')}</dt>
+            <dt class="opacity-50 font-mono">${escHtml(t.language || noLanguage)}</dt>
             <dd class="whitespace-pre-wrap">${escHtml(t.text)}</dd>
           </div>`
         )
@@ -151,7 +150,7 @@ function renderTranslations(
 function activeWindow(alert: ServiceAlert): string {
   const periods = activePeriods(alert);
   if (periods.length === 0) {
-    return 'always active';
+    return t('alertPage.alwaysActive');
   }
 
   const now = Date.now() / 1000;
@@ -164,19 +163,21 @@ function activeWindow(alert: ServiceAlert): string {
   if (current) {
     phrase =
       current.end === undefined
-        ? 'active, open-ended'
-        : `active until ${formatAbsolute(current.end)}`;
+        ? t('alertPage.activeOpenEnded')
+        : t('alertPage.activeUntil', { time: formatAbsolute(current.end) });
   } else if (upcoming) {
-    phrase = `starts ${formatAbsolute(upcoming.start!)}`;
+    phrase = t('alertPage.startsAt', { time: formatAbsolute(upcoming.start!) });
   } else {
     const last = periods[periods.length - 1];
     phrase =
       last.end === undefined
-        ? 'not active'
-        : `ended ${formatAbsolute(last.end)}`;
+        ? t('alerts.notActive')
+        : t('alertPage.endedAt', { time: formatAbsolute(last.end) });
   }
 
-  return periods.length > 1 ? `${phrase}, ${periods.length} periods` : phrase;
+  return periods.length > 1
+    ? t('alertPage.periods', { phrase, count: periods.length })
+    : phrase;
 }
 
 /**
@@ -187,22 +188,28 @@ function activeWindow(alert: ServiceAlert): string {
 function renderActivePeriods(alert: ServiceAlert): string {
   const periods = activePeriods(alert);
   if (periods.length === 0) {
-    return `<p class="text-xs opacity-60">No active period given - the alert is always active.</p>`;
+    return `<p class="text-xs opacity-60">${escHtml(t('alertPage.noPeriod'))}</p>`;
   }
   const now = Date.now() / 1000;
   return `<ul class="text-xs space-y-1">${periods
     .map((p) => {
-      const start = p.start === undefined ? 'always' : formatAbsolute(p.start);
-      const end = p.end === undefined ? 'open-ended' : formatAbsolute(p.end);
+      const start =
+        p.start === undefined ? t('alertPage.always') : formatAbsolute(p.start);
+      const end =
+        p.end === undefined ? t('alertPage.openEnded') : formatAbsolute(p.end);
       let note: string;
       if (p.start !== undefined && p.start > now) {
-        note = `starts in ${formatDuration(p.start - now)}`;
+        note = t('alertPage.startsIn', {
+          duration: formatDuration(p.start - now),
+        });
       } else if (p.end !== undefined && p.end < now) {
-        note = `ended ${formatDuration(now - p.end)} ago`;
+        note = t('alertPage.endedAgo', {
+          duration: formatDuration(now - p.end),
+        });
       } else if (p.end !== undefined) {
-        note = `active, ends in ${formatDuration(p.end - now)}`;
+        note = t('alertPage.endsIn', { duration: formatDuration(p.end - now) });
       } else {
-        note = 'active';
+        note = t('alerts.active');
       }
       return `<li class="flex justify-between gap-2">
         <span>${escHtml(start)} -&gt; ${escHtml(end)}</span>
@@ -221,7 +228,9 @@ function renderInformedEntity(
   const links: string[] = [];
 
   if (e.agencyId) {
-    links.push(`<span class="opacity-60">agency</span> ${escHtml(e.agencyId)}`);
+    links.push(
+      `<span class="opacity-60">${escHtml(t('alertPage.agency'))}</span> ${escHtml(e.agencyId)}`
+    );
   }
   if (e.routeType !== null && e.routeType !== undefined) {
     links.push(
@@ -231,7 +240,7 @@ function renderInformedEntity(
   if (e.routeId) {
     const route = feed?.routes.get(e.routeId);
     links.push(
-      `<span class="opacity-60">route</span> ${
+      `<span class="opacity-60">${escHtml(t('alertPage.route'))}</span> ${
         route
           ? entityLink(
               ctx,
@@ -245,7 +254,7 @@ function renderInformedEntity(
   if (e.stopId) {
     const stop = feed?.stops.get(e.stopId);
     links.push(
-      `<span class="opacity-60">stop</span> ${
+      `<span class="opacity-60">${escHtml(t('alertPage.stop'))}</span> ${
         stop
           ? entityLink(
               ctx,
@@ -259,9 +268,9 @@ function renderInformedEntity(
   if (e.trip?.tripId) {
     const trip = feed?.trips.get(e.trip.tripId);
     links.push(
-      `<span class="opacity-60">trip</span> ${escHtml(e.trip.tripId)}${
+      `<span class="opacity-60">${escHtml(t('alertPage.trip'))}</span> ${escHtml(e.trip.tripId)}${
         trip
-          ? ` <span class="opacity-60">on</span> ${entityLink(
+          ? ` <span class="opacity-60">${escHtml(t('alertPage.on'))}</span> ${entityLink(
               ctx,
               { type: 'route', route_id: trip.route_id },
               trip.route_id
@@ -272,7 +281,7 @@ function renderInformedEntity(
   }
   if (e.directionId !== null && e.directionId !== undefined) {
     links.push(
-      `<span class="opacity-60">direction</span> ${escHtml(String(e.directionId))}`
+      `<span class="opacity-60">${escHtml(t('alertPage.direction'))}</span> ${escHtml(String(e.directionId))}`
     );
   }
 
@@ -281,7 +290,7 @@ function renderInformedEntity(
     <div class="flex flex-wrap gap-x-3 gap-y-1">${
       links.length
         ? links.join('')
-        : '<span class="opacity-50">names nothing - applies to the whole feed</span>'
+        : `<span class="opacity-50">${escHtml(t('alertPage.namesNothing'))}</span>`
     }</div>
   </li>`;
 }
@@ -298,9 +307,8 @@ export function alertPage(
       title: t('alerts.fallback', { id: alertId }),
       sections: [
         {
-          body: `${missing(`Alert ${alertId}`)}
-      <p class="text-xs opacity-50 mt-2">GTFS-RT alerts are keyed on the feed entity id, and some
-      producers regenerate those between polls - the same disruption may now be under a different id.</p>`,
+          body: `${missing(t('alerts.fallback', { id: alertId }))}
+      <p class="text-xs opacity-50 mt-2">${escHtml(t('alertPage.regenerated'))}</p>`,
         },
       ],
     };
@@ -308,10 +316,10 @@ export function alertPage(
   const alert = record.alert;
   const url = preferredText(alert.url);
   const sections: TreeSection[] = [
-    { body: renderOtherTranslations('Header', alert.headerText) },
+    { body: renderOtherTranslations(t('alertPage.header'), alert.headerText) },
     {
       body: alert.descriptionText
-        ? renderTranslations('Description', alert.descriptionText)
+        ? renderTranslations(t('alertPage.description'), alert.descriptionText)
         : '',
     },
     {
@@ -320,27 +328,30 @@ export function alertPage(
         : '',
     },
     {
-      title: 'Properties',
+      title: t('alertPage.properties'),
       body: propList([
         prop(
-          'Status',
+          t('alertPage.status'),
           `${statusBadge(record)} ${escHtml(activeWindow(alert))}`
         ),
-        prop('Level', escHtml(ALERT_LEVEL_LABELS[alertLevel(record)])),
         prop(
-          'Cause',
+          t('alertPage.level'),
+          escHtml(ALERT_LEVEL_LABELS[alertLevel(record)])
+        ),
+        prop(
+          t('alertPage.cause'),
           escHtml(
             CAUSE_LABELS[alert.cause as number] ?? String(alert.cause ?? '-')
           )
         ),
         prop(
-          'Effect',
+          t('alertPage.effect'),
           escHtml(
             EFFECT_LABELS[alert.effect as number] ?? String(alert.effect ?? '-')
           )
         ),
         prop(
-          'Severity',
+          t('alertPage.severity'),
           escHtml(
             SEVERITY_LABELS[alert.severityLevel as number] ??
               String(alert.severityLevel ?? '-')
@@ -348,16 +359,16 @@ export function alertPage(
         ),
       ]),
     },
-    { title: 'Active periods', body: renderActivePeriods(alert) },
+    { title: t('alertPage.activePeriods'), body: renderActivePeriods(alert) },
     {
-      title: 'Informed entities',
+      title: t('alertPage.informedEntities'),
       body: (alert.informedEntity ?? []).length
         ? `<ul class="space-y-1">${alert
             .informedEntity!.map((e) => renderInformedEntity(ctx, e))
             .join('')}</ul>`
-        : '<p class="text-xs opacity-60">No informed entities - the alert applies to the whole feed.</p>',
+        : `<p class="text-xs opacity-60">${escHtml(t('alertPage.noEntities'))}</p>`,
     },
-    { body: renderRawJson('Alert (decoded)', record.raw) },
+    { body: renderRawJson(t('alertPage.raw'), record.raw) },
   ];
   return {
     eyebrow: t('crumb.alert'),
