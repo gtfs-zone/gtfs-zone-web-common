@@ -65,22 +65,20 @@ This project uses [Commitizen](https://commitizen-tools.github.io/commitizen/) (
 
 ### Creating Releases
 
-When you're ready to release, run on `main`:
+When you're ready to release, run the Release workflow on `main`, from the
+Actions tab or with:
 
 ```bash
-cz bump
+gh workflow run release.yml
 ```
 
-This will:
-- Bump the version in `package.json` based on commit history
-- Update `CHANGELOG.md`
-- Create a git tag
+It runs `cz bump`, which:
+- Bumps the version in `package.json` based on commit history
+- Updates `CHANGELOG.md`
+- Creates a git tag
 
-Then push the commit and the tag:
-
-```bash
-git push --follow-tags origin main
-```
+then pushes the commit and the tag. `main` only takes pull requests, so a
+local `cz bump` cannot be pushed; the workflow bypasses that rule.
 
 There is no deployment. The tag is the release: each consumer pins it in its `package.json` (`gtfs-zone-web-common@github:gtfs-zone/gtfs-zone-web-common#vX.Y.Z`) and picks up the change by bumping that pin.
 
@@ -90,7 +88,7 @@ There is no deployment. The tag is the release: each consumer pins it in its `pa
 2. Make your changes
 3. Commit using `pnpm commit` (this ensures proper commit format)
 4. Push your branch and create a pull request
-5. After merge to `main`, run `cz bump` for releases when ready
+5. After merge to `main`, run the Release workflow when ready
 
 ## Git Hooks
 
