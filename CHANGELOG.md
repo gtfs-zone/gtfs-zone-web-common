@@ -1,3 +1,9 @@
+## v7.19.0 (2026-11-26)
+
+### Feat
+
+- **i18n**: translate the remaining hard-coded page strings
+
 ## v7.18.0 (2026-11-25)
 
 ### Feat
