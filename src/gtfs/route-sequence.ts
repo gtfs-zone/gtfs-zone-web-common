@@ -34,6 +34,7 @@
 import type { RouteSource, RouteSourceTrip } from './route-source';
 import type { StopTimeRef } from './types';
 import { shortestCommonSupersequence } from '../util/scs';
+import { t } from '../i18n/messages';
 
 /**
  * One stop_time reference together with which visit it is, within a single
@@ -510,7 +511,9 @@ function directionLabel(
     return terminalName;
   }
 
-  return directionId ? `Direction ${directionId}` : 'All trips';
+  return directionId
+    ? t('direction.numbered', { id: directionId })
+    : t('direction.all');
 }
 
 /**

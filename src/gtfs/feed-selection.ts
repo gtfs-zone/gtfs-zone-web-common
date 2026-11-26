@@ -82,9 +82,9 @@ export const REALTIME_ENDPOINTS: readonly RealtimeEndpointName[] = [
 ];
 
 export const REALTIME_ENDPOINT_LABELS: Record<RealtimeEndpointName, string> = {
-  vehicles: 'Vehicle Positions',
-  tripUpdates: 'Trip Updates',
-  alerts: 'Service Alerts',
+  vehicles: t('role.vehicles'),
+  tripUpdates: t('role.tripUpdates'),
+  alerts: t('role.alerts'),
 };
 
 /**

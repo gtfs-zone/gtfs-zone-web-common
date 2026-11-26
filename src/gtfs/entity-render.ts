@@ -22,7 +22,8 @@ import {
 } from './feed-time';
 import { escapeHtml } from '../util/escape-html';
 import { routeTypeInfo } from 'gtfs-zone-vocab/route-types';
-import { formatDate, formatRelativeTime } from '../i18n/fmt';
+import { formatDate, formatRelativeTime, formatTimeUnit } from '../i18n/fmt';
+import { t } from '../i18n/messages';
 import { getLocale, type Locale } from '../i18n/index';
 
 /**
@@ -131,7 +132,9 @@ export function renderRawFields(
     .map(
       ([k, v]) =>
         `<tr><td class="opacity-60 align-top whitespace-nowrap">${escHtml(k)}</td><td class="break-all">${
-          v ? escHtml(v) : '<span class="opacity-30">(empty)</span>'
+          v
+            ? escHtml(v)
+            : `<span class="opacity-30">${escHtml(t('node.empty'))}</span>`
         }</td></tr>`
     )
     .join('');
@@ -202,21 +205,21 @@ export function formatRelative(ms: number): string {
 export function formatDuration(secs: number): string {
   const s = Math.abs(Math.round(secs));
   if (s < 60) {
-    return `${s}s`;
+    return formatTimeUnit(s, 'second');
   }
   if (s < 3600) {
-    return `${Math.floor(s / 60)}m`;
+    return formatTimeUnit(Math.floor(s / 60), 'minute');
   }
   if (s < 86400) {
-    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+    return `${formatTimeUnit(Math.floor(s / 3600), 'hour')} ${formatTimeUnit(Math.floor((s % 3600) / 60), 'minute')}`;
   }
-  return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
+  return `${formatTimeUnit(Math.floor(s / 86400), 'day')} ${formatTimeUnit(Math.floor((s % 86400) / 3600), 'hour')}`;
 }
 
 /** A timestamp that also states its own age, refreshed in place by the ticker. */
 export function timestampWithAge(seconds: number | undefined): string {
   if (seconds === undefined) {
-    return '<span class="opacity-40">not reported</span>';
+    return `<span class="opacity-40">${escHtml(t('common.notReported'))}</span>`;
   }
   const ms = seconds * 1000;
   return `${escHtml(formatEpochTime(seconds))} <span class="opacity-60" data-since="${ms}">${escHtml(
@@ -256,12 +259,12 @@ function exactDelay(seconds: number): string {
   const a = Math.abs(Math.round(seconds));
   const sign = seconds < 0 ? '-' : '+';
   if (a < 60) {
-    return `${sign}${a}s`;
+    return `${sign}${formatTimeUnit(a, 'second')}`;
   }
   const h = Math.floor(a / 3600);
   const m = Math.floor((a % 3600) / 60);
-  const rest = `${m}m ${a % 60}s`;
-  return `${sign}${h ? `${h}h ` : ''}${rest}`;
+  const rest = `${formatTimeUnit(m, 'minute')} ${formatTimeUnit(a % 60, 'second')}`;
+  return `${sign}${h ? `${formatTimeUnit(h, 'hour')} ` : ''}${rest}`;
 }
 
 // ─── Predictions ──────────────────────────────────────────────────────────────
@@ -299,8 +302,8 @@ export function derivedClass(from: ResolvedEvent['timeFrom']): string {
 
 function originNote(from: ResolvedEvent['timeFrom'], how: string): string {
   return from === 'derived'
-    ? `<i>calculated: ${escHtml(how)}</i>`
-    : 'from feed';
+    ? `<i>${escHtml(t('render.calculated', { how }))}</i>`
+    : escHtml(t('render.fromFeed'));
 }
 
 function tipRow(name: string, value: string, note: string): string {
@@ -308,33 +311,41 @@ function tipRow(name: string, value: string, note: string): string {
 }
 
 function eventTooltip(ev: ResolvedEvent): string {
+  const none = escHtml(t('render.none'));
+  const notSent = escHtml(t('render.notSent'));
   const rows = [
     tipRow(
-      'Scheduled',
-      ev.scheduledText ? escHtml(formatScheduleTime(ev.scheduledText)) : 'none',
+      t('prediction.scheduled'),
+      ev.scheduledText ? escHtml(formatScheduleTime(ev.scheduledText)) : none,
       ev.scheduledText
         ? `stop_times ${ev.kind}_time <code>${escHtml(ev.scheduledText)}</code>`
-        : 'no matching stop_times row'
+        : escHtml(t('render.noStopTimesRow'))
     ),
     tipRow(
-      'Predicted',
-      ev.time === undefined ? 'none' : escHtml(formatEpochTime(ev.time)),
+      t('prediction.expected'),
+      ev.time === undefined ? none : escHtml(formatEpochTime(ev.time)),
       ev.time === undefined
-        ? 'not sent'
-        : originNote(ev.timeFrom, 'scheduled + delay, feed sent delay only')
+        ? notSent
+        : originNote(ev.timeFrom, t('render.timeFromDelay'))
     ),
     tipRow(
-      'Delay',
-      ev.delay === undefined ? 'none' : escHtml(exactDelay(ev.delay)),
+      t('prediction.delay'),
+      ev.delay === undefined ? none : escHtml(exactDelay(ev.delay)),
       ev.delay === undefined
-        ? 'not sent'
-        : originNote(ev.delayFrom, 'predicted - scheduled, feed sent time only')
+        ? notSent
+        : originNote(ev.delayFrom, t('render.delayFromTime'))
     ),
   ];
   if (ev.uncertainty !== undefined) {
-    rows.push(tipRow('Uncertainty', `${ev.uncertainty}s`, 'from feed'));
+    rows.push(
+      tipRow(
+        t('prediction.uncertainty'),
+        escHtml(formatTimeUnit(ev.uncertainty, 'second')),
+        escHtml(t('render.fromFeed'))
+      )
+    );
   }
-  return `<div class="font-semibold">${ev.kind === 'arrival' ? 'Arrival' : 'Departure'}</div><table>${rows.join('')}</table>`;
+  return `<div class="font-semibold">${escHtml(t(ev.kind === 'arrival' ? 'prediction.arrival' : 'prediction.departure'))}</div><table>${rows.join('')}</table>`;
 }
 
 /**
@@ -350,33 +361,35 @@ export function predictionTooltip(p: Prediction): string {
     (ev) => ev.timeFrom === 'derived' || ev.delayFrom === 'derived'
   );
   if (derived && p.schedule.serviceDateInferred) {
-    notes.push(
-      'The trip update has no <code>start_date</code>; the service date nearest the prediction was assumed.'
-    );
+    notes.push(t('render.dateInferred'));
   }
   if (p.schedule.ambiguousStop) {
-    notes.push(
-      `No <code>stop_sequence</code> sent and the trip calls at ${escHtml(p.stop_id)} more than once; the first visit was assumed.`
-    );
+    notes.push(t('render.ambiguousStop', { stop: escHtml(p.stop_id) }));
   }
   const rel = p.scheduleRelationship;
   if (rel) {
     notes.push(
-      `Stop is ${escHtml(STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS[rel] ?? String(rel))}: nothing calculated.`
+      t('render.stopNotCalculated', {
+        relationship: escHtml(
+          STOP_TIME_SCHEDULE_RELATIONSHIP_LABELS[rel] ?? String(rel)
+        ),
+      })
     );
   } else if (p.tripScheduleRelationship) {
     notes.push(
-      `Trip is ${escHtml(
-        TRIP_SCHEDULE_RELATIONSHIP_LABELS[p.tripScheduleRelationship] ??
-          String(p.tripScheduleRelationship)
-      )}: nothing calculated.`
+      t('render.tripNotCalculated', {
+        relationship: escHtml(
+          TRIP_SCHEDULE_RELATIONSHIP_LABELS[p.tripScheduleRelationship] ??
+            String(p.tripScheduleRelationship)
+        ),
+      })
     );
   }
   return `<div class="space-y-2">${events.map(eventTooltip).join('')}${notes
     .map((n) => `<p>${n}</p>`)
     .join(
       ''
-    )}<div class="font-semibold">Sent by the feed</div>${stopTimeUpdateFields(p.stu)}</div>`;
+    )}<div class="font-semibold">${escHtml(t('render.sentByFeed'))}</div>${stopTimeUpdateFields(p.stu)}</div>`;
 }
 
 /**
@@ -384,7 +397,7 @@ export function predictionTooltip(p: Prediction): string {
  * showing the proto2 default.
  */
 function stopTimeUpdateFields(stu: StopTimeUpdate): string {
-  const absent = '<span class="opacity-50">absent</span>';
+  const absent = `<span class="opacity-50">${escHtml(t('render.absent'))}</span>`;
   const value = (msg: object | null | undefined, field: string): string => {
     const n = presentNumber(msg, field);
     return n === undefined ? absent : escHtml(String(n));
@@ -424,21 +437,21 @@ function stopTimeUpdateFields(stu: StopTimeUpdate): string {
 // ─── Enum labels ──────────────────────────────────────────────────────────────
 
 export const VEHICLE_STATUS_LABELS: Record<number, string> = {
-  0: 'incoming at',
-  1: 'stopped at',
-  2: 'in transit to',
+  0: t('vehicleStatus.incomingAt'),
+  1: t('vehicleStatus.stoppedAt'),
+  2: t('vehicleStatus.inTransitTo'),
 };
 
 export const OCCUPANCY_LABELS: Record<number, string> = {
-  0: 'Empty',
-  1: 'Many seats available',
-  2: 'Few seats available',
-  3: 'Standing room only',
-  4: 'Crushed standing room only',
-  5: 'Full',
-  6: 'Not accepting passengers',
-  7: 'No data available',
-  8: 'Not boardable',
+  0: t('occupancy.empty'),
+  1: t('occupancy.manySeatsAvailable'),
+  2: t('occupancy.fewSeatsAvailable'),
+  3: t('occupancy.standingRoomOnly'),
+  4: t('occupancy.crushedStandingRoomOnly'),
+  5: t('occupancy.full'),
+  6: t('occupancy.notAcceptingPassengers'),
+  7: t('occupancy.noDataAvailable'),
+  8: t('occupancy.notBoardable'),
 };
 
 export const TRIP_SCHEDULE_RELATIONSHIP_LABELS: Record<number, string> = {
@@ -494,7 +507,7 @@ export function propList(rows: string[]): string {
 }
 
 export function missing(what: string): string {
-  return `<p class="text-sm opacity-60">${escHtml(what)} is not in the loaded feed.</p>`;
+  return `<p class="text-sm opacity-60">${escHtml(t('render.missing', { what }))}</p>`;
 }
 
 /**
@@ -517,20 +530,20 @@ export function feedMark(label: string, title: string): string {
 
 /** One explanation per trip relationship, so the wording is written once. */
 const TRIP_RELATIONSHIP_TITLES: Record<number, string> = {
-  1: 'The feed reports this trip as ADDED: it is not in the static schedule by design, not by omission.',
-  2: 'The feed reports this trip as UNSCHEDULED: a frequency-based trip with exact_times=0.',
-  3: 'The feed reports this trip as CANCELED: it will not run.',
-  5: 'The feed reports this trip as REPLACEMENT: it replaces a scheduled trip (experimental).',
-  6: 'The feed reports this trip as DUPLICATED: it duplicates a scheduled trip at a new time (experimental).',
-  7: 'The feed reports this trip as DELETED: the producer states it should not be shown to users (experimental).',
-  8: 'The feed reports this trip as NEW: an extra trip unrelated to any scheduled trip (experimental).',
+  1: t('render.tripAdded'),
+  2: t('render.tripUnscheduled'),
+  3: t('render.tripCanceled'),
+  5: t('render.tripReplacement'),
+  6: t('render.tripDuplicated'),
+  7: t('render.tripDeleted'),
+  8: t('render.tripNew'),
 };
 
 /** One explanation per stop-time relationship. */
 const STOP_TIME_RELATIONSHIP_TITLES: Record<number, string> = {
-  1: 'The feed reports this stop as SKIPPED: the vehicle will not call there, so the times on this row are not times anyone can catch.',
-  2: 'The feed reports NO_DATA for this stop: no prediction is given, and any time shown comes from the schedule.',
-  3: 'The feed reports this stop as UNSCHEDULED: it is not in the static schedule for this trip (experimental).',
+  1: t('render.stopSkipped'),
+  2: t('render.stopNoData'),
+  3: t('render.stopUnscheduled'),
 };
 
 /** The badge for a trip's schedule_relationship, or '' when it is SCHEDULED or unreported. */
@@ -542,7 +555,7 @@ export function tripRelationshipMark(relationship: number | undefined): string {
     TRIP_SCHEDULE_RELATIONSHIP_LABELS[relationship] ?? String(relationship);
   const title =
     TRIP_RELATIONSHIP_TITLES[relationship] ??
-    `The feed reports this trip's schedule_relationship as ${label}.`;
+    t('render.tripRelationship', { relationship: label });
   return feedMark(label, title);
 }
 
@@ -558,13 +571,12 @@ export function stopTimeRelationshipMark(
     String(relationship);
   const title =
     STOP_TIME_RELATIONSHIP_TITLES[relationship] ??
-    `The feed reports this stop's schedule_relationship as ${label}.`;
+    t('render.stopRelationship', { relationship: label });
   return feedMark(label, title);
 }
 
 /** The standard explanation behind every derived `current_stop_sequence`. */
-export const DERIVED_STOP_SEQUENCE_TITLE =
-  'The feed reported no current_stop_sequence. This position comes from the soonest still-future stop_time_update on the same trip.';
+export const DERIVED_STOP_SEQUENCE_TITLE = t('render.derivedSequence');
 
 /**
  * How a vehicle's position was arrived at, when that is worth saying.
@@ -579,12 +591,12 @@ export function stopSequenceMark(
   current: VehicleStopSequence
 ): string {
   if (current.source === 'derived') {
-    return badgeMark('derived', DERIVED_STOP_SEQUENCE_TITLE);
+    return badgeMark(t('render.derived'), DERIVED_STOP_SEQUENCE_TITLE);
   }
   if (current.source === 'stop_id' && current.ambiguous) {
     return badgeMark(
-      'ambiguous',
-      `The feed reported no current_stop_sequence, only stop_id ${v.stopId}. This trip calls there more than once; the first visit was assumed.`
+      t('render.ambiguous'),
+      t('render.ambiguousSequence', { stop: v.stopId ?? '' })
     );
   }
   return '';

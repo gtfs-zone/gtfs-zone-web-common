@@ -13,6 +13,8 @@
  *    the user's own machine, so a local URL must never be routed through it.
  */
 
+import { t } from '../i18n/messages';
+
 /**
  * Split `…/outer.zip#inner.zip` into the URL to fetch and the entries to
  * descend into once it is unzipped.
@@ -174,13 +176,13 @@ export function validateFeedUrl(raw: string, useCors = false): string | null {
   try {
     parsed = new URL(url);
   } catch {
-    return 'Not a valid URL.';
+    return t('url.invalid');
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return `Unsupported scheme "${parsed.protocol.replace(':', '')}" — use http or https.`;
+    return t('url.scheme', { scheme: parsed.protocol.replace(':', '') });
   }
   if (!parsed.hostname) {
-    return 'URL is missing a host.';
+    return t('url.noHost');
   }
 
   // A plain-http subresource on an https page is blocked as mixed content.
@@ -193,7 +195,7 @@ export function validateFeedUrl(raw: string, useCors = false): string | null {
     location.protocol === 'https:' &&
     !isLocalHost(parsed.hostname)
   ) {
-    return 'An http:// URL is blocked as mixed content on this https page — use https.';
+    return t('url.mixedContent');
   }
   return null;
 }

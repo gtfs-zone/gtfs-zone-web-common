@@ -3,6 +3,8 @@
  * per symbol, and the two-column layout with the shared Stops column.
  */
 
+import { t } from '../i18n/messages';
+
 /** A circle symbol; `dot` adds the station's black inner dot. */
 export function mapKeyCircle(
   fill: string,
@@ -37,11 +39,11 @@ export function mapKeyRow(swatch: string, label: string): string {
  */
 function stopRows(unlocatedLabel: string): string {
   return [
-    mapKeyRow(mapKeyCircle('#ffffff', '#000000'), 'Stop'),
-    mapKeyRow(mapKeyCircle('#ffffff', '#000000', true), 'Station'),
-    mapKeyRow(mapKeyCircle('#f59e0b', '#000000'), 'Entrance'),
-    mapKeyRow(mapKeyCircle('#8b5cf6', '#000000'), 'Generic node'),
-    mapKeyRow(mapKeyCircle('#10b981', '#000000'), 'Boarding area'),
+    mapKeyRow(mapKeyCircle('#ffffff', '#000000'), t('stopType.stop')),
+    mapKeyRow(mapKeyCircle('#ffffff', '#000000', true), t('stopType.station')),
+    mapKeyRow(mapKeyCircle('#f59e0b', '#000000'), t('stopType.entrance')),
+    mapKeyRow(mapKeyCircle('#8b5cf6', '#000000'), t('mapKey.genericNode')),
+    mapKeyRow(mapKeyCircle('#10b981', '#000000'), t('stopType.boardingArea')),
     mapKeyRow(mapKeyCircle('#ffffff', '#9ca3af'), unlocatedLabel),
   ].join('');
 }
@@ -55,7 +57,7 @@ export function renderMapKey(options: {
   return `
       <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <div class="col-span-2 grid grid-cols-2 gap-x-6">
-          <div class="font-semibold text-xs opacity-60 mb-1">Stops</div>
+          <div class="font-semibold text-xs opacity-60 mb-1">${t('mapKey.stops')}</div>
           <div class="font-semibold text-xs opacity-60 mb-1">${options.title}</div>
         </div>
         <div class="flex flex-col gap-1">${stopRows(options.unlocatedLabel)}</div>
