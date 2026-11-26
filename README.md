@@ -238,10 +238,10 @@ consumer's `public/`.
 
 ## Releasing
 
-`cz bump` on `main`, which writes the version into `package.json`, updates
-`CHANGELOG.md` and cuts the annotated `vX.Y.Z` tag. Push the commit and the tag,
-then repin each consumer. A shared change is one commit here, one tag, and three
-consumer bumps.
+`gh workflow run release.yml` runs `cz bump` on `main`, which writes the version
+into `package.json`, updates `CHANGELOG.md` and cuts the annotated `vX.Y.Z` tag,
+then pushes the commit and the tag. Then repin each consumer. A shared change is
+one commit here, one tag, and three consumer bumps.
 
 Restart any dev server the repinned app has running. The `gtfs-zone-web-common` alias
 resolves through a pnpm symlink to a path in the store, and a repin swaps that
