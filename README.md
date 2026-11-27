@@ -38,8 +38,22 @@ of them fails in a different place:
    `"gtfs-zone-vocab/*": ["node_modules/gtfs-zone-vocab/ts/*"]`
 2. `vite.config.js` alias, so the bundler resolves the same specifier, plus
    `optimizeDeps.exclude: ['gtfs-zone-web-common']` because the package ships raw `.ts`
-   and must be transformed as source:
-   `'gtfs-zone-web-common': resolve(__dirname, 'node_modules/gtfs-zone-web-common/src')`
+   and must be transformed as source. The alias takes the real path: through
+   the `node_modules` symlink Vite adds a `?v=` query to the app's imports but
+   not to this library's relative ones, and the page loads two copies of each
+   module. `server.fs.allow` and `resolve.dedupe` let a local link (below)
+   serve and share the app's peers:
+   ```js
+   const webCommonDir = realpathSync(resolve(__dirname, 'node_modules/gtfs-zone-web-common'))
+   const webCommonPeers = Object.keys(
+     JSON.parse(readFileSync(resolve(webCommonDir, 'package.json'), 'utf-8')).peerDependencies
+   )
+   // server
+   fs: { allow: [searchForWorkspaceRoot(__dirname), webCommonDir] }
+   // resolve
+   alias: { 'gtfs-zone-web-common': resolve(webCommonDir, 'src') },
+   dedupe: webCommonPeers
+   ```
 3. The Tailwind `@source` line in the app's CSS, so classes used only inside
    this library are not purged:
    `@source "../../node_modules/gtfs-zone-web-common/src/**/*.ts";`
@@ -49,6 +63,24 @@ of them fails in a different place:
    `@import '../../node_modules/gtfs-zone-web-common/src/ui/app-shell.css';`
 5. A direct `gtfs-zone-vocab` dependency pinned by tag (see above). Vite
    resolves it through its `exports` map with no alias.
+
+### Local link
+
+`bin/common-link.sh` swaps the consumer's `node_modules/gtfs-zone-web-common`
+for a symlink to a sibling checkout, so edits here show up in the app before
+a tag. `pnpm install` does not undo the swap, so the script saves the
+pnpm-installed link and restores it. Each consumer wires it as:
+
+```json
+"prebuild": "sh node_modules/gtfs-zone-web-common/bin/common-link.sh check && ...",
+"common:local": "sh node_modules/gtfs-zone-web-common/bin/common-link.sh local",
+"common:tag": "sh node_modules/gtfs-zone-web-common/bin/common-link.sh tag"
+```
+
+plus a `pre-push` hook running `common-link.sh check`, so neither a build nor
+a push goes out while the link is local. `common:local` takes another
+checkout as an argument (`pnpm common:local ../gtfs-zone-web-common-spec`).
+Restart the dev server after each switch.
 
 ## Configuration
 
