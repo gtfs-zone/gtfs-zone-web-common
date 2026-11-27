@@ -43,7 +43,7 @@ importers:
         version: 2.2.0
       gtfs-zone-vocab:
         specifier: github:gtfs-zone/gtfs-zone-vocab#v0.2.0
-        version: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/341ec43a9b0b7cd179e53ce9ae371c4a0cf1b4be
+        version: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/a7147fcfb69f6076b636a1ac287f1d86ebdce2bc
       knip:
         specifier: ^6.39.0
         version: 6.39.0
@@ -900,8 +900,8 @@ packages:
     resolution: {integrity: sha512-JX6aADdPWtKMXA3Z/G2TK2kgR/gXZFFpfL7cdlR2fYvnJK5JDiyfEGC4+/65dF591d8nooUjhM387OSdesAIDQ==}
     engines: {node: '>=22'}
 
-  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/341ec43a9b0b7cd179e53ce9ae371c4a0cf1b4be:
-    resolution: {gitHosted: true, integrity: sha512-I13oAvhF4wKhBRGhBjCQG/pbXarVWkeFTiNHRaKVIT4KTUaZyQITZQMShPq/+Y4XWRRDWhox8FRG+RuPB2owpQ==, tarball: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/341ec43a9b0b7cd179e53ce9ae371c4a0cf1b4be}
+  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/a7147fcfb69f6076b636a1ac287f1d86ebdce2bc:
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/a7147fcfb69f6076b636a1ac287f1d86ebdce2bc}
     version: 0.2.0
 
   hashery@1.5.1:
@@ -1976,7 +1976,7 @@ snapshots:
       protobufjs: 8.8.0
       protobufjs-cli: 2.7.0(protobufjs@8.8.0)
 
-  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/341ec43a9b0b7cd179e53ce9ae371c4a0cf1b4be: {}
+  gtfs-zone-vocab@https://codeload.github.com/gtfs-zone/gtfs-zone-vocab/tar.gz/a7147fcfb69f6076b636a1ac287f1d86ebdce2bc: {}
 
   hashery@1.5.1:
     dependencies:
