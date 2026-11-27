@@ -21,6 +21,16 @@ export const de: Translation<typeof en> = {
 
   'shell.search': 'Suchen',
   'shell.logoAlt': 'Logo von {host}',
+  'shell.tools': 'gtfs.zone-Werkzeuge',
+  'shell.versions': 'Versionen',
+  'shell.currentVersion': '{version} (diese)',
+  'tool.home': 'das Projekt und was jedes Werkzeug kann',
+  'tool.edit': 'einen GTFS-Feed im Browser bearbeiten',
+  'tool.vizRt': 'einen GTFS-Realtime-Feed auf der Karte ansehen',
+  'tool.diff': 'zwei GTFS-Feeds vergleichen',
+  'tool.sites': 'aus GTFS erzeugte Fahrplan-Websites',
+  'tool.accuracyRt': 'messen, wie genau Echtzeitprognosen sind',
+  'tool.manageRt': 'einen eigenen Echtzeit-Feed betreiben (Konto nötig)',
   'breadcrumb.label': 'Navigationspfad',
 
   'crumb.agency': 'Verkehrsunternehmen',

@@ -30,6 +30,9 @@ The public surface, the app shell and the four edits a consumer needs are in
   `gtfs-realtime-bindings` is an optional peer. `gtfs/rt-poller.ts` is its one
   value import; everything else imports it as a type, so only an app that
   imports the poller pulls protobufjs into its bundle.
+- `src/tools.json` is the one list of tool hosts and URLs (`ui/tools.ts`
+  validates it). The tool switcher and the About links read it; a new tool
+  goes there with a `tool.*` string in every catalog.
 - The feed catalog is not source here: `gtfs/feed-catalog.ts` fetches it from
   `https://data.gtfs.zone`, published by feed-catalog.
 

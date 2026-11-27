@@ -4,10 +4,11 @@
 // shared so a URL cannot drift between the two modals.
 
 import { t } from '../i18n/messages';
+import { getTool } from './tools';
 
-const SITE_URL = 'https://gtfs.zone';
-const MANAGER_URL = 'https://manage.rt.gtfs.zone';
-const DIFF_URL = 'https://diff.gtfs.zone';
+const SITE = getTool('home');
+const MANAGER = getTool('manage-rt');
+const DIFF = getTool('diff');
 /** The gtfs-zone GitHub org; repos sit under it by name. */
 export const GITHUB_URL = 'https://github.com/gtfs-zone';
 const CONTACT_EMAIL = 'inquiry@gtfs.zone';
@@ -90,13 +91,13 @@ export function renderVersionAndSource(app: AboutApp, version: string): string {
 
 export function renderProjectSection(app: AboutApp): string {
   const items = [
-    `${link(SITE_URL, 'gtfs.zone')}: ${t('about.siteNote')}`,
+    `${link(SITE.url, SITE.host)}: ${t('about.siteNote')}`,
     `${link(app.sibling.href, app.sibling.name)}: ${app.sibling.note}`,
-    `${link(MANAGER_URL, 'manage.rt.gtfs.zone')}: ${t('about.managerNote')}`,
+    `${link(MANAGER.url, MANAGER.host)}: ${t('about.managerNote')}`,
   ];
   // Not linked from its own About modal.
-  if (app.name !== 'diff.gtfs.zone') {
-    items.push(`${link(DIFF_URL, 'diff.gtfs.zone')}: ${t('about.diffNote')}`);
+  if (app.name !== DIFF.host) {
+    items.push(`${link(DIFF.url, DIFF.host)}: ${t('about.diffNote')}`);
   }
   return divider(t('about.project')) + list(items);
 }
