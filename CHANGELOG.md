@@ -1,3 +1,12 @@
+## v7.20.0 (2026-11-27)
+
+### Feat
+
+- **testing**: shared Playwright and Vitest kit with pinned fixtures
+- bin/common-link.sh to link a local checkout into a consumer
+- **ui**: focusAtBoot on SearchController for non-touch viewports
+- **ui**: tool switcher and version menu in the app shell brand
+
 ## v7.19.0 (2026-11-26)
 
 ### Feat
