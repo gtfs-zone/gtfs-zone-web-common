@@ -184,6 +184,23 @@ export const basemapStyles: BasemapStyle[] = [
   },
 ];
 
+/**
+ * Global a Playwright run sets to a MapLibre style (`testing/basemap-fixture.js`
+ * holds the same name); every basemap id then returns that style.
+ */
+const BASEMAP_OVERRIDE_GLOBAL = '__GTFS_ZONE_BASEMAP_OVERRIDE__';
+
+function basemapOverride(): Record<string, unknown> | undefined {
+  return (globalThis as Record<string, unknown>)[BASEMAP_OVERRIDE_GLOBAL] as
+    Record<string, unknown> | undefined;
+}
+
 export function getBasemapStyle(id: string): BasemapStyle | undefined {
-  return basemapStyles.find((style) => style.id === id);
+  const found = basemapStyles.find((style) => style.id === id);
+  const override = basemapOverride();
+  if (found && override) {
+    console.log(`[basemap] ${id} replaced by the test override style`);
+    return { ...found, style: override };
+  }
+  return found;
 }

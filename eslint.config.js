@@ -69,6 +69,32 @@ export default tseslint.config(
     },
   },
   {
+    // Test kit: Node-side Playwright and Vitest config, plus callbacks that run in the page.
+    files: ['src/testing/**/*.js', 'vitest.config.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        globalThis: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-var': 'error',
+      eqeqeq: ['error', 'always'],
+      curly: ['error', 'all'],
+    },
+  },
+  {
     ignores: ['node_modules/'],
   }
 );
