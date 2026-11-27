@@ -21,6 +21,16 @@ export const fr: Translation<typeof en> = {
 
   'shell.search': 'Rechercher',
   'shell.logoAlt': 'Logo {host}',
+  'shell.tools': 'Outils gtfs.zone',
+  'shell.versions': 'Versions',
+  'shell.currentVersion': '{version} (celle-ci)',
+  'tool.home': 'le projet et le rôle de chaque outil',
+  'tool.edit': 'modifier un flux GTFS dans le navigateur',
+  'tool.vizRt': 'voir un flux GTFS Realtime sur la carte',
+  'tool.diff': 'comparer deux flux GTFS',
+  'tool.sites': "sites d'horaires générés à partir de GTFS",
+  'tool.accuracyRt': 'mesurer la précision des prévisions en temps réel',
+  'tool.manageRt': 'gérer votre propre flux temps réel (compte requis)',
   'breadcrumb.label': "Fil d'Ariane",
 
   'crumb.agency': 'Opérateur',

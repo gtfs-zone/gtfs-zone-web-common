@@ -8,13 +8,20 @@
  * `#mobile-dock`), `panel-resizer` (`#panel-resizer`, `.app-container`) and
  * `navbar-actions` (`#navbar-actions`, the dock button ids).
  *
+ * The brand (logo and host) opens the tool switcher: every tool in
+ * `tools.json`, then the version this deploy runs and the kept versions listed
+ * in `/versions.json`. The version section stays hidden while that file is
+ * missing, as it is on the dev server.
+ *
  * Mount it before anything looks those ids up: in practice, from a module the
  * app's entry point imports first, since imported modules are evaluated before
  * the entry's own body.
  */
 
+import { z } from 'zod';
 import { escapeHtml } from '../util/escape-html';
 import { t } from '../i18n/messages';
+import { TOOLS, findToolByHost, toolDescription } from './tools';
 
 /** One mobile dock button. Its icon is filled by `renderDockIcons`. */
 export interface ShellDockButton {
@@ -37,6 +44,11 @@ export interface AppShellOptions {
   brandPrefix: string;
   /** The rest of the host name, e.g. `.rt.gtfs.zone`. */
   brandSuffix: string;
+  /**
+   * The version this build runs, e.g. `v0.47.0`. Shown after the host and at
+   * the top of the version section. Omit to fill `#app-version` yourself.
+   */
+  version?: string;
   /** Markup placed before `#navbar-actions`, e.g. an extra dropdown. */
   navbarExtra?: string;
   /** Markup appended to `#map-controls` after the auto-zoom toggle. */
@@ -56,6 +68,53 @@ function renderDockButton(button: ShellDockButton): string {
   return `<button id="${button.id}"${cls} aria-label="${aria}">${badge}<span class="dock-label">${escapeHtml(button.label)}</span></button>`;
 }
 
+/** Where a deploy lists its kept versions (written by the deploy workflow). */
+const VERSIONS_URL = '/versions.json';
+
+const versionsSchema = z.object({
+  versions: z.array(z.object({ version: z.string().min(1), url: z.url() })),
+});
+
+type KeptVersion = z.infer<typeof versionsSchema>['versions'][number];
+
+/** The tool list: the current one marked, the others opening in this tab. */
+function renderToolItems(host: string): string {
+  const current = findToolByHost(host);
+  if (!current) {
+    console.warn(`[AppShell] ${host} is not in tools.json`);
+  }
+  return TOOLS.map((tool) => {
+    const active = tool.id === current?.id;
+    const attrs = active ? ' class="menu-active" aria-current="page"' : '';
+    return `<li><a href="${escapeHtml(tool.url)}"${attrs}><span class="flex flex-col items-start gap-0.5"><span class="font-semibold">${escapeHtml(tool.host)}</span><span class="text-xs opacity-70">${escapeHtml(toolDescription(tool.id))}</span></span></a></li>`;
+  }).join('');
+}
+
+function renderToolMenu(opts: AppShellOptions, host: string): string {
+  const version = opts.version ? escapeHtml(opts.version) : '';
+  return `
+    <div class="dropdown dropdown-hover">
+      <div tabindex="0" role="button" class="flex items-center gap-4 cursor-pointer" aria-haspopup="menu" aria-label="${escapeHtml(t('shell.tools'))}">
+        <div class="avatar">
+          <div class="w-8 rounded-lg"><img src="logo.svg" alt="${escapeHtml(t('shell.logoAlt', { host }))}" /></div>
+        </div>
+        <div class="text-xl font-bold hidden md:block">
+          <span class="text-primary">${escapeHtml(opts.brandPrefix)}</span>${escapeHtml(opts.brandSuffix)}<sup id="app-version" class="text-xs opacity-50 font-normal ml-1">${version}</sup>
+        </div>
+      </div>
+      <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-[60] w-80 max-w-[calc(100vw-1rem)] p-2 shadow-lg">
+        <li>
+          <h2 class="menu-title">${escapeHtml(t('shell.tools'))}</h2>
+          <ul>${renderToolItems(host)}</ul>
+        </li>
+        <li id="app-versions" class="hidden">
+          <h2 class="menu-title">${escapeHtml(t('shell.versions'))}</h2>
+          <ul id="app-versions-list"></ul>
+        </li>
+      </ul>
+    </div>`;
+}
+
 function renderAppShell(opts: AppShellOptions): string {
   const host = `${opts.brandPrefix}${opts.brandSuffix}`;
   const dock = opts.dock
@@ -68,14 +127,7 @@ function renderAppShell(opts: AppShellOptions): string {
     <div class="app-container h-screen grid grid-rows-[auto_1fr]">
       <div class="navbar bg-base-100 col-span-2 border-b border-base-300 z-50">
         <div class="navbar-start">
-          <a href="https://gtfs.zone" class="flex items-center gap-4" target="_blank" rel="noopener noreferrer">
-            <div class="avatar">
-              <div class="w-8 rounded-lg"><img src="logo.svg" alt="${escapeHtml(t('shell.logoAlt', { host }))}" /></div>
-            </div>
-            <div class="text-xl font-bold hidden md:block">
-              <span class="text-primary">${escapeHtml(opts.brandPrefix)}</span>${escapeHtml(opts.brandSuffix)}<sup id="app-version" class="text-xs opacity-50 font-normal ml-1"></sup>
-            </div>
-          </a>
+          ${renderToolMenu(opts, host)}
         </div>
         <div class="navbar-end">
           <div class="flex items-center gap-2">
@@ -111,7 +163,58 @@ function renderAppShell(opts: AppShellOptions): string {
     ${dock}`;
 }
 
+/** Read `/versions.json`; null when the deploy has none. */
+async function fetchKeptVersions(): Promise<KeptVersion[] | null> {
+  let res: Response;
+  try {
+    res = await fetch(VERSIONS_URL, { cache: 'no-cache' });
+  } catch (err) {
+    console.warn('[AppShell] versions.json fetch failed', err);
+    return null;
+  }
+  // The dev server answers an unknown path with index.html.
+  const type = res.headers.get('content-type') ?? '';
+  if (!res.ok || !type.includes('json')) {
+    console.log('[AppShell] no versions.json, version section hidden');
+    return null;
+  }
+  const parsed = versionsSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    console.warn('[AppShell] versions.json is malformed', parsed.error);
+    return null;
+  }
+  return parsed.data.versions;
+}
+
+/** Fill and show the version section once `/versions.json` answers. */
+async function renderVersions(current: string | undefined): Promise<void> {
+  const versions = await fetchKeptVersions();
+  const section = document.getElementById('app-versions');
+  const list = document.getElementById('app-versions-list');
+  if (!versions || !section || !list) {
+    return;
+  }
+  const items: string[] = [];
+  if (current) {
+    items.push(
+      `<li><span class="menu-active" aria-current="true">${escapeHtml(t('shell.currentVersion', { version: current }))}</span></li>`
+    );
+  }
+  for (const kept of versions) {
+    if (kept.version === current) {
+      continue;
+    }
+    items.push(
+      `<li><a href="${escapeHtml(kept.url)}">${escapeHtml(kept.version)}</a></li>`
+    );
+  }
+  list.innerHTML = items.join('');
+  section.classList.toggle('hidden', items.length === 0);
+  console.log(`[AppShell] ${versions.length} kept versions listed`);
+}
+
 /** Insert the shell at the top of `<body>`. */
 export function mountAppShell(opts: AppShellOptions): void {
   document.body.insertAdjacentHTML('afterbegin', renderAppShell(opts));
+  void renderVersions(opts.version);
 }

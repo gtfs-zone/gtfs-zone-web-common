@@ -139,6 +139,13 @@ The layout every app shares, in four parts that go together:
   auto-zoom toggle, the resizable right panel with `#panel-content`, and an
   optional mobile dock. Its element ids are what `search-controller`,
   `bottom-sheet`, `panel-resizer` and `navbar-actions` bind to.
+- The navbar brand (logo and host) is the tool switcher, a daisyUI
+  `dropdown-hover` (hover on desktop, tap or focus on touch and keyboard). It
+  lists every tool in `src/tools.json`, read through `ui/tools.ts`, with the
+  current one marked, then a version section: the `version` passed to
+  `mountAppShell` and the kept versions in the deploy's `/versions.json`
+  (`{ "versions": [{ "version", "url" }] }`). The section stays hidden when
+  that file is missing, as on the dev server.
 - `ui/app-shell.css` styles it: the map/panel grid, the <=767px bottom-sheet
   drawer and the map controls. Imported from the app's stylesheet.
 - `ui/page-state-manager.ts` owns the current page state, its history and the

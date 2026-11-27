@@ -18,6 +18,16 @@ export const en = {
 
   'shell.search': 'Search',
   'shell.logoAlt': '{host} logo',
+  'shell.tools': 'gtfs.zone tools',
+  'shell.versions': 'Versions',
+  'shell.currentVersion': '{version} (this one)',
+  'tool.home': 'the project and what each tool does',
+  'tool.edit': 'edit a GTFS feed in the browser',
+  'tool.vizRt': 'see a GTFS Realtime feed on the map',
+  'tool.diff': 'compare two GTFS feeds',
+  'tool.sites': 'timetable websites built from GTFS',
+  'tool.accuracyRt': 'measure how accurate realtime predictions are',
+  'tool.manageRt': 'run your own realtime feed (needs an account)',
   'breadcrumb.label': 'Breadcrumb',
 
   'crumb.agency': 'Agency',

@@ -1,0 +1,9 @@
+[
+  { "id": "home", "host": "gtfs.zone", "url": "https://gtfs.zone" },
+  { "id": "edit", "host": "edit.gtfs.zone", "url": "https://edit.gtfs.zone" },
+  { "id": "viz-rt", "host": "viz.rt.gtfs.zone", "url": "https://viz.rt.gtfs.zone" },
+  { "id": "diff", "host": "diff.gtfs.zone", "url": "https://diff.gtfs.zone" },
+  { "id": "sites", "host": "sites.gtfs.zone", "url": "https://sites.gtfs.zone" },
+  { "id": "accuracy-rt", "host": "accuracy.rt.gtfs.zone", "url": "https://accuracy.rt.gtfs.zone" },
+  { "id": "manage-rt", "host": "manage.rt.gtfs.zone", "url": "https://manage.rt.gtfs.zone" }
+]
