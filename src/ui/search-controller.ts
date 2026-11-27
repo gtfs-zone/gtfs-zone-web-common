@@ -208,6 +208,28 @@ export class SearchController<T> {
     });
   }
 
+  /**
+   * Focus the search box, on viewports with a fine pointer and hover only, so
+   * a touch device does not open its keyboard. Does nothing when another
+   * element already holds focus. The app calls it once its initial page state
+   * is known, and only when that state opens no page or modal.
+   */
+  focusAtBoot(): void {
+    if (!this.input) {
+      return;
+    }
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      console.log('[Search] boot focus skipped: touch viewport');
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active !== document.body) {
+      console.log('[Search] boot focus skipped: focus already taken');
+      return;
+    }
+    this.input.focus();
+  }
+
   clearSearch(): void {
     if (this.input) {
       this.input.value = '';
