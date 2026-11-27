@@ -7,43 +7,69 @@
   "packageManager": "pnpm@11.20.0",
   "files": [
     "bin",
+    "fixtures",
     "src",
     "scripts"
   ],
+  "exports": {
+    "./testing/*": "./src/testing/*",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/ scripts/ tests/ --max-warnings 0",
-    "lint:fix": "eslint src/ scripts/ tests/ --fix",
+    "lint": "eslint src/ scripts/ tests/ vitest.config.js --max-warnings 0",
+    "lint:fix": "eslint src/ scripts/ tests/ vitest.config.js --fix",
     "format": "prettier --write src/ scripts/ tests/",
     "check:exports": "tsx scripts/check-exports.ts",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "vitest run",
     "knip": "knip",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run check:exports && pnpm run test && pnpm run check-spec",
     "commit": "cz commit",
     "vuln": "sh scripts/vuln-gate.sh",
-    "check-spec": "tsx scripts/check-spec.ts"
+    "check-spec": "tsx scripts/check-spec.ts",
+    "fixtures:feeds": "tsx scripts/fixtures/build-demo-feed.ts && tsx scripts/fixtures/build-synthetic-feed.ts && tsx scripts/fixtures/write-checksums.ts",
+    "fixtures:basemap": "tsx scripts/fixtures/build-basemap.ts && tsx scripts/fixtures/write-checksums.ts"
   },
   "peerDependencies": {
+    "@argos-ci/playwright": "*",
     "@leeoniya/ufuzzy": "*",
     "@maplibre/geojson-vt": "*",
     "@maplibre/vt-pbf": "*",
+    "@playwright/test": "*",
     "fflate": "*",
     "gtfs-realtime-bindings": "*",
     "gtfs-zone-vocab": "*",
     "maplibre-gl": ">=6.11.2 <7",
     "papaparse": "*",
+    "pmtiles": "*",
+    "vitest": "*",
     "zod": "*"
   },
   "peerDependenciesMeta": {
+    "@argos-ci/playwright": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    },
     "gtfs-realtime-bindings": {
+      "optional": true
+    },
+    "pmtiles": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@argos-ci/playwright": "^7.10.2",
     "@eslint/js": "^10.0.1",
     "@leeoniya/ufuzzy": "^1.0.19",
     "@maplibre/geojson-vt": "^6.1.1",
     "@maplibre/vt-pbf": "^4.3.2",
+    "@playwright/test": "^1.65.1",
+    "@protomaps/basemaps": "^5.7.2",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.6.3",
     "@types/papaparse": "^5.5.2",
@@ -55,10 +81,12 @@
     "knip": "^6.39.0",
     "maplibre-gl": "^6.11",
     "papaparse": "^5.7.0",
+    "pmtiles": "^4.5.0",
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
+    "vitest": "^5.1.2",
     "zod": "^4.6.7"
   }
 }

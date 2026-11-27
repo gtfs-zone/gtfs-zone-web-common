@@ -130,10 +130,10 @@ commit (setup in [CONTRIBUTING.md](CONTRIBUTING.md)).
 | script | what it does |
 | --- | --- |
 | `typecheck` | `tsc --noEmit` over `src/` and `scripts/` |
-| `lint` | `eslint src/ scripts/ tests/ --max-warnings 0` |
+| `lint` | `eslint src/ scripts/ tests/ vitest.config.js --max-warnings 0` |
 | `knip` | reports unused files and dependencies |
 | `check:exports` | reports exports no consumer imports |
-| `test` | unit tests under `tests/`, on Node's built-in runner |
+| `test` | unit tests under `tests/`, on Vitest (`src/testing/vitest-preset.js`) |
 | `check-spec` | diffs `src/gtfs/spec/` against the reference snapshots |
 
 `format` runs prettier over the same directories.
@@ -157,11 +157,52 @@ src/ui/     chrome that knows nothing about GTFS
 src/gtfs/   the transit domain, including its own rendering
 src/map/    everything that imports maplibre-gl
 src/util/   pure, domain-free
+src/testing/  Playwright and Vitest presets and helpers (plain JS, see Test kit)
+fixtures/   feeds and basemap the test kit serves, pinned in SHA256SUMS
 ```
 
 No barrel `index.ts` files: every module is its own entry point, imported as
 `gtfs-zone-web-common/ui/navbar-actions` and resolved through each consumer's tsconfig
 path and vite alias.
+
+## Test kit
+
+`src/testing/` is what the apps' specs build on. It is plain ESM JavaScript
+with JSDoc types, checked here by `tsc` (`checkJs`): Playwright and Node do not
+transpile TypeScript under `node_modules`, where a consumer's copy lives. It is
+imported through the `exports` entry, which also matches the consumer's
+tsconfig path, with the `.js` extension:
+`gtfs-zone-web-common/testing/helpers.js`. A consumer's e2e tsconfig needs
+`allowJs: true` to pick up the JSDoc types. `@playwright/test`,
+`@argos-ci/playwright`, `pmtiles` and `vitest` are optional peers: an app that
+runs the kit installs them itself.
+
+| module | what it gives |
+| --- | --- |
+| `playwright-preset.js` | `playwrightPreset({ port, testDir, webServerCommand, overrides })`: light, dark and `@mobile` projects, 1600x1000 at scale 1 (mobile 390x844 at 2), `en-US`, `America/New_York`, reduced motion, `pnpm run build` then `vite preview` as the web server, the Argos reporter (uploads only when `CI` is set) |
+| `helpers.js` | `fixturePath` (checks the file against `SHA256SUMS`), `FEEDS`, `mbtaDemoManifest`, `preparePage` (theme of the project, seen help pages, `freezeClock` at `FIXTURE_NOW`, `useFixtureBasemap`), `loadFeedFile` (the shared load modal), `waitForMapIdle(page, 'path.to.map')`, `screenshot` (`argosScreenshot` with animations off, the mouse parked, `VOLATILE_UI` hidden) |
+| `vitest-preset.js` | `vitestPreset(overrides)`: node environment, `tests/**/*.test.ts` and `src/**/*.test.ts`, this package inlined so Vite transforms its TypeScript; merge it over the app's Vite config for the aliases |
+
+Fixtures, all pinned by sha256 in `fixtures/SHA256SUMS` (`tests/fixtures.test.ts`
+checks every file and that the list is complete):
+
+- `feeds/mbta-demo.zip`: typical patterns of the MBTA feed, a few trips per
+  pattern on one weekday, Saturday and Sunday of a reference week, plus the
+  Charles/MGH station with every pathway; `feeds/mbta-demo.manifest.json`
+  holds the IDs and dates specs deep-link to. `pnpm fixtures:feeds` rebuilds
+  it from the cached MBTA download (`--refresh` on the builder downloads a new
+  one, which changes the output).
+- `feeds/synthetic-demo.zip`: generated, so the same on every run: one
+  frequent bus line and an on-demand route over two zones.
+- `basemap/`: a Protomaps vector extract to z10 around the MBTA feed, light and
+  dark styles from `@protomaps/basemaps`, and the glyphs and sprites they use.
+  `useFixtureBasemap` serves it on `https://basemap.fixture.test` through
+  `page.route` and sets the global `getBasemapStyle` honours, so every basemap
+  in an app that builds its map from `initialMapStyle` or `BasemapControl`
+  becomes the fixture. MapLibre overzooms past z10. `pnpm fixtures:basemap`
+  rebuilds it; it needs the `pmtiles` CLI (go-pmtiles) on `PATH`.
+
+Rebuilding a fixture rewrites `SHA256SUMS`; commit both.
 
 ## App shell
 

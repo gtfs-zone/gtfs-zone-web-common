@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { strToU8, zipSync } from 'fflate';
 import Papa from 'papaparse';
